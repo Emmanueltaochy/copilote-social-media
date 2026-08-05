@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Taochy Pilot — design tokens (§7 of the design spec)
+   Every value below is lifted from the prototype. Screens use these
+   tokens, never raw hex.
+------------------------------------------------------------------- */
+@theme {
+  /* Surfaces */
+  --color-canvas: #faf9f7;
+  --color-paper: #ffffff;
+  --color-mute: #f4f3f0;
+  --color-slot: #f0eeea;
+  --color-gold-wash: #fbf3e0;
+
+  /* Lines */
+  --color-line: #e8e6e1;
+  --color-line-strong: #d5d2cc;
+
+  /* Ink */
+  --color-ink: #121212;
+  --color-ink-2: #575652;
+  --color-ink-3: #8b8983;
+
+  /* Dark chrome (sidebar, report header) */
+  --color-night: #121212;
+  --color-night-2: #1f1f1e;
+  --color-night-line: #2a2a28;
+  --color-night-border: #333330;
+  --color-night-ink: #d5d2cc;
+
+  /* Accent */
+  --color-gold: #a67c1a;
+
+  /* Semantic */
+  --color-alert: #d33a3f;
+  --color-alert-bg: #fceeef;
+  --color-alert-line: #f0c9cb;
+  --color-alert-wash: #fcf7f7;
+  --color-warn: #c2410c;
+  --color-warn-bg: #fdede5;
+  --color-ok: #1f9d5a;
+  --color-ok-bg: #f1f8f3;
+  --color-info: #3a66d6;
+  --color-info-bg: #edf1fc;
+
+  /* Type scale — 6 sizes, no more */
+  --text-micro: 11px;
+  --text-micro--line-height: 1.4;
+  --text-small: 12px;
+  --text-small--line-height: 1.4;
+  --text-base: 13px;
+  --text-base--line-height: 1.5;
+  --text-lead: 15px;
+  --text-lead--line-height: 1.4;
+  --text-title: 18px;
+  --text-title--line-height: 1.4;
+  --text-display: 24px;
+  --text-display--line-height: 1.3;
+
+  /* Radii */
+  --radius-control: 6px;
+  --radius-card: 8px;
+
+  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--color-gold);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--color-ink);
+    text-decoration: underline;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 999px;
+    border: 3px solid var(--color-canvas);
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+/* Section label: 11px / 600 / 0.08em / uppercase — on every screen. */
+@utility eyebrow {
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* One-line truncation, used in every dense table cell. */
+@utility clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

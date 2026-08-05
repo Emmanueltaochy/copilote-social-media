@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #FAF9F7; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #A67C1A; text-decoration: none; }
+  a:hover { color: #121212; text-decoration: underline; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#FAF9F7;color:#121212;font-family:Inter,system-ui,sans-serif;padding:48px 40px 80px;display:flex;justify-content:center">
+<div style="width:100%;max-width:1180px;display:flex;flex-direction:column;gap:40px">
+
+  <header style="display:flex;flex-direction:column;gap:12px;border-bottom:1px solid #E8E6E1;padding-bottom:24px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="width:10px;height:10px;background:#A67C1A;border-radius:2px"></span>
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Taochy Pilot · Chapitre 00</span>
+    </div>
+    <h1 style="margin:0;font-size:24px;font-weight:600;line-height:1.4;letter-spacing:-0.01em">Plan de design</h1>
+    <p style="margin:0;font-size:15px;line-height:1.5;color:#575652;max-width:720px;text-wrap:pretty">Palette retenue, hiérarchie typographique, concept de navigation et proposition pour la barre de pilotage. À valider avant de produire les écrans de priorité 1.</p>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">01</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">Palette — tokens exploitables tels quels</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E8E6E1;border:1px solid #E8E6E1;border-radius:8px;overflow:hidden">
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#FAF9F7;border:1px solid #E8E6E1"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--canvas</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#FAF9F7 · fond app</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#FFFFFF;border:1px solid #E8E6E1"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--paper</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#FFFFFF · cartes</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#E8E6E1"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--line</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#E8E6E1 · séparateurs</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#D5D2CC"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--line-strong</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#D5D2CC · en-têtes</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#121212"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--ink-900</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#121212 · texte, sidebar</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#575652"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--ink-600</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#575652 · secondaire</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#8B8983"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--ink-400</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#8B8983 · tertiaire</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#A67C1A"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--gold</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#A67C1A · repère, focus</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#FBF3E0;border:1px solid #E8E6E1"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--gold-soft</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#FBF3E0 · sélection</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#1F9D5A"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--ok</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#1F9D5A · en avance</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#C2410C"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--warn</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#C2410C · à risque</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#D33A3F"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--alert</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#D33A3F · en retard</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#3A66D6"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--info</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#3A66D6 · programmé</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:44px;border-radius:6px;background:#6B5BD6"></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">--data</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">#6B5BD6 · ads</span></div>
+      </div>
+      <div style="background:#FFFFFF;padding:16px;display:flex;flex-direction:column;gap:8px;grid-column:span 2">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Doses</span>
+        <div style="display:flex;height:12px;border-radius:999px;overflow:hidden;border:1px solid #E8E6E1">
+          <div style="flex:85;background:#FAF9F7"></div>
+          <div style="flex:12;background:#121212"></div>
+          <div style="flex:2;background:#A67C1A"></div>
+          <div style="flex:1;background:#D33A3F"></div>
+        </div>
+        <span style="font-size:12px;color:#575652;line-height:1.4">85 % papier · 13 % encre · &lt; 2 % or · statuts en pastille uniquement</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">02</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">Hiérarchie typographique — Inter, un seul système</h2>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;display:grid;grid-template-columns:minmax(0,1fr) 300px">
+      <div style="display:flex;flex-direction:column;border-right:1px solid #E8E6E1">
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">24 / 600</span>
+          <span style="font-size:24px;font-weight:600;line-height:1.4;letter-spacing:-0.01em">Cockpit agence</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">18 / 600</span>
+          <span style="font-size:18px;font-weight:600;line-height:1.4">Approbations en attente</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">15 / 500</span>
+          <span style="font-size:15px;font-weight:500;line-height:1.4">Cap Marine · Reel « Sortie coucher de soleil »</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">13 / 400</span>
+          <span style="font-size:13px;font-weight:400;line-height:1.4;color:#121212">Corps de tableau, libellés de champs, légendes de contenu.</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">12 / 400</span>
+          <span style="font-size:12px;line-height:1.4;color:#575652">Métadonnées · Mis à jour il y a 3 jours par Samir</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:24px;padding:14px 20px">
+          <span style="width:120px;flex:none;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983;font-variant-numeric:tabular-nums">11 / 600</span>
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#575652">Eyebrow · en-tête de colonne</span>
+        </div>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Chiffres alignés</span>
+        <div style="display:flex;flex-direction:column;gap:6px;font-variant-numeric:tabular-nums">
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Budget ads</span><span style="font-weight:500">3 500 €</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">CPL</span><span style="font-weight:500">11,40 €</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">ROAS</span><span style="font-weight:500">4,20</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Contenus</span><span style="font-weight:500">7/12</span></div>
+        </div>
+        <p style="margin:0;font-size:12px;line-height:1.4;color:#8B8983;text-wrap:pretty">tabular-nums appliqué à tous les chiffres. Interligne 1,4. Grille 8px, rangées 40–44px.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">03</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">Concept de navigation</h2>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
+      <div style="flex:1 1 720px;min-width:720px;background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;overflow:hidden;display:flex;height:564px">
+        <div style="width:216px;flex:none;background:#121212;display:flex;flex-direction:column;padding:12px 10px;gap:14px">
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 6px">
+            <span style="width:8px;height:8px;background:#A67C1A;border-radius:2px"></span>
+            <span style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF">Taochy Pilot</span>
+          </div>
+          <div style="border:1px solid #575652;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Client</span>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:13px;font-weight:500;color:#FFFFFF">Tous les clients</span>
+              <span style="font-size:11px;color:#8B8983">⌘K</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;background:#1F1F1E;position:relative">
+              <span style="position:absolute;left:0;top:8px;bottom:8px;width:2px;background:#A67C1A;border-radius:999px"></span>
+              <span style="font-size:13px;font-weight:500;color:#FFFFFF">Cockpit</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Calendrier</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Production</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">24</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Approbations</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">6</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">À publier</span><span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">3</span></div>
+            <div style="display:flex;align-items:center;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Tournages</span></div>
+            <div style="display:flex;align-items:center;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Assets</span></div>
+            <div style="display:flex;align-items:center;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Ads</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Rapports</span><span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Stats</span></div>
+            <div style="display:flex;align-items:center;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Clients</span></div>
+            <div style="display:flex;align-items:center;padding:8px 10px;border-radius:6px"><span style="font-size:13px;color:#D5D2CC">Rentabilité</span></div>
+          </div>
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-top:1px solid #333">
+            <span style="font-size:13px;color:#D5D2CC">Emmanuel</span>
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Dir.</span>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;background:#FAF9F7;min-width:0">
+          <div style="height:52px;flex:none;background:#FFFFFF;border-bottom:1px solid #E8E6E1;display:flex;align-items:center;justify-content:space-between;padding:0 16px">
+            <div style="display:flex;flex-direction:column">
+              <span style="font-size:15px;font-weight:600">Cockpit agence</span>
+              <span style="font-size:12px;color:#8B8983">Mardi 4 août · jour 4/31</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <span style="font-size:12px;font-weight:500;color:#575652;border:1px solid #E8E6E1;border-radius:6px;padding:6px 10px">Filtres</span>
+              <span style="font-size:12px;font-weight:500;color:#FFFFFF;background:#121212;border-radius:6px;padding:6px 10px">Nouveau contenu</span>
+            </div>
+          </div>
+          <div style="flex:1;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0">
+            <div style="height:96px;background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;display:flex;align-items:center;padding:0 14px;gap:10px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Zone 1 · Pilotage clients</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1">
+              <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:14px"><span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Zone 2 · Ce qui bloque</span></div>
+              <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:14px"><span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Zone 3 · Aujourd'hui</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 300px;min-width:300px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Trois niveaux, pas quatre</span>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty"><strong style="color:#121212;font-weight:500">1. Barre latérale encre</strong> — modules, badges de charge, sélecteur de client en haut qui filtre toute l'application.</p>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty"><strong style="color:#121212;font-weight:500">2. Barre de contexte</strong> — titre, date de pilotage, filtres persistants, action primaire noire à droite.</p>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty"><strong style="color:#121212;font-weight:500">3. Panneau latéral droit</strong> — le détail s'ouvre sans quitter la liste : contenu, tournage, asset, copilote.</p>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Portail client · densité chiffrée</span>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty">Pas de barre latérale. Une en-tête blanche au nom du client, la même barre de pilotage en lecture seule, mêmes tokens.</p>
+          <div style="display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums">
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Rangées</span><span style="font-weight:500">64px (vs. 40–44px)</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Corps</span><span style="font-weight:500">15px (vs. 13px)</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Gouttière de carte</span><span style="font-weight:500">24px (vs. 14px)</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#575652">Actions par écran</span><span style="font-weight:500">3 maximum</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">04</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">PacingBar — la barre de pilotage</h2>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Anatomie</span>
+          <div style="position:relative;padding-top:22px;padding-bottom:26px">
+            <div style="position:absolute;left:calc(67.7% - 1px);top:0;width:2px;height:16px;background:#A67C1A"></div>
+            <div style="position:absolute;left:67.7%;top:0;transform:translateX(-100%) translateX(-8px);text-align:right;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#A67C1A;white-space:nowrap">Attendu aujourd'hui · 8,1</div>
+            <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px;overflow:visible">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:58.3%;background:#575652;border-radius:999px"></div>
+              <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+            </div>
+            <div style="position:absolute;left:0;bottom:0;font-size:12px;color:#8B8983">0</div>
+            <div style="position:absolute;left:58.3%;bottom:0;transform:translateX(-50%);font-size:12px;font-weight:500;color:#121212;font-variant-numeric:tabular-nums">réalisé 7</div>
+            <div style="position:absolute;right:0;bottom:0;font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">engagement 12</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;border-left:1px solid #E8E6E1;padding-left:20px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Calcul</span>
+          <span style="font-size:13px;color:#575652;font-variant-numeric:tabular-nums;line-height:1.5">attendu = 12 × (21 / 31) = 8,1</span>
+          <span style="font-size:13px;color:#575652;font-variant-numeric:tabular-nums;line-height:1.5">écart = (7 − 8,1) / 8,1 = −14 %</span>
+          <span style="font-size:13px;font-weight:500;color:#C2410C;line-height:1.5">→ À risque</span>
+        </div>
+      </div>
+
+      <div style="height:1px;background:#E8E6E1"></div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Quatre états · exemple au 21 du mois</span>
+        <div style="display:flex;flex-direction:column">
+
+          <div style="display:grid;grid-template-columns:180px minmax(0,1fr) 240px;gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid #E8E6E1">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:6px;height:6px;border-radius:999px;background:#1F9D5A;flex:none"></span>
+              <span style="font-size:13px;font-weight:500">AC Gym</span>
+            </div>
+            <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:87.5%;background:#575652;border-radius:999px"></div>
+              <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;font-variant-numeric:tabular-nums">
+              <span style="font-size:13px;color:#575652">14/16 publiés · +3 vs. objectif</span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#1F9D5A;background:#F1F8F3;border-radius:999px;padding:3px 8px;white-space:nowrap">En avance</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:180px minmax(0,1fr) 240px;gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid #E8E6E1">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:6px;height:6px;border-radius:999px;background:transparent;border:1px solid #575652;box-sizing:border-box;flex:none"></span>
+              <span style="font-size:13px;font-weight:500">Pitaya</span>
+            </div>
+            <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:68.7%;background:#575652;border-radius:999px"></div>
+              <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;font-variant-numeric:tabular-nums">
+              <span style="font-size:13px;color:#575652">11/16 publiés · au rythme</span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#575652;background:#F4F3F0;border-radius:999px;padding:3px 8px;white-space:nowrap">Dans les temps</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:180px minmax(0,1fr) 240px;gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid #E8E6E1">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:6px;height:6px;border-radius:999px;background:#C2410C;flex:none"></span>
+              <span style="font-size:13px;font-weight:500">Cap Marine</span>
+            </div>
+            <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:58.3%;background:#575652;border-radius:999px"></div>
+              <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;font-variant-numeric:tabular-nums">
+              <span style="font-size:13px;color:#575652">7/12 publiés · −1 vs. objectif</span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#C2410C;background:#FDEDE5;border-radius:999px;padding:3px 8px;white-space:nowrap">À risque</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:180px minmax(0,1fr) 240px;gap:20px;align-items:center;padding:14px 0">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:6px;height:6px;border-radius:999px;background:#D33A3F;flex:none"></span>
+              <span style="font-size:13px;font-weight:500">Swap'Îles</span>
+            </div>
+            <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:33.3%;background:#575652;border-radius:999px"></div>
+              <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;font-variant-numeric:tabular-nums">
+              <span style="font-size:13px;color:#575652">4/12 publiés · −4 vs. objectif</span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#D33A3F;background:#FCEEEF;border-radius:999px;padding:3px 8px;white-space:nowrap">En retard</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div style="height:1px;background:#E8E6E1"></div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Densité sm · rangée de tableau</span>
+          <div style="position:relative;height:4px;background:#F0EEEA;border-radius:999px">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:58.3%;background:#575652;border-radius:999px"></div>
+            <div style="position:absolute;left:calc(67.7% - 1px);top:-3px;bottom:-3px;width:2px;background:#A67C1A"></div>
+          </div>
+          <span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">7/12 · −14 %</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Densité md · cockpit</span>
+          <div style="position:relative;height:8px;background:#F0EEEA;border-radius:999px">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:58.3%;background:#575652;border-radius:999px"></div>
+            <div style="position:absolute;left:calc(67.7% - 1.5px);top:-5px;bottom:-5px;width:3px;background:#A67C1A;border-radius:999px"></div>
+          </div>
+          <span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">7/12 publiés · −1 vs. objectif</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Densité lg · portail, ads, rapport</span>
+          <div style="position:relative;height:14px;background:#F0EEEA;border-radius:999px">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:58.3%;background:#575652;border-radius:999px"></div>
+            <div style="position:absolute;left:calc(67.7% - 2px);top:-6px;bottom:-6px;width:4px;background:#A67C1A;border-radius:999px"></div>
+          </div>
+          <span style="font-size:12px;color:#8B8983;font-variant-numeric:tabular-nums">7 contenus sur 12 · 1 de retard sur le rythme</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">05</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">Trois partis pris à valider</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#A67C1A">Proposition 1</span>
+        <span style="font-size:15px;font-weight:500;line-height:1.4">Le repère or reste fin, la couleur d'état passe dans la pastille</span>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty">Le remplissage reste gris foncé dans les quatre états, comme demandé. L'état se lit sur la pastille, le point de tri et le chiffre. Résultat : une colonne de barres comparables à l'œil, pas un sapin de Noël.</p>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#A67C1A">Proposition 2</span>
+        <span style="font-size:15px;font-weight:500;line-height:1.4">Un engagement multi-lignes, une barre par ligne</span>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty">Un forfait n'est pas un nombre unique : 12 posts feed, 8 stories, 2 reels, 1 shooting. Le cockpit affiche la barre agrégée pondérée ; le suivi d'avancement la décompose ligne par ligne. Même composant, même repère.</p>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#A67C1A">Proposition 3</span>
+        <span style="font-size:15px;font-weight:500;line-height:1.4">Ajouter la projection de fin de mois</span>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#575652;text-wrap:pretty">Un liseré gris clair prolonge le remplissage jusqu'à la projection au rythme actuel. C'est ce qui transforme le constat en décision : « à ce rythme, Cap Marine finit à 10 sur 12 ». Aucune couleur ajoutée.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">06</span>
+      <h2 style="margin:0;font-size:18px;font-weight:600">Arbitrages appliqués après relecture</h2>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #E8E6E1;border-radius:8px;display:flex;flex-direction:column">
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 180px;gap:20px;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+        <span style="font-size:13px;font-weight:500">--warn décalé</span>
+        <span style="font-size:13px;line-height:1.4;color:#575652;text-wrap:pretty">L'or doit rester monosémique : il ne dit que « voici la cible ». Le warn passe du brun-doré à l'orange franc, plus aucune confusion avec le repère.</span>
+        <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;font-variant-numeric:tabular-nums">
+          <span style="width:14px;height:14px;border-radius:4px;background:#A67C1A;flex:none"></span>
+          <span style="font-size:12px;color:#8B8983">#C77B12 →</span>
+          <span style="width:14px;height:14px;border-radius:4px;background:#C2410C;flex:none"></span>
+          <span style="font-size:12px;font-weight:500">#C2410C</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 180px;gap:20px;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+        <span style="font-size:13px;font-weight:500">Rapports en navigation</span>
+        <span style="font-size:13px;line-height:1.4;color:#575652;text-wrap:pretty">Nouvelle entrée « Rapports » : rapport mensuel client et saisie des statistiques. En v1 manuelle, la saisie est un rendez-vous hebdomadaire — elle a droit à sa place dans la barre.</span>
+        <span style="font-size:12px;color:#8B8983;text-align:right">Rapports · Stats</span>
+      </div>
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 180px;gap:20px;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+        <span style="font-size:13px;font-weight:500">Compteurs sobres</span>
+        <span style="font-size:13px;line-height:1.4;color:#575652;text-wrap:pretty">« À publier · 3 » est une journée normale : compteur en --ink-400. Le rouge n'apparaît que si un contenu a dépassé son heure prévue.</span>
+        <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;font-variant-numeric:tabular-nums">
+          <span style="font-size:12px;color:#8B8983">3 normal</span>
+          <span style="font-size:12px;color:#D33A3F;font-weight:500">1 en retard</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 180px;gap:20px;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E6E1">
+        <span style="font-size:13px;font-weight:500">Portail chiffré</span>
+        <span style="font-size:13px;line-height:1.4;color:#575652;text-wrap:pretty">« Densité divisée par deux » n'est pas implémentable : rangées 64px, corps 15px, gouttière 24px, trois actions maximum par écran.</span>
+        <span style="font-size:12px;color:#8B8983;text-align:right;font-variant-numeric:tabular-nums">64 / 15 / 24 / 3</span>
+      </div>
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 180px;gap:20px;align-items:center;padding:14px 20px">
+        <span style="font-size:13px;font-weight:500">État « dans les temps »</span>
+        <span style="font-size:13px;line-height:1.4;color:#575652;text-wrap:pretty">Le point plein gris se confondait avec les icônes inactives. Il devient un anneau : présent, mesuré, jamais confondu avec « désactivé ».</span>
+        <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+          <span style="width:6px;height:6px;border-radius:999px;background:#8B8983;flex:none"></span>
+          <span style="font-size:12px;color:#8B8983">→</span>
+          <span style="width:6px;height:6px;border-radius:999px;border:1px solid #575652;box-sizing:border-box;flex:none"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid #E8E6E1;padding-top:20px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:12px;color:#8B8983">Après validation : priorité 1 dans l'ordre — Cockpit, Calendrier, Pipeline, Détail contenu, Approbations, À publier, Portail, Ads, Suivi d'avancement.</span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B8983">Taochy Pilot · v0</span>
+  </footer>
+
+</div>
+</div>
+</x-dc>
+</body>
+</html>

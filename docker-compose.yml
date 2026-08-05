@@ -1,0 +1,33 @@
+# Déploiement sur le VPS. L'image est construite par GitHub Actions et publiée
+# sur GHCR : le VPS ne fait que la tirer, il ne compile jamais rien (un build
+# Next sur une petite machine partagée finit souvent en OOM).
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/emmanueltaochy/copilote-social-media:latest}
+    container_name: copilote-social-media
+    restart: unless-stopped
+    # N'écoute que sur la boucle locale : c'est le reverse proxy du VPS qui
+    # expose l'app au monde, en TLS. Retire "127.0.0.1:" seulement pour un
+    # test direct sur http://IP:PORT.
+    ports:
+      - "127.0.0.1:${APP_PORT:-3001}:3000"
+    environment:
+      NODE_ENV: production
+      APP_VERSION: ${APP_VERSION:-dev}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

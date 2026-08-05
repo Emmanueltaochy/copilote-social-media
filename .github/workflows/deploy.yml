@@ -1,0 +1,119 @@
+name: Deploy
+
+# Chaîne complète : push sur main -> image construite sur GitHub -> publiée sur
+# GHCR -> le VPS la tire et redémarre. Le VPS ne compile jamais.
+#
+# Secrets à créer (Settings > Secrets and variables > Actions) :
+#   VPS_HOST      IP ou domaine du VPS Hostinger
+#   VPS_USER      utilisateur SSH (ex. deploy, ou root)
+#   VPS_SSH_KEY   clé privée SSH complète, en-têtes comprises
+#   VPS_PORT      (optionnel) port SSH, 22 par défaut
+#   VPS_APP_DIR   (optionnel) chemin sur le VPS, /opt/copilote-social-media par défaut
+#
+# Voir DEPLOY.md pour la préparation du VPS.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Un seul déploiement à la fois : deux pushes rapprochés ne se marchent pas
+  # dessus sur la machine.
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Mêmes garde-fous qu'en CI : on ne construit pas une image cassée.
+      - run: npm run lint
+      - run: npx tsc --noEmit
+
+      - id: meta
+        run: |
+          echo "image=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.sha }}
+          # Le cache GitHub évite de tout recompiler à chaque push.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Déployer sur le VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          envs: GITHUB_SHA
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.VPS_APP_DIR || '/opt/copilote-social-media' }}"
+            cd "$APP_DIR"
+
+            # docker-compose.yml vit dans le repo : on le resynchronise avant
+            # de déployer, sinon un changement de compose ne partirait jamais.
+            git fetch --depth 1 origin main
+            git reset --hard origin/main
+
+            # Épingle la version déployée au commit, pour que /api/health dise
+            # la vérité et qu'un rollback soit possible.
+            sed -i "s|^APP_VERSION=.*|APP_VERSION=${GITHUB_SHA::7}|" .env
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # Attend que la sonde passe au vert avant de déclarer le succès.
+            for i in $(seq 1 30); do
+              if [ "$(docker inspect -f '{{.State.Health.Status}}' copilote-social-media)" = "healthy" ]; then
+                echo "Déploiement sain (${GITHUB_SHA::7})"
+                docker image prune -f
+                exit 0
+              fi
+              sleep 5
+            done
+
+            echo "L'app n'est pas devenue saine en 150 s — logs :"
+            docker compose logs --tail 80 app
+            exit 1
