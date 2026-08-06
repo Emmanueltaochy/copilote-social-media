@@ -169,7 +169,15 @@ if [[ -n "$EXISTING" ]]; then
   die "Rien n'a été modifié. Dis-le moi et on décide quoi faire."
 fi
 
-cat > "$VHOST" <<EOF
+# Réécrire le vhost effacerait le bloc « listen 443 » que certbot y ajoute.
+# Sans bloc HTTPS, nginx sert le site par DÉFAUT en 443 — c'est-à-dire un
+# autre site de la machine, à notre adresse. On ne réécrit donc jamais un
+# vhost existant : on met seulement le port à jour.
+if [[ -f "$VHOST" ]]; then
+  sed -i "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$PORT;|g" "$VHOST"
+  ok "Vhost existant conservé (configuration TLS intacte), port mis à jour"
+else
+  cat > "$VHOST" <<EOF
 # Taochy Pilot — généré par scripts/setup-vps.sh
 server {
     listen 80;
@@ -189,6 +197,8 @@ server {
     }
 }
 EOF
+  ok "Vhost créé"
+fi
 ln -sf "$VHOST" "/etc/nginx/sites-enabled/$DOMAIN"
 nginx -t >/dev/null 2>&1 || die "Configuration nginx invalide — rien n'a été rechargé."
 systemctl reload nginx
@@ -217,7 +227,15 @@ elif [[ -n "$SERVER_IP" && "$DOMAIN_IP" != "$SERVER_IP" ]]; then
 else
   apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
   if certbot certificates 2>/dev/null | grep -q "Domains:.*\b${DOMAIN}\b"; then
-    ok "Certificat déjà en place"
+    # Un certificat émis ne sert à rien s'il n'est plus référencé dans le
+    # vhost : les requêtes HTTPS tomberaient sur le site par défaut du serveur.
+    if grep -q "listen 443" "$VHOST"; then
+      ok "Certificat déjà en place"
+    else
+      certbot install --nginx --cert-name "$DOMAIN" >/dev/null 2>&1 \
+        && ok "Certificat réinstallé dans le vhost" \
+        || warn "Réinstallation du certificat impossible — le site répond en HTTP."
+    fi
   else
     if [[ -n "$EMAIL" ]]; then
       CERTBOT_ID=(--email "$EMAIL")
