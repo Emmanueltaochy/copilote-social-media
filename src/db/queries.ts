@@ -4,6 +4,8 @@ import { and, asc, count, desc, eq, gte, isNotNull, isNull, lt, sql as raw } fro
 import { db } from "./index";
 import {
   activity,
+  adMetrics,
+  adSets,
   campaigns,
   clients,
   comments,
@@ -284,6 +286,74 @@ export async function listCampaigns(clientId?: string) {
     .innerJoin(clients, eq(clients.id, campaigns.clientId))
     .where(clientId ? eq(campaigns.clientId, clientId) : undefined)
     .orderBy(desc(campaigns.createdAt));
+}
+
+/**
+ * Les campagnes avec les chiffres du mois courant.
+ *
+ * L'agrégat est fait en base sur les saisies hebdomadaires : additionner côté
+ * application obligerait à charger toutes les lignes de toutes les semaines
+ * pour n'en afficher que six totaux.
+ */
+export async function listCampaignsWithTotals(now: Date = new Date(), clientId?: string) {
+  const { start, end } = monthRange(now);
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+
+  const total = (col: string) => raw<number>`coalesce((
+    select sum(m.${raw.raw(col)}) from ad_metrics m
+    join ad_sets s on s.id = m.ad_set_id
+    where s.campaign_id = ${campaigns.id} and m.week_start >= ${from} and m.week_start < ${to}
+  ), 0)::int`;
+
+  return db
+    .select({
+      campaign: campaigns,
+      clientName: clients.shortName,
+      spendCents: total("spend_cents"),
+      impressions: total("impressions"),
+      clicks: total("clicks"),
+      leads: total("leads"),
+      conversions: total("conversions"),
+      revenueCents: total("revenue_cents"),
+      sets: raw<number>`(select count(*)::int from ad_sets where campaign_id = ${campaigns.id})`,
+    })
+    .from(campaigns)
+    .innerJoin(clients, eq(clients.id, campaigns.clientId))
+    .where(clientId ? eq(campaigns.clientId, clientId) : undefined)
+    .orderBy(asc(clients.shortName), desc(campaigns.createdAt));
+}
+
+export async function getCampaign(id: string) {
+  const rows = await db
+    .select({ campaign: campaigns, client: clients })
+    .from(campaigns)
+    .innerJoin(clients, eq(clients.id, campaigns.clientId))
+    .where(eq(campaigns.id, id))
+    .limit(1);
+  if (!rows[0]) return null;
+
+  const sets = await db
+    .select()
+    .from(adSets)
+    .where(eq(adSets.campaignId, id))
+    .orderBy(asc(adSets.position));
+
+  const metrics = sets.length
+    ? await db
+        .select({ metric: adMetrics, capturedByName: users.name })
+        .from(adMetrics)
+        .leftJoin(users, eq(users.id, adMetrics.capturedById))
+        .where(
+          raw`${adMetrics.adSetId} in (${raw.join(
+            sets.map((s) => raw`${s.id}::uuid`),
+            raw`, `,
+          )})`,
+        )
+        .orderBy(desc(adMetrics.weekStart))
+    : [];
+
+  return { ...rows[0], sets, metrics };
 }
 
 /* ------------------------------------------------------------ rentabilité -- */
