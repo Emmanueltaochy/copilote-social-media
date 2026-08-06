@@ -77,20 +77,30 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Déployer sur le VPS
         uses: appleboy/ssh-action@v1
+        env:
+          # Jeton temporaire, valable le temps du job : le VPS n'a donc aucun
+          # identifiant stocké et le paquet GHCR peut rester privé.
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script_stop: true
-          envs: GITHUB_SHA
+          envs: GITHUB_SHA,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.VPS_APP_DIR || '/opt/copilote-social-media' }}"
             cd "$APP_DIR"
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             # docker-compose.yml vit dans le repo : on le resynchronise avant
             # de déployer, sinon un changement de compose ne partirait jamais.
@@ -109,6 +119,7 @@ jobs:
               if [ "$(docker inspect -f '{{.State.Health.Status}}' copilote-social-media)" = "healthy" ]; then
                 echo "Déploiement sain (${GITHUB_SHA::7})"
                 docker image prune -f
+                docker logout ghcr.io >/dev/null 2>&1 || true
                 exit 0
               fi
               sleep 5
@@ -116,4 +127,5 @@ jobs:
 
             echo "L'app n'est pas devenue saine en 150 s — logs :"
             docker compose logs --tail 80 app
+            docker logout ghcr.io >/dev/null 2>&1 || true
             exit 1

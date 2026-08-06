@@ -1,177 +1,144 @@
-# Déploiement
+# Mise en ligne
 
-Chaîne : **push sur `main` → GitHub construit l'image → GHCR → le VPS la tire et
-redémarre.**
+Guide pour non-développeur. Deux copier-coller, une fois pour toutes.
 
-Le VPS ne compile jamais. Un `next build` sur une petite machine partagée
-consomme beaucoup de mémoire et peut faire tomber les autres SaaS qui tournent
-à côté — c'est pour ça que la construction se fait sur GitHub.
+Ensuite, à chaque modification : tu me dis quoi changer, je pousse, le site se
+met à jour tout seul en deux minutes.
 
----
-
-## 1. Préparer le VPS (une seule fois)
-
-En SSH sur le VPS Hostinger.
-
-### Docker
-
-```bash
-docker --version || curl -fsSL https://get.docker.com | sh
-docker compose version
-```
-
-### Récupérer le repo
-
-```bash
-sudo mkdir -p /opt/copilote-social-media
-sudo chown "$USER":"$USER" /opt/copilote-social-media
-git clone https://github.com/Emmanueltaochy/copilote-social-media.git /opt/copilote-social-media
-cd /opt/copilote-social-media
-```
-
-Seuls `docker-compose.yml` et `.env` servent ici — le code est déjà dans l'image.
-
-### Choisir un port libre
-
-```bash
-ss -tlnp | grep 3001   # aucune sortie = port libre
-```
-
-Si 3001 est pris par un autre SaaS, prends-en un autre et reporte-le dans `.env`.
-
-```bash
-cp .env.example .env
-nano .env            # ajuster APP_PORT si besoin
-```
-
-### Accès à l'image
-
-Le plus simple : rendre le package public une fois.
-GitHub → repo → **Packages** → `copilote-social-media` → **Package settings** →
-**Change visibility** → *Public*.
-
-Si tu préfères le garder privé, il faut authentifier le VPS auprès de GHCR :
-
-```bash
-echo "TON_PAT_read:packages" | docker login ghcr.io -u Emmanueltaochy --password-stdin
-```
-
-### Premier démarrage
-
-```bash
-cd /opt/copilote-social-media
-docker compose pull
-docker compose up -d
-curl -s localhost:3001/api/health
-# {"status":"ok","service":"copilote-social-media","version":"..."}
-```
+Adresse finale : **https://marketing.taochyconsulting.fr**
 
 ---
 
-## 2. Clé SSH pour GitHub
+## Avant de commencer : le DNS
 
-Sur le VPS, une clé dédiée au déploiement (pas ta clé personnelle) :
+À faire dans ton panneau Hostinger (section **Domaines → DNS**), sur
+`taochyconsulting.fr` :
 
-```bash
-ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/gh_deploy -N ""
-cat ~/.ssh/gh_deploy.pub >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-cat ~/.ssh/gh_deploy        # <- la clé PRIVÉE, à copier entièrement
-```
-
----
-
-## 3. Secrets GitHub
-
-Repo → **Settings → Secrets and variables → Actions → New repository secret** :
-
-| Secret | Valeur | Obligatoire |
+| Type | Nom | Valeur |
 | --- | --- | --- |
-| `VPS_HOST` | IP ou domaine du VPS | oui |
-| `VPS_USER` | utilisateur SSH | oui |
-| `VPS_SSH_KEY` | contenu de `~/.ssh/gh_deploy`, `-----BEGIN` et `-----END` compris | oui |
-| `VPS_PORT` | port SSH si ce n'est pas 22 | non |
-| `VPS_APP_DIR` | chemin si ce n'est pas `/opt/copilote-social-media` | non |
+| A | `marketing` | l'adresse IP de ton VPS |
+
+L'IP du VPS est affichée sur sa page dans le panneau Hostinger.
+
+La propagation prend de quelques minutes à une heure. Si tu lances l'étape 1
+avant que ce soit propagé, ce n'est pas grave : le site marchera en `http://`
+et il suffira de relancer la même commande plus tard pour obtenir le `https://`.
 
 ---
 
-## 4. Reverse proxy
+## Étape 1 — Une commande sur le VPS
 
-Le conteneur n'écoute que sur `127.0.0.1` : il n'est pas joignable depuis
-l'extérieur tant qu'un proxy ne le publie pas. À adapter à ce qui tourne déjà
-sur ta machine.
+Ouvre le terminal du VPS : panneau Hostinger → ton VPS → **Terminal du
+navigateur**. (Ou en SSH si tu préfères, c'est pareil.)
 
-### nginx
-
-`/etc/nginx/sites-available/copilote` :
-
-```nginx
-server {
-    server_name pilot.taochy.re;      # <- ton sous-domaine
-
-    location / {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+Colle ceci, en une seule fois, et appuie sur Entrée :
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/copilote /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d pilot.taochy.re
+sudo apt-get update -qq && sudo apt-get install -y -qq git && \
+sudo rm -rf /tmp/pilot-setup && \
+sudo git clone -q https://github.com/Emmanueltaochy/copilote-social-media.git /tmp/pilot-setup && \
+sudo bash /tmp/pilot-setup/scripts/setup-vps.sh --domain marketing.taochyconsulting.fr
 ```
 
-### Coolify / Dokploy
+Ça prend 2 à 5 minutes. Le script installe ce qui manque, configure le domaine,
+pose le certificat HTTPS et prépare la connexion avec GitHub.
 
-Pas besoin de `docker-compose.yml` ni de secrets SSH : pointer le panel sur le
-repo, il détecte le `Dockerfile` et redéploie à chaque push. Port interne :
-**3000**.
+**Il ne touche à rien de ce qui tourne déjà** sur ton VPS : il choisit un port
+libre, ajoute un site nginx à côté des autres, et s'arrête net si un autre site
+utilise déjà ce domaine.
+
+À la fin, il affiche trois blocs à copier. Garde la fenêtre ouverte.
 
 ---
 
-## Au quotidien
+## Étape 2 — Trois secrets dans GitHub
 
-Tu me dis quoi changer ici, je pousse sur `main`, le déploiement part tout seul.
+Va sur le dépôt :
+**Settings → Secrets and variables → Actions → New repository secret**
 
-**Suivre un déploiement** — repo → onglet **Actions** → workflow *Deploy*.
-Le job échoue si le lint, les types, le build ou la sonde de santé échouent :
-en cas d'échec, l'ancienne version continue de tourner.
+Crée ces trois secrets, en recopiant ce que le script a affiché :
 
-**Vérifier la version en ligne**
+| Nom | Valeur |
+| --- | --- |
+| `VPS_HOST` | l'IP affichée |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | tout le bloc de clé, de `-----BEGIN` à `-----END` inclus |
 
-```bash
-curl -s https://pilot.taochy.re/api/health
-```
-
-`version` correspond aux 7 premiers caractères du commit déployé.
-
-**Revenir en arrière** — chaque image est taguée par commit :
-
-```bash
-cd /opt/copilote-social-media
-nano .env    # APP_IMAGE=ghcr.io/emmanueltaochy/copilote-social-media:<sha>
-docker compose up -d
-```
-
-**Logs**
-
-```bash
-docker compose logs -f app
-```
+Le nom doit être écrit exactement comme dans le tableau, en majuscules.
 
 ---
 
-## Ce que ça ne fait pas encore
+## Étape 3 — Préviens-moi
 
-Il n'y a pas de base de données : les données sont des fixtures figées au
-25 août 2026 (`src/data/`). Le jour où Supabase arrive, il faudra ajouter les
-variables d'environnement correspondantes dans `.env` **et** dans
-`docker-compose.yml` — la section `environment:` du service `app`.
+Je lance le premier déploiement et je vérifie que le site répond.
+
+---
+
+## Ensuite, au quotidien
+
+Tu me dis ce que tu veux changer. Je modifie, je pousse, et le site se met à
+jour tout seul.
+
+**Voir où ça en est** : sur le dépôt GitHub, onglet **Actions**. Un rond vert =
+en ligne. Un rond rouge = le déploiement a été refusé, et **l'ancienne version
+continue de tourner** — le site ne tombe jamais à cause d'une mauvaise version.
+
+**Vérifier la version en ligne** : https://marketing.taochyconsulting.fr/api/health
+
+---
+
+## Changer de domaine plus tard
+
+Pour passer à `taochyagency.com` : ajoute le DNS chez ton registrar, puis
+relance la commande de l'étape 1 en changeant seulement le domaine :
+
+```bash
+sudo bash /opt/copilote-social-media/scripts/setup-vps.sh --domain marketing.taochyagency.com
+```
+
+L'ancienne adresse continue de répondre tant que tu ne la retires pas.
+
+---
+
+## En cas de souci
+
+**« Le site ne répond pas »**
+
+```bash
+cd /opt/copilote-social-media && docker compose ps && docker compose logs --tail 50 app
+```
+
+**Revenir à la version précédente**
+
+```bash
+cd /opt/copilote-social-media && git log --oneline -5
+```
+
+Prends le code à 7 caractères d'une version qui marchait, puis :
+
+```bash
+sudo sed -i 's|:latest|:LE_CODE|' /opt/copilote-social-media/.env
+cd /opt/copilote-social-media && docker compose up -d
+```
+
+Dans tous les cas : copie-colle-moi le message d'erreur, je m'en occupe.
+
+---
+
+## Détails techniques
+
+Pour référence — rien de tout ça n'est à faire à la main.
+
+- Le VPS ne compile jamais. L'image est construite par GitHub, publiée sur
+  GHCR, et le VPS ne fait que la télécharger. Un `next build` sur une machine
+  partagée consomme trop de mémoire et mettrait en danger tes autres SaaS.
+- Le conteneur écoute sur `127.0.0.1` uniquement : il n'est joignable que par
+  nginx, qui gère le HTTPS.
+- Le paquet GHCR peut rester privé : le VPS s'authentifie avec un jeton
+  temporaire, valable le temps du déploiement, et se déconnecte ensuite.
+- Le déploiement s'arrête si le lint, les types, la compilation ou la sonde de
+  santé échouent.
+- Le conteneur tourne sous un utilisateur sans privilèges.
+
+Secrets facultatifs : `VPS_PORT` si le SSH n'est pas sur le port 22,
+`VPS_APP_DIR` si le dossier n'est pas `/opt/copilote-social-media`.
