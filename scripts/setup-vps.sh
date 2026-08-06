@@ -250,29 +250,57 @@ else
 fi
 
 # ---------------------------------------------------------- sauvegardes --
-step "Sauvegardes de la base"
+step "Sauvegardes de la base et des médias"
 mkdir -p "$APP_DIR/backups"
 cat > /usr/local/bin/copilote-backup <<'BACKUP'
 #!/usr/bin/env bash
-# Sauvegarde quotidienne de la base, conservée 14 jours.
+# Sauvegarde quotidienne, conservée 14 jours.
+#
+# La base et les médias partent ensemble : une base restaurée sans les fichiers
+# afficherait une bibliothèque de vignettes cassées, et des fichiers sans la
+# base seraient un dossier d'images anonymes que plus rien ne rattache à un
+# client. L'un ne vaut rien sans l'autre.
 set -euo pipefail
 DIR="/opt/copilote-social-media"
 cd "$DIR"
 mkdir -p backups
 STAMP="$(date +%Y-%m-%d_%H%M)"
+
 docker compose exec -T db pg_dump -U pilot pilot | gzip > "backups/pilot-$STAMP.sql.gz"
 # Une sauvegarde vide est pire qu'aucune : elle donne l'illusion d'être couvert.
 if [ ! -s "backups/pilot-$STAMP.sql.gz" ]; then
-  echo "Sauvegarde vide, échec" >&2
+  echo "Sauvegarde de la base vide, échec" >&2
   rm -f "backups/pilot-$STAMP.sql.gz"
   exit 1
 fi
+
+# Les médias vivent dans un volume Docker : on passe par un conteneur jetable
+# pour les lire, sans dépendre du chemin interne de Docker sur la machine.
+VOLUME="$(docker volume ls -q --filter name=pilot-media | head -n1)"
+if [ -n "$VOLUME" ]; then
+  docker run --rm -v "$VOLUME":/data:ro -v "$DIR/backups":/out alpine \
+    tar czf "/out/medias-$STAMP.tar.gz" -C /data . 
+  if [ ! -s "backups/medias-$STAMP.tar.gz" ]; then
+    echo "Sauvegarde des médias vide, échec" >&2
+    rm -f "backups/medias-$STAMP.tar.gz"
+    exit 1
+  fi
+  find backups -name 'medias-*.tar.gz' -mtime +14 -delete
+fi
+
 find backups -name 'pilot-*.sql.gz' -mtime +14 -delete
+
+# Le disque n'est pas extensible : si les sauvegardes dépassent 20 Go, on le
+# dit plutôt que d'attendre le jour où l'écriture échouera en silence.
+USED_KB="$(du -sk backups | cut -f1)"
+if [ "$USED_KB" -gt 20971520 ]; then
+  echo "Attention : les sauvegardes occupent $((USED_KB / 1048576)) Go." >&2
+fi
 BACKUP
 chmod +x /usr/local/bin/copilote-backup
 # 3h30 du matin, heure du serveur
 ( crontab -l 2>/dev/null | grep -v copilote-backup ; echo "30 3 * * * /usr/local/bin/copilote-backup" ) | crontab -
-ok "Sauvegarde quotidienne à 3h30, conservée 14 jours"
+ok "Sauvegarde quotidienne à 3h30 (base + médias), conservée 14 jours"
 ok "Sauvegarde manuelle : copilote-backup"
 
 # ------------------------------------------------------------------ clé SSH --

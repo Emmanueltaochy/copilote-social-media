@@ -12,6 +12,11 @@ import {
   assets,
   contractLines,
   shoots,
+  shootCrew,
+  shootDeliverables,
+  shootGear,
+  shootRights,
+  shots,
   timeEntries,
   users,
   type Client,
@@ -204,6 +209,70 @@ export async function listUpcomingShoots(now: Date = new Date(), clientId?: stri
     .innerJoin(clients, eq(clients.id, shoots.clientId))
     .where(and(gte(shoots.startsAt, now), clientId ? eq(shoots.clientId, clientId) : undefined))
     .orderBy(asc(shoots.startsAt));
+}
+
+/**
+ * Le planning terrain, avec ce qui bloque le départ compté en base.
+ *
+ * Les compteurs sont des sous-requêtes plutôt que cinq allers-retours par
+ * tournage : la liste doit rester lisible d'un coup d'œil même avec vingt
+ * fiches, et c'est le point bloquant qu'on vient y chercher.
+ */
+export async function listShoots(opts: { from?: Date; clientId?: string } = {}) {
+  const sub = (table: string, extra = "") =>
+    raw<number>`(select count(*)::int from ${raw.raw(table)} where shoot_id = ${shoots.id}${raw.raw(extra)})`;
+
+  return db
+    .select({
+      shoot: shoots,
+      clientName: clients.shortName,
+      shots: sub("shots"),
+      shotsDone: sub("shots", " and done"),
+      gearTotal: sub("shoot_gear"),
+      gearReserved: sub("shoot_gear", " and reserved"),
+      rightsTotal: sub("shoot_rights"),
+      rightsSigned: sub("shoot_rights", " and signed"),
+      crew: sub("shoot_crew"),
+    })
+    .from(shoots)
+    .innerJoin(clients, eq(clients.id, shoots.clientId))
+    .where(
+      and(
+        opts.from ? gte(shoots.startsAt, opts.from) : undefined,
+        opts.clientId ? eq(shoots.clientId, opts.clientId) : undefined,
+      ),
+    )
+    .orderBy(asc(shoots.startsAt));
+}
+
+export async function getShoot(id: string) {
+  const rows = await db
+    .select({ shoot: shoots, client: clients })
+    .from(shoots)
+    .innerJoin(clients, eq(clients.id, shoots.clientId))
+    .where(eq(shoots.id, id))
+    .limit(1);
+  if (!rows[0]) return null;
+
+  const [shotRows, gear, rights, deliverables, crew, media] = await Promise.all([
+    db.select().from(shots).where(eq(shots.shootId, id)).orderBy(asc(shots.position)),
+    db.select().from(shootGear).where(eq(shootGear.shootId, id)).orderBy(asc(shootGear.position)),
+    db.select().from(shootRights).where(eq(shootRights.shootId, id)).orderBy(asc(shootRights.position)),
+    db
+      .select()
+      .from(shootDeliverables)
+      .where(eq(shootDeliverables.shootId, id))
+      .orderBy(asc(shootDeliverables.position)),
+    db
+      .select({ userId: shootCrew.userId, roleLabel: shootCrew.roleLabel, state: shootCrew.state, name: users.name, initials: users.initials })
+      .from(shootCrew)
+      .innerJoin(users, eq(users.id, shootCrew.userId))
+      .where(eq(shootCrew.shootId, id))
+      .orderBy(asc(users.name)),
+    db.select().from(assets).where(eq(assets.shootId, id)).orderBy(desc(assets.createdAt)),
+  ]);
+
+  return { ...rows[0], shots: shotRows, gear, rights, deliverables, crew, media };
 }
 
 /* -------------------------------------------------------------- campagnes -- */
