@@ -277,7 +277,9 @@ echo "    root"
 echo
 echo "  ${bold}VPS_SSH_KEY${off}   (tout le bloc, BEGIN et END compris)"
 echo
-sed 's/^/    /' "$KEY"
+# Surtout pas d'indentation ici : une clé SSH dont les lignes portent des
+# espaces en tête est invalide, et l'erreur côté GitHub ne le dit pas.
+cat "$KEY"
 echo
 echo "${yellow}⚠ Ce bloc est une clé privée : elle donne un accès root à ce serveur.${off}"
 echo "${yellow}  À coller dans GitHub, et NULLE PART ailleurs — ni dans un chat,${off}"
