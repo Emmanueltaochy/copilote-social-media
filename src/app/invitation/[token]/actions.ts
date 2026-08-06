@@ -34,5 +34,7 @@ export async function acceptInvitation(
     .where(eq(users.id, user.id));
 
   await createSession(user.id);
-  redirect("/portail");
+  // Un collaborateur arrive dans l'outil de l'agence, un contact client dans
+  // son portail : le lien d'invitation est le même, la destination non.
+  redirect(user.role === "client" ? "/portail" : "/");
 }

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
 import { db, brands, clients, contractLines, users } from "@/db";
-import { initialsFrom, requireStaff } from "@/lib/auth";
+import { canSeeMoney, initialsFrom, requireStaff } from "@/lib/auth";
 
 /**
  * Un client sans engagement chiffré reste valide : certains comptes sont à la
@@ -29,7 +29,7 @@ export async function createClient(
   _prev: ClientFormState,
   formData: FormData,
 ): Promise<ClientFormState> {
-  await requireStaff();
+  const user = await requireStaff();
 
   const parsed = clientSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -51,10 +51,12 @@ export async function createClient(
       shortName: v.shortName?.trim() || v.name,
       sector: v.sector || null,
       // Saisi en euros, stocké en centimes : les flottants ne comptent pas juste.
-      monthlyFeeCents: Math.round(v.monthlyFee * 100),
+      // Les montants ne sont retenus que si l'auteur a le droit de les voir :
+      // masquer un champ à l'affichage n'empêche pas de l'envoyer quand même.
+      monthlyFeeCents: canSeeMoney(user) ? Math.round(v.monthlyFee * 100) : 0,
       contentTarget: v.contentTarget,
       shootsIncluded: v.shootsIncluded,
-      hoursSold: v.hoursSold,
+      hoursSold: canSeeMoney(user) ? v.hoursSold : 0,
       adsBudgetLabel: v.adsBudgetLabel || null,
     })
     .returning();
@@ -70,7 +72,7 @@ export async function updateClient(
   _prev: ClientFormState,
   formData: FormData,
 ): Promise<ClientFormState> {
-  await requireStaff();
+  const user = await requireStaff();
   const id = String(formData.get("id") ?? "");
   if (!id) return { error: "Client introuvable." };
 
@@ -86,10 +88,14 @@ export async function updateClient(
       name: v.name,
       shortName: v.shortName?.trim() || v.name,
       sector: v.sector || null,
-      monthlyFeeCents: Math.round(v.monthlyFee * 100),
+      // Un membre de l'équipe modifie la fiche sans voir les montants : ceux
+      // qu'il n'a pas vus ne doivent pas être écrasés par la valeur par
+      // défaut du formulaire, qui vaudrait zéro.
+      ...(canSeeMoney(user)
+        ? { monthlyFeeCents: Math.round(v.monthlyFee * 100), hoursSold: v.hoursSold }
+        : {}),
       contentTarget: v.contentTarget,
       shootsIncluded: v.shootsIncluded,
-      hoursSold: v.hoursSold,
       adsBudgetLabel: v.adsBudgetLabel || null,
     })
     .where(eq(clients.id, id));

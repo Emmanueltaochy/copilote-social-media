@@ -10,7 +10,7 @@ import { getClientWithPace, listContractLines } from "@/db/queries";
 import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
 import { ClientAccessForm } from "../ClientAccess";
-import { InviteLink } from "./InviteLink";
+import { InviteLink } from "@/components/ui/InviteLink";
 import { archiveClient, revokeClientAccess, updateClient } from "../actions";
 import { listClientAccess } from "@/db/queries";
 
@@ -127,6 +127,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <ClientForm
               action={updateClient}
               submitLabel="Enregistrer"
+              showMoney={canSeeMoney(user)}
               values={{
                 id: client.id,
                 name: client.name,

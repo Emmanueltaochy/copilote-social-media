@@ -641,3 +641,37 @@ export async function monthlyReport(clientId: string, now: Date = new Date()) {
     campaigns: campaignRows.filter((c) => c.spendCents > 0 || c.campaign.status === "active"),
   };
 }
+
+/* ------------------------------------------------------------------ équipe -- */
+
+/**
+ * Toute l'équipe, actifs et retirés, avec la charge du mois.
+ *
+ * Les heures viennent en une seule requête : ouvrir l'écran pour voir « qui
+ * fait quoi ce mois » ne doit pas coûter une requête par personne.
+ */
+export async function listTeam(now: Date = new Date()) {
+  const { start, end } = monthRange(now);
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      initials: users.initials,
+      role: users.role,
+      active: users.active,
+      inviteToken: users.inviteToken,
+      inviteExpiresAt: users.inviteExpiresAt,
+      hasPassword: raw<boolean>`${users.passwordHash} is not null`,
+      minutes: raw<number>`coalesce((
+        select sum(t.minutes) from time_entries t
+        where t.user_id = users.id and t.week_start >= ${from} and t.week_start < ${to}
+      ), 0)::int`,
+    })
+    .from(users)
+    .where(raw`${users.role} in ('direction','equipe')`)
+    .orderBy(desc(users.active), asc(users.name));
+}

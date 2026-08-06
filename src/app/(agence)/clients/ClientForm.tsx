@@ -18,14 +18,24 @@ type Values = {
 const field =
   "rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold";
 
+/**
+ * La fiche d'un client.
+ *
+ * Les montants n'apparaissent que pour la direction. Ce n'est pas seulement un
+ * masquage d'affichage : l'action serveur ignore ces champs quand l'auteur
+ * n'a pas le droit de les voir, sinon un formulaire modifié à la main les
+ * écraserait.
+ */
 export function ClientForm({
   action,
   values = {},
   submitLabel,
+  showMoney,
 }: {
   action: (prev: ClientFormState, data: FormData) => Promise<ClientFormState>;
   values?: Values;
   submitLabel: string;
+  showMoney: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
@@ -54,18 +64,20 @@ export function ClientForm({
         <input name="sector" defaultValue={values.sector ?? ""} className={field} />
       </label>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-[6px]">
-          <span className="eyebrow text-ink-3">Forfait mensuel (€ HT)</span>
-          <input
-            name="monthlyFee"
-            type="number"
-            min={0}
-            step="1"
-            defaultValue={values.monthlyFee ?? 0}
-            className={field}
-          />
-        </label>
+      <div className={showMoney ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+        {showMoney ? (
+          <label className="flex flex-col gap-[6px]">
+            <span className="eyebrow text-ink-3">Forfait mensuel (€ HT)</span>
+            <input
+              name="monthlyFee"
+              type="number"
+              min={0}
+              step="1"
+              defaultValue={values.monthlyFee ?? 0}
+              className={field}
+            />
+          </label>
+        ) : null}
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Contenus par mois</span>
           <input
@@ -81,7 +93,7 @@ export function ClientForm({
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={showMoney ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Shootings inclus</span>
           <input
@@ -92,17 +104,19 @@ export function ClientForm({
             className={field}
           />
         </label>
-        <label className="flex flex-col gap-[6px]">
-          <span className="eyebrow text-ink-3">Heures vendues</span>
-          <input
-            name="hoursSold"
-            type="number"
-            min={0}
-            defaultValue={values.hoursSold ?? 0}
-            className={field}
-          />
-          <span className="text-small text-ink-3">Base du calcul de rentabilité.</span>
-        </label>
+        {showMoney ? (
+          <label className="flex flex-col gap-[6px]">
+            <span className="eyebrow text-ink-3">Heures vendues</span>
+            <input
+              name="hoursSold"
+              type="number"
+              min={0}
+              defaultValue={values.hoursSold ?? 0}
+              className={field}
+            />
+            <span className="text-small text-ink-3">Base du calcul de rentabilité.</span>
+          </label>
+        ) : null}
       </div>
 
       <label className="flex flex-col gap-[6px]">
