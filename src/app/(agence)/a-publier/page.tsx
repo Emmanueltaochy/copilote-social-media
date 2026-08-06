@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { TableRow } from "@/components/ui/Table";
 import { requireStaff } from "@/lib/auth";
 import { listClientsWithPace, listTodayQueue } from "@/db/queries";
+import { NETWORK_LABEL } from "@/data/content";
 import { cn } from "@/lib/cn";
+import { markPublished } from "../contenu/actions";
 
 export default async function APublierPage() {
   await requireStaff();
@@ -22,8 +24,8 @@ export default async function APublierPage() {
         <PageHeader title="À publier" sub={today} />
         <EmptyState
           title="Rien à publier aujourd'hui"
-          actionLabel={clients.length === 0 ? "Ajouter un client" : undefined}
-          actionHref={clients.length === 0 ? "/clients" : undefined}
+          actionLabel={clients.length === 0 ? "Ajouter un client" : "Nouveau contenu"}
+          actionHref={clients.length === 0 ? "/clients" : "/contenu"}
         >
           Les contenus programmés pour aujourd&apos;hui apparaissent ici. Marquer un contenu comme
           publié demande le lien du post : c&apos;est ce qui rend la publication vérifiable, faute
@@ -34,10 +36,19 @@ export default async function APublierPage() {
   }
 
   const now = new Date();
+  const done = queue.filter((q) => q.content.publishedAt).length;
+  const late = queue.filter(
+    (q) => !q.content.publishedAt && q.content.scheduledAt && q.content.scheduledAt < now,
+  ).length;
+  const ahead = queue.length - done - late;
 
   return (
     <>
-      <PageHeader title="À publier" sub={`${today} · ${queue.length} contenus`} />
+      <PageHeader
+        title="À publier"
+        sub={`${today} · ${done} publié${done > 1 ? "s" : ""} · ${late} en retard · ${ahead} à venir`}
+      />
+
       <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
         <div className="mx-auto w-full max-w-[1060px]">
           <Card>
@@ -46,32 +57,85 @@ export default async function APublierPage() {
               const overdue =
                 !content.publishedAt && content.scheduledAt && content.scheduledAt < now;
               return (
-                <TableRow
+                <div
                   key={content.id}
-                  cols="72px minmax(200px,1fr) 160px"
-                  className={overdue ? "bg-alert-wash" : "bg-paper"}
+                  className={cn(
+                    "grid items-center gap-3 border-b border-line px-[14px] py-3",
+                    overdue ? "bg-alert-wash" : "bg-paper",
+                  )}
+                  style={{ gridTemplateColumns: "72px minmax(200px,1fr) 120px minmax(280px,1fr)" }}
                 >
-                  <span className="text-base font-medium tabular-nums">
+                  <span
+                    className={cn(
+                      "text-base font-medium tabular-nums",
+                      overdue ? "text-alert" : content.publishedAt ? "text-ink-3" : "text-ink",
+                    )}
+                  >
                     {content.scheduledAt?.toLocaleTimeString("fr-FR", {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </span>
+
                   <span className="flex min-w-0 flex-col">
-                    <span className="clip text-base font-medium">{content.title}</span>
-                    <span className="clip text-small text-ink-3">{clientName}</span>
+                    <Link
+                      href={`/contenu/${content.id}`}
+                      className="clip text-base font-medium text-ink no-underline hover:underline"
+                    >
+                      {content.title}
+                    </Link>
+                    <span className="clip text-small text-ink-3">
+                      {clientName} · {NETWORK_LABEL[content.network]}
+                    </span>
                   </span>
+
                   <span
                     className={cn(
-                      "text-right text-small font-medium",
+                      "text-small font-medium",
                       content.publishedAt ? "text-ok" : overdue ? "text-alert" : "text-ink-2",
                     )}
                   >
                     {content.publishedAt ? "Publié" : overdue ? "En retard" : "Prêt"}
                   </span>
-                </TableRow>
+
+                  <span className="flex justify-end">
+                    {content.publishedAt ? (
+                      content.publishedUrl ? (
+                        <a href={content.publishedUrl} target="_blank" rel="noreferrer" className="text-small">
+                          Voir le post
+                        </a>
+                      ) : null
+                    ) : (
+                      <form action={markPublished} className="flex w-full items-center gap-2">
+                        <input type="hidden" name="id" value={content.id} />
+                        <input
+                          name="url"
+                          type="url"
+                          required
+                          placeholder="Coller le lien du post publié…"
+                          className="min-w-0 flex-1 rounded-control border border-line bg-paper px-2 py-[6px] text-small outline-none focus:border-gold"
+                        />
+                        <button
+                          type="submit"
+                          className={cn(
+                            "flex-none cursor-pointer rounded-control border px-[10px] py-[6px] text-small font-medium",
+                            overdue
+                              ? "border-ink bg-ink text-paper hover:bg-black"
+                              : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
+                          )}
+                        >
+                          Publié
+                        </button>
+                      </form>
+                    )}
+                  </span>
+                </div>
               );
             })}
+            <p className="px-[14px] py-3 text-small text-ink-3">
+              Le lien est enregistré avec l&apos;heure et l&apos;auteur. C&apos;est cette
+              publication qui compte dans l&apos;engagement du mois du client.
+            </p>
           </Card>
         </div>
       </div>

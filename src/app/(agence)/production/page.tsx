@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Eyebrow, StatusPill } from "@/components/ui/primitives";
+import { Eyebrow } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { listClientsWithPace, listPipeline } from "@/db/queries";
 import { CONTENT_STAGES, CONTENT_STATUS } from "@/data/content";
 import { monthLabel } from "@/lib/pacing";
+import { moveStage } from "../contenu/actions";
 
 export default async function ProductionPage() {
   await requireStaff();
@@ -29,7 +31,14 @@ export default async function ProductionPage() {
       <PageHeader
         title="Pipeline de production"
         sub={`${monthLabel()} · ${inProgress.length} ${inProgress.length > 1 ? "contenus en cours" : "contenu en cours"} · 9 étapes`}
-      />
+      >
+        <Link
+          href="/contenu"
+          className="rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper no-underline hover:bg-black hover:no-underline"
+        >
+          Nouveau contenu
+        </Link>
+      </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-5">
         <div className="flex h-full min-w-max items-start gap-3">
@@ -45,26 +54,43 @@ export default async function ProductionPage() {
                   <span className="text-small text-ink-3 tabular-nums">{cards.length}</span>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
-                  {cards.map(({ content, clientName, ownerName }) => (
-                    <div
-                      key={content.id}
-                      className="flex flex-col gap-[7px] rounded-card border border-line bg-paper p-[10px]"
-                    >
-                      <span className="clip text-micro text-ink-3">{clientName}</span>
-                      <span className="text-base leading-tight font-medium">{content.title}</span>
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="text-small text-ink-2">{ownerName ?? "Non assigné"}</span>
-                        {content.dueAt ? (
-                          <span className="text-small tabular-nums text-ink-2">
-                            {content.dueAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
-                          </span>
+                  {cards.map(({ content, clientName, ownerName }) => {
+                    const next = CONTENT_STAGES[CONTENT_STAGES.indexOf(stage) + 1];
+                    return (
+                      <div
+                        key={content.id}
+                        className="flex flex-col gap-[7px] rounded-card border border-line bg-paper p-[10px]"
+                      >
+                        <span className="clip text-micro text-ink-3">{clientName}</span>
+                        <Link
+                          href={`/contenu/${content.id}`}
+                          className="text-base leading-tight font-medium text-ink no-underline hover:underline"
+                        >
+                          {content.title}
+                        </Link>
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-small text-ink-2">{ownerName ?? "Non assigné"}</span>
+                          {content.scheduledAt ? (
+                            <span className="text-small tabular-nums text-ink-2">
+                              {content.scheduledAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                            </span>
+                          ) : null}
+                        </span>
+                        {next ? (
+                          <form action={moveStage}>
+                            <input type="hidden" name="id" value={content.id} />
+                            <input type="hidden" name="stage" value={next} />
+                            <button
+                              type="submit"
+                              className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                            >
+                              → {CONTENT_STATUS[next].label}
+                            </button>
+                          </form>
                         ) : null}
-                      </span>
-                      <StatusPill tone={CONTENT_STATUS[content.status].tone} className="self-start">
-                        {CONTENT_STATUS[content.status].label}
-                      </StatusPill>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                   {cards.length === 0 ? (
                     <p className="rounded-card border border-dashed border-line p-3 text-small leading-snug text-ink-3">
                       Aucun contenu à cette étape.

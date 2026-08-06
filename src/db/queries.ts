@@ -3,9 +3,12 @@ import "server-only";
 import { and, asc, count, desc, eq, gte, isNotNull, isNull, lt, sql as raw } from "drizzle-orm";
 import { db } from "./index";
 import {
+  activity,
   campaigns,
   clients,
+  comments,
   contents,
+  contentVersions,
   contractLines,
   shoots,
   timeEntries,
@@ -146,10 +149,21 @@ export async function listTodayQueue(now: Date = new Date()) {
     .orderBy(asc(contents.scheduledAt));
 }
 
-/** En attente de validation, interne ou client. */
+/**
+ * En attente de validation, interne ou client.
+ *
+ * Le délai d'attente est calculé par la base : l'heure du serveur fait
+ * autorité, et le rendu d'une page n'a pas à dépendre d'une horloge lue au
+ * milieu de l'affichage.
+ */
 export async function listAwaitingApproval(clientId?: string) {
   return db
-    .select({ content: contents, clientName: clients.shortName })
+    .select({
+      content: contents,
+      clientName: clients.shortName,
+      waitingDays: raw<number | null>`case when ${contents.submittedAt} is null then null
+        else floor(extract(epoch from (now() - ${contents.submittedAt})) / 86400)::int end`,
+    })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
     .where(
@@ -230,4 +244,54 @@ export async function listStaff() {
     .from(users)
     .where(raw`${users.role} in ('direction','equipe')`)
     .orderBy(asc(users.name));
+}
+
+
+/* ------------------------------------------------------ détail d'un contenu -- */
+
+export async function getContent(id: string) {
+  const rows = await db
+    .select({ content: contents, client: clients, ownerName: users.name })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .leftJoin(users, eq(users.id, contents.ownerId))
+    .where(eq(contents.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listComments(contentId: string) {
+  return db
+    .select({ comment: comments, authorName: users.name, authorInitials: users.initials })
+    .from(comments)
+    .leftJoin(users, eq(users.id, comments.authorId))
+    .where(eq(comments.contentId, contentId))
+    .orderBy(asc(comments.createdAt));
+}
+
+export async function listVersions(contentId: string) {
+  return db
+    .select()
+    .from(contentVersions)
+    .where(eq(contentVersions.contentId, contentId))
+    .orderBy(desc(contentVersions.number));
+}
+
+export async function listActivity(contentId: string) {
+  return db
+    .select({ entry: activity, actorName: users.name })
+    .from(activity)
+    .leftJoin(users, eq(users.id, activity.actorId))
+    .where(eq(activity.contentId, contentId))
+    .orderBy(desc(activity.createdAt))
+    .limit(20);
+}
+
+/** Clients actifs, pour les listes déroulantes des formulaires. */
+export async function listClientOptions() {
+  return db
+    .select({ id: clients.id, name: clients.shortName })
+    .from(clients)
+    .where(eq(clients.active, true))
+    .orderBy(asc(clients.shortName));
 }
