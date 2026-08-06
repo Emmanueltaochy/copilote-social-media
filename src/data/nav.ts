@@ -16,6 +16,7 @@ export const NAV: NavItem[] = [
   { label: "Assets", href: "/assets" },
   { label: "Ads", href: "/ads" },
   { label: "Rapports", href: "/rapports" },
+  { label: "Mes heures", href: "/heures" },
   { label: "Clients", href: "/clients" },
   { label: "Rentabilité", href: "/rentabilite", directionOnly: true },
 ];

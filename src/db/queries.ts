@@ -474,3 +474,74 @@ export async function listClientAccess(clientId: string) {
     .where(and(eq(users.clientId, clientId), eq(users.active, true)))
     .orderBy(asc(users.name));
 }
+
+/* ------------------------------------------------------------------ heures -- */
+
+/** Saisies d'une personne sur un mois, du plus récent au plus ancien. */
+export async function listTimeEntries(userId: string, now: Date = new Date()) {
+  const { start, end } = monthRange(now);
+  return db
+    .select({ entry: timeEntries, clientName: clients.shortName })
+    .from(timeEntries)
+    .innerJoin(clients, eq(clients.id, timeEntries.clientId))
+    .where(
+      and(
+        eq(timeEntries.userId, userId),
+        gte(timeEntries.weekStart, start.toISOString().slice(0, 10)),
+        lt(timeEntries.weekStart, end.toISOString().slice(0, 10)),
+      ),
+    )
+    .orderBy(desc(timeEntries.weekStart), asc(clients.shortName));
+}
+
+/**
+ * Coût des heures passées, par client, sur le mois.
+ *
+ * Le tarif retenu est celui en vigueur à la semaine de la saisie, pas le
+ * tarif actuel : une augmentation de salaire ne doit pas réécrire la marge
+ * des mois déjà clos.
+ */
+export async function costByClient(now: Date = new Date()) {
+  const { start, end } = monthRange(now);
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+
+  return db
+    .select({
+      clientId: timeEntries.clientId,
+      minutes: raw<number>`coalesce(sum(${timeEntries.minutes}), 0)::int`,
+      // Les noms de colonnes de la requête extérieure sont écrits en toutes
+      // lettres, et non interpolés : dans une requête sans jointure, drizzle
+      // les rend sans préfixe de table, et « user_id » se résoudrait alors
+      // contre hourly_rates.user_id — la condition serait toujours vraie et
+      // n'importe quel tarif ferait l'affaire.
+      costCents: raw<number>`coalesce(sum(
+        ${timeEntries.minutes} * coalesce((
+          select r.cost_per_hour_cents from hourly_rates r
+          where r.user_id = time_entries.user_id
+            and r.effective_from <= time_entries.week_start
+          order by r.effective_from desc limit 1
+        ), 0) / 60.0
+      ), 0)::int`,
+    })
+    .from(timeEntries)
+    .where(and(gte(timeEntries.weekStart, from), lt(timeEntries.weekStart, to)))
+    .groupBy(timeEntries.clientId);
+}
+
+/** Tarif horaire courant de chaque membre de l'équipe. */
+export async function listRates() {
+  return db
+    .select({
+      userId: users.id,
+      name: users.name,
+      role: users.role,
+      costPerHourCents: raw<number | null>`(
+        select r.cost_per_hour_cents from hourly_rates r
+        where r.user_id = users.id order by r.effective_from desc limit 1
+      )`,
+    })
+    .from(users)
+    .where(raw`${users.role} in ('direction','equipe')`)
+    .orderBy(asc(users.name));
+}
