@@ -1,17 +1,20 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
-import { listClientsWithPace, listContentsForMonth } from "@/db/queries";
+import { listClientsWithPace, listContentsForMonth, coversFor } from "@/db/queries";
 import { monthLabel, monthPosition } from "@/lib/pacing";
 import { cn } from "@/lib/cn";
-import { CONTENT_STATUS } from "@/data/content";
+import { Cover } from "@/components/ui/Cover";
+import { CONTENT_KIND, CONTENT_STATUS } from "@/data/content";
 
 const WEEK_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 export default async function CalendrierPage() {
   await requireStaff();
   const [clients, rows] = await Promise.all([listClientsWithPace(), listContentsForMonth()]);
+  const covers = await coversFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0) {
     return (
@@ -86,24 +89,33 @@ export default async function CalendrierPage() {
                   {cell.items.map(({ content, clientName }) => {
                     const st = CONTENT_STATUS[content.status];
                     return (
-                      <div
+                      <Link
                         key={content.id}
-                        className="flex w-full flex-col gap-px rounded-control border border-line bg-paper px-[6px] py-[5px]"
+                        href={`/contenu/${content.id}`}
+                        className="flex w-full gap-[6px] rounded-control border border-line bg-paper px-[6px] py-[5px] no-underline hover:border-line-strong hover:no-underline"
                       >
-                        <span className="flex min-w-0 items-center gap-[5px]">
-                          <Dot tone={st.tone} solid={st.solidDot} size={5} />
-                          <span className="ml-auto text-micro text-ink-3 tabular-nums">
-                            {content.scheduledAt?.toLocaleTimeString("fr-FR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                        {/* Une vignette carrée de 28 px : assez pour reconnaître
+                            un visuel qu'on a déjà vu, assez petite pour qu'une
+                            journée chargée tienne encore dans sa case. */}
+                        <Cover asset={covers.get(content.id)} ratio="1/1" className="w-7 flex-none" />
+                        <span className="flex min-w-0 flex-1 flex-col gap-px">
+                          <span className="flex min-w-0 items-center gap-[5px]">
+                            <Dot tone={st.tone} solid={st.solidDot} size={5} />
+                            <span className="ml-auto text-micro text-ink-3 tabular-nums">
+                              {content.scheduledAt?.toLocaleTimeString("fr-FR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </span>
+                          <span className="clip text-small leading-tight font-medium text-ink">
+                            {content.title}
+                          </span>
+                          <span className="clip text-micro text-ink-3">
+                            {clientName} · {CONTENT_KIND[content.kind] ?? content.kind}
                           </span>
                         </span>
-                        <span className="clip text-small leading-tight font-medium">
-                          {content.title}
-                        </span>
-                        <span className="clip text-micro text-ink-3">{clientName}</span>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>

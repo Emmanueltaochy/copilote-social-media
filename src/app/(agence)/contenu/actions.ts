@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, desc } from "drizzle-orm";
 import { z } from "zod";
-import { db, activity, comments, contents, contentVersions } from "@/db";
+import { db, activity, assets, assetUsages, comments, contents, contentVersions } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
 
@@ -53,7 +53,10 @@ export async function createContent(
       caption: v.caption || null,
       // Une date vide est légitime : une idée n'a pas encore de créneau.
       scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,
-      ownerId: v.ownerId || user.id,
+      // Sans responsable désigné, le contenu revient à toute l'équipe. Le
+      // rattacher d'office à celui qui l'a saisi laisserait croire qu'il s'en
+      // occupe, alors que saisir une idée n'est pas la prendre en charge.
+      ownerId: v.ownerId || null,
     })
     .returning();
 
@@ -304,4 +307,63 @@ export async function deleteContent(formData: FormData): Promise<void> {
   await db.delete(contents).where(and(eq(contents.id, id)));
   revalidateAll();
   redirect(before ? "/production" : "/production");
+}
+
+/* ------------------------------------------------------ visuel du contenu -- */
+
+/**
+ * Rattache un média déjà importé à un contenu.
+ *
+ * Le média n'est pas recopié : c'est le même fichier que dans la
+ * bibliothèque. Une photo de tournage sert souvent à plusieurs publications,
+ * et la dupliquer ferait diverger les droits d'image attachés à l'une et pas
+ * à l'autre.
+ */
+export async function attachAsset(formData: FormData): Promise<void> {
+  await requireStaff();
+  const contentId = String(formData.get("contentId") ?? "");
+  const assetId = String(formData.get("assetId") ?? "");
+  if (!contentId || !assetId) return;
+
+  const [content] = await db.select().from(contents).where(eq(contents.id, contentId)).limit(1);
+  const [asset] = await db.select().from(assets).where(eq(assets.id, assetId)).limit(1);
+  // Un média appartient à une marque : le rattacher au contenu d'une autre
+  // le ferait apparaître dans le mauvais portail client.
+  if (!content || !asset || asset.clientId !== content.clientId) return;
+
+  await db.insert(assetUsages).values({ contentId, assetId }).onConflictDoNothing();
+  revalidateAll(contentId);
+}
+
+export async function detachAsset(formData: FormData): Promise<void> {
+  await requireStaff();
+  const contentId = String(formData.get("contentId") ?? "");
+  const assetId = String(formData.get("assetId") ?? "");
+  if (!contentId || !assetId) return;
+  // Seul le lien disparaît : le média reste dans la bibliothèque.
+  await db
+    .delete(assetUsages)
+    .where(and(eq(assetUsages.contentId, contentId), eq(assetUsages.assetId, assetId)));
+  revalidateAll(contentId);
+}
+
+/**
+ * Assigne un contenu, ou le remet à toute l'équipe.
+ *
+ * L'absence de responsable veut dire « toute l'équipe », pas « oublié » :
+ * beaucoup de contenus se traitent à plusieurs et n'ont personne à nommer.
+ * C'est l'étape du pipeline qui dit ce qui reste à faire, pas le nom.
+ */
+export async function assignContent(formData: FormData): Promise<void> {
+  await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const ownerId = String(formData.get("ownerId") ?? "");
+  if (!id) return;
+
+  await db
+    .update(contents)
+    .set({ ownerId: ownerId || null, updatedAt: new Date() })
+    .where(eq(contents.id, id));
+
+  revalidateAll(id);
 }

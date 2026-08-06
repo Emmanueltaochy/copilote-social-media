@@ -2,12 +2,13 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { and, desc, eq, gte, isNotNull, lt, sql as raw } from "drizzle-orm";
 import { db, activity, assets, clients, contents } from "@/db";
+import { coversFor } from "@/db/queries";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/connexion/actions";
 import { Card } from "@/components/ui/Card";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow } from "@/components/ui/primitives";
-import { CONTENT_STATUS } from "@/data/content";
+import { CONTENT_KIND, CONTENT_STATUS } from "@/data/content";
 import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { isVideo } from "@/lib/storage";
 import { ValidationCard } from "./ValidationCard";
@@ -73,6 +74,9 @@ export default async function PortailPage() {
       .limit(5),
   ]);
 
+  // Le visuel de ce qui attend une réponse : on ne valide pas un titre.
+  const covers = await coversFor(waiting.map((w) => w.content.id));
+
   const p = pace(published.length, client.contentTarget);
 
   return (
@@ -113,6 +117,8 @@ export default async function PortailPage() {
                 key={content.id}
                 id={content.id}
                 title={content.title}
+                kind={CONTENT_KIND[content.kind] ?? content.kind}
+                cover={covers.get(content.id)}
                 scheduled={
                   content.scheduledAt
                     ? content.scheduledAt.toLocaleDateString("fr-FR", {

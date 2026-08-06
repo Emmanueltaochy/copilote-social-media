@@ -13,6 +13,7 @@ import {
   contentStats,
   contentVersions,
   assets,
+  assetUsages,
   contractLines,
   shoots,
   shootCrew,
@@ -674,4 +675,50 @@ export async function listTeam(now: Date = new Date()) {
     .from(users)
     .where(raw`${users.role} in ('direction','equipe')`)
     .orderBy(desc(users.active), asc(users.name));
+}
+
+/* ------------------------------------------------- médias d'un contenu -- */
+
+/** Médias rattachés à un contenu, dans l'ordre d'ajout. */
+export async function listContentMedia(contentId: string) {
+  return db
+    .select({ asset: assets })
+    .from(assetUsages)
+    .innerJoin(assets, eq(assets.id, assetUsages.assetId))
+    .where(eq(assetUsages.contentId, contentId))
+    .orderBy(asc(assets.createdAt));
+}
+
+/**
+ * Le premier média de chaque contenu d'une liste.
+ *
+ * Une requête pour toute la page plutôt qu'une par carte : le pipeline en
+ * affiche parfois cinquante, et cinquante allers-retours se voient à
+ * l'ouverture de l'écran.
+ */
+export async function coversFor(contentIds: string[]) {
+  if (contentIds.length === 0) return new Map<string, { id: string; mimeType: string }>();
+
+  const rows = await db
+    .select({
+      contentId: assetUsages.contentId,
+      id: assets.id,
+      mimeType: assets.mimeType,
+      createdAt: assets.createdAt,
+    })
+    .from(assetUsages)
+    .innerJoin(assets, eq(assets.id, assetUsages.assetId))
+    .where(
+      raw`${assetUsages.contentId} in (${raw.join(
+        contentIds.map((c) => raw`${c}::uuid`),
+        raw`, `,
+      )})`,
+    )
+    .orderBy(asc(assets.createdAt));
+
+  const covers = new Map<string, { id: string; mimeType: string }>();
+  for (const r of rows) {
+    if (!covers.has(r.contentId)) covers.set(r.contentId, { id: r.id, mimeType: r.mimeType });
+  }
+  return covers;
 }

@@ -7,12 +7,17 @@ import { requireStaff } from "@/lib/auth";
 import {
   getContent,
   listActivity,
+  listAssets,
   listClientOptions,
   listComments,
+  listContentMedia,
+  listStaff,
   listVersions,
 } from "@/db/queries";
-import { CONTENT_STAGES, CONTENT_STATUS, NETWORK_LABEL } from "@/data/content";
+import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS, NETWORK_LABEL } from "@/data/content";
 import { ContentForm } from "../ContentForm";
+import { AssignPicker } from "../../production/AssignPicker";
+import { MediaCard } from "./MediaCard";
 import {
   addComment,
   approveContent,
@@ -41,11 +46,14 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
   if (!row) notFound();
   const { content, client, ownerName } = row;
 
-  const [thread, versions, history, clients] = await Promise.all([
+  const [thread, versions, history, clients, staff, attached, library] = await Promise.all([
     listComments(id),
     listVersions(id),
     listActivity(id),
     listClientOptions(),
+    listStaff(),
+    listContentMedia(id),
+    listAssets(content.clientId),
   ]);
 
   const st = CONTENT_STATUS[content.status];
@@ -56,7 +64,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     <>
       <PageHeader
         title={content.title}
-        sub={`${client.shortName} · ${NETWORK_LABEL[content.network]} · ${
+        sub={`${client.shortName} · ${CONTENT_KIND[content.kind] ?? content.kind} · ${NETWORK_LABEL[content.network]} · ${
           content.scheduledAt
             ? content.scheduledAt.toLocaleString("fr-FR", {
                 day: "numeric",
@@ -207,6 +215,26 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
               </form>
             </Card>
           ) : null}
+
+          <MediaCard
+            contentId={content.id}
+            attached={attached.map((a) => a.asset)}
+            library={library.map((a) => a.asset)}
+          />
+
+          <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div className="min-w-0">
+              <Eyebrow>Responsable</Eyebrow>
+              <p className="mt-1 text-base text-ink-2">
+                {ownerName
+                  ? `Suivi par ${ownerName}.`
+                  : "Suivi par toute l'équipe : c'est l'étape du pipeline qui dit ce qui reste à faire."}
+              </p>
+            </div>
+            <div className="w-[220px] flex-none">
+              <AssignPicker contentId={content.id} ownerId={content.ownerId} staff={staff} />
+            </div>
+          </Card>
 
           <Card className="p-5">
             <div className="mb-4">

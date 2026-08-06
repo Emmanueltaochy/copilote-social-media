@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Cover, type CoverAsset } from "@/components/ui/Cover";
 import { clientApprove, clientRequestChange, type PortalFormState } from "./actions";
 
 /**
@@ -13,11 +14,15 @@ import { clientApprove, clientRequestChange, type PortalFormState } from "./acti
 export function ValidationCard({
   id,
   title,
+  kind,
+  cover,
   scheduled,
   waitingSince,
 }: {
   id: string;
   title: string;
+  kind: string;
+  cover: CoverAsset;
   scheduled: string | null;
   waitingSince: string | null;
 }) {
@@ -33,14 +38,23 @@ export function ValidationCard({
   const state = approveState.ok || approveState.error ? approveState : changeState;
 
   return (
-    <div className="flex flex-col gap-3 border-b border-line px-6 py-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="text-lead font-medium">{title}</span>
-        <span className="text-base text-ink-3">
-          {scheduled ? `Prévu le ${scheduled}` : "Date à définir"}
-          {waitingSince ? ` · en attente depuis le ${waitingSince}` : ""}
-        </span>
-      </div>
+    <div className="flex gap-5 border-b border-line px-6 py-5">
+      {/* Le visuel occupe la gauche, à une taille où l'on voit vraiment ce
+          qu'on approuve : un cadrage ou une faute de date se repèrent à cette
+          échelle, pas sur une vignette. */}
+      <Cover asset={cover} ratio="4/5" className="w-[180px] flex-none" label="Visuel à venir" />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <span className="flex min-w-0 flex-col">
+            <span className="eyebrow text-ink-3">{kind}</span>
+            <span className="text-lead font-medium">{title}</span>
+          </span>
+          <span className="text-base text-ink-3">
+            {scheduled ? `Prévu le ${scheduled}` : "Date à définir"}
+            {waitingSince ? ` · en attente depuis le ${waitingSince}` : ""}
+          </span>
+        </div>
 
       {state.ok ? (
         <p className="rounded-control border border-ok bg-ok-bg px-3 py-2 text-base text-ok">
@@ -85,8 +99,9 @@ export function ValidationCard({
               {state.error}
             </p>
           ) : null}
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

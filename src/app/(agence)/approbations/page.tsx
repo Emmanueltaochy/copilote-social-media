@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
-import { listAwaitingApproval, listClientsWithPace } from "@/db/queries";
-import { CONTENT_STATUS } from "@/data/content";
+import { coversFor, listAwaitingApproval, listClientsWithPace } from "@/db/queries";
+import { Cover } from "@/components/ui/Cover";
+import { CONTENT_KIND, CONTENT_STATUS } from "@/data/content";
 import { monthLabel } from "@/lib/pacing";
 import { cn } from "@/lib/cn";
 import { approveContent, requestChange } from "../contenu/actions";
@@ -18,6 +19,7 @@ const STALE_DAYS = 5;
 export default async function ApprobationsPage() {
   await requireStaff();
   const [clients, rows] = await Promise.all([listClientsWithPace(), listAwaitingApproval()]);
+  const covers = await coversFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0 || rows.length === 0) {
     return (
@@ -50,9 +52,22 @@ export default async function ApprobationsPage() {
             const stale = days !== null && days >= STALE_DAYS;
             return (
               <Card key={content.id} className={cn("p-4", stale && "border-alert-line")}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 flex-col gap-[2px]">
-                    <Eyebrow>{clientName}</Eyebrow>
+                <div className="flex items-start gap-4">
+                  {/* Le visuel d'abord, et en grand : on ne valide pas un titre,
+                      on valide ce que le client verra. */}
+                  <Link href={`/contenu/${content.id}`} className="flex-none no-underline">
+                    <Cover
+                      asset={covers.get(content.id)}
+                      ratio="4/5"
+                      className="w-[200px]"
+                      label="Visuel à rattacher"
+                    />
+                  </Link>
+
+                  <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
+                    <Eyebrow>
+                      {clientName} · {CONTENT_KIND[content.kind] ?? content.kind}
+                    </Eyebrow>
                     <Link
                       href={`/contenu/${content.id}`}
                       className="text-title font-semibold text-ink no-underline hover:underline"
@@ -66,7 +81,17 @@ export default async function ApprobationsPage() {
                           ? "Envoyé aujourd'hui"
                           : `En attente depuis ${days} jour${days > 1 ? "s" : ""}`}
                     </span>
+                    {content.caption ? (
+                      <p className="mt-2 line-clamp-3 text-base text-ink-2">{content.caption}</p>
+                    ) : null}
+                    {!covers.get(content.id) ? (
+                      <p className="mt-2 text-small text-warn">
+                        Aucun visuel rattaché : le client validera un titre sans voir ce qui sera
+                        publié.
+                      </p>
+                    ) : null}
                   </div>
+
                   <StatusPill tone={CONTENT_STATUS[content.status].tone}>
                     {CONTENT_STATUS[content.status].label}
                   </StatusPill>

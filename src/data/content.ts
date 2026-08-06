@@ -38,3 +38,19 @@ export const NETWORK_LABEL: Record<string, string> = {
   tiktok: "TikTok",
   google: "Google",
 };
+
+/**
+ * Le format du contenu.
+ *
+ * Ce n'est pas une étiquette décorative : un reel se tourne, un carrousel se
+ * compose, un post feed se cadre. Le format décide de qui travaille dessus et
+ * de ce qu'on attend au moment de valider — il est donc affiché partout où le
+ * contenu apparaît.
+ */
+export const CONTENT_KIND: Record<string, string> = {
+  feed: "Post feed",
+  story: "Story",
+  reel: "Reel vidéo",
+  carrousel: "Carrousel",
+  autre: "Autre",
+};

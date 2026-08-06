@@ -2,15 +2,24 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
+import { Cover } from "@/components/ui/Cover";
 import { requireStaff } from "@/lib/auth";
-import { listClientsWithPace, listPipeline } from "@/db/queries";
-import { CONTENT_STAGES, CONTENT_STATUS } from "@/data/content";
+import { coversFor, listClientsWithPace, listPipeline, listStaff } from "@/db/queries";
+import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS } from "@/data/content";
 import { monthLabel } from "@/lib/pacing";
 import { moveStage } from "../contenu/actions";
+import { AssignPicker } from "./AssignPicker";
+
+export const dynamic = "force-dynamic";
 
 export default async function ProductionPage() {
   await requireStaff();
-  const [clients, rows] = await Promise.all([listClientsWithPace(), listPipeline()]);
+  const [clients, rows, staff] = await Promise.all([
+    listClientsWithPace(),
+    listPipeline(),
+    listStaff(),
+  ]);
+  const covers = await coversFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0) {
     return (
@@ -54,24 +63,40 @@ export default async function ProductionPage() {
                   <span className="text-small text-ink-3 tabular-nums">{cards.length}</span>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
-                  {cards.map(({ content, clientName, ownerName }) => {
+                  {cards.map(({ content, clientName }) => {
                     const next = CONTENT_STAGES[CONTENT_STAGES.indexOf(stage) + 1];
                     return (
                       <div
                         key={content.id}
                         className="flex flex-col gap-[7px] rounded-card border border-line bg-paper p-[10px]"
                       >
-                        <span className="clip text-micro text-ink-3">{clientName}</span>
+                        <Link href={`/contenu/${content.id}`} className="no-underline">
+                          <Cover
+                            asset={covers.get(content.id)}
+                            ratio="16/9"
+                            label={CONTENT_STATUS[content.status].label}
+                          />
+                        </Link>
+                        <span className="clip text-micro text-ink-3">
+                          {clientName} · {CONTENT_KIND[content.kind] ?? content.kind}
+                        </span>
                         <Link
                           href={`/contenu/${content.id}`}
                           className="text-base leading-tight font-medium text-ink no-underline hover:underline"
                         >
                           {content.title}
                         </Link>
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="text-small text-ink-2">{ownerName ?? "Non assigné"}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1">
+                            <AssignPicker
+                              contentId={content.id}
+                              ownerId={content.ownerId}
+                              staff={staff}
+                              compact
+                            />
+                          </span>
                           {content.scheduledAt ? (
-                            <span className="text-small tabular-nums text-ink-2">
+                            <span className="flex-none text-small tabular-nums text-ink-2">
                               {content.scheduledAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
                             </span>
                           ) : null}
