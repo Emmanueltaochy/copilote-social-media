@@ -11,6 +11,20 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import sharp from "sharp";
 
 /**
+ * Bride libvips pour une machine partagée.
+ *
+ * Par défaut, il se règle pour une machine dédiée : un fil d'exécution par
+ * cœur et un cache de plusieurs dizaines de mégaoctets, conservé entre les
+ * images. Sur ce VPS il cohabite avec PostgreSQL et d'autres sites, et les
+ * imports se font de toute façon un fichier après l'autre — la parallélisation
+ * n'apporte rien et le cache ne resservira jamais, puisque deux photos
+ * consécutives n'ont rien en commun. Les brider divise la mémoire de pointe
+ * sans rien coûter en vitesse.
+ */
+sharp.concurrency(1);
+sharp.cache({ memory: 32, files: 0, items: 0 });
+
+/**
  * Stockage des médias sur le disque du VPS.
  *
  * Deux règles portent tout le reste.
@@ -212,19 +226,22 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
     if (isImage(file.mimeType)) {
       // sharp lit depuis le chemin : le fichier d'origine n'est jamais tenu
       // en mémoire, quelle que soit sa taille.
-      const meta = await sharp(tmpPath, { failOn: "none", limitInputPixels: false }).metadata();
+      const meta = await sharp(tmpPath, { failOn: "none" }).metadata();
 
       const webPath = path.join(dir, `${id}.webp`);
       // 2048 px suffit : au-delà, on stocke des pixels que personne n'affiche.
-      const info = await sharp(tmpPath, { failOn: "none", limitInputPixels: false })
+      const info = await sharp(tmpPath, { failOn: "none" })
         .rotate() // respecte l'orientation EXIF, sinon les photos partent de travers
         .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
         .webp({ quality: 82 })
         .toFile(path.join(MEDIA_ROOT, webPath));
 
       // Miniature servie dans les grilles : c'est elle qui rend l'écran fluide.
-      await sharp(tmpPath, { failOn: "none", limitInputPixels: false })
-        .rotate()
+      // Elle est tirée de la version déjà réduite, et non de l'original : sur
+      // une photo de 24 mégapixels, redécoder l'original coûte cent fois plus
+      // de mémoire pour un résultat que l'œil ne distingue pas à 480 px.
+      // L'orientation a déjà été appliquée à l'étape précédente.
+      await sharp(path.join(MEDIA_ROOT, webPath), { failOn: "none" })
         .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
         .webp({ quality: 74 })
         .toFile(path.join(MEDIA_ROOT, thumbPathFor(webPath)));

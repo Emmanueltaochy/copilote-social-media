@@ -79,9 +79,9 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
   const done = items.filter((i) => i.state === "fait").length;
   const failed = items.filter((i) => i.state === "erreur");
 
-  async function start() {
+  async function start(only?: File[]) {
     if (!clientId) return setError("Choisis un client.");
-    const files = Array.from(inputRef.current?.files ?? []);
+    const files = only ?? Array.from(inputRef.current?.files ?? []);
     if (files.length === 0) return setError("Aucun fichier sélectionné.");
 
     setError(null);
@@ -111,7 +111,8 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
     }
 
     setRunning(false);
-    if (inputRef.current) inputRef.current.value = "";
+    // La sélection de fichiers est conservée : elle est la seule source des
+    // fichiers à relancer, le navigateur ne permettant pas de la reconstruire.
     // La bibliothèque est rendue par le serveur : il faut lui redemander la
     // page pour qu'elle montre ce qui vient d'arriver.
     router.refresh();
@@ -154,7 +155,7 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
 
         <button
           type="button"
-          onClick={start}
+          onClick={() => start()}
           disabled={running}
           className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black disabled:opacity-60"
         >
@@ -220,10 +221,22 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
             </p>
           ) : null}
           {!running && failed.length > 0 ? (
-            <p className="rounded-control border border-alert-line bg-alert-bg px-3 py-2 text-base text-alert">
-              {done} importé{done > 1 ? "s" : ""}, {failed.length} en échec. Les fichiers refusés
-              sont listés ci-dessus : corrige-les et relance seulement ceux-là.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-alert-line bg-alert-bg px-3 py-2">
+              <p className="text-base text-alert">
+                {done} importé{done > 1 ? "s" : ""}, {failed.length} en échec. Le motif est indiqué
+                sous chaque fichier.
+              </p>
+              {/* Un échec passager — mémoire du serveur, connexion — se rattrape
+                  d'un clic. Redemander la sélection des trente fichiers pour en
+                  reprendre trois est le meilleur moyen de ne pas les reprendre. */}
+              <button
+                type="button"
+                onClick={() => start(failed.map((i) => i.file))}
+                className="flex-none cursor-pointer rounded-control border border-alert bg-paper px-3 py-1 text-base font-medium text-alert hover:bg-alert-bg"
+              >
+                Relancer les {failed.length} en échec
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}

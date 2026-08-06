@@ -75,11 +75,15 @@ export async function POST(request: Request) {
     if (error instanceof UploadError) {
       return Response.json({ error: error.message }, { status: 400 });
     }
-    // Le détail part dans les journaux du serveur, pas dans la réponse :
-    // un chemin de fichier ou un message de bibliothèque n'aide personne ici.
-    console.error("[pilot] import impossible", error);
+    console.error("[pilot] import impossible", filename, error);
+
+    // Le motif technique est repris à l'écran, en une ligne. L'outil est
+    // interne, et « Import impossible » sans rien d'autre oblige à aller
+    // fouiller les journaux du serveur pour savoir quoi corriger.
+    const reason =
+      error instanceof Error ? error.message.split("\n")[0].slice(0, 160) : String(error).slice(0, 160);
     return Response.json(
-      { error: "Import impossible. Réessaie, ou signale le fichier concerné." },
+      { error: `Import impossible — ${reason}` },
       { status: 500 },
     );
   }
