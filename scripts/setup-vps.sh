@@ -228,7 +228,11 @@ fi
 
 # ------------------------------------------------------------------ clé SSH --
 step "Clé de déploiement GitHub"
-KEY="/root/.ssh/gh_deploy"
+# Nom propre au projet. Un chemin générique comme gh_deploy est déjà utilisé par
+# d'autres déploiements sur la même machine : le réutiliser ferait partager une
+# clé root entre deux projets, où une fuite d'un côté ouvrirait l'autre et où
+# renouveler l'une casserait l'autre.
+KEY="/root/.ssh/gh_deploy_copilote"
 mkdir -p /root/.ssh && chmod 700 /root/.ssh
 if [[ ! -f "$KEY" ]]; then
   ssh-keygen -t ed25519 -C "github-actions-copilote" -f "$KEY" -N "" -q
@@ -275,7 +279,10 @@ echo "  ${bold}VPS_SSH_KEY${off}   (tout le bloc, BEGIN et END compris)"
 echo
 sed 's/^/    /' "$KEY"
 echo
-echo "${yellow}Ce bloc est une clé privée : à coller dans GitHub, nulle part ailleurs.${off}"
+echo "${yellow}⚠ Ce bloc est une clé privée : elle donne un accès root à ce serveur.${off}"
+echo "${yellow}  À coller dans GitHub, et NULLE PART ailleurs — ni dans un chat,${off}"
+echo "${yellow}  ni dans un e-mail, ni dans une capture d'écran.${off}"
+echo "${yellow}  Pour la réafficher plus tard : cat $KEY${off}"
 echo
 echo "Ensuite préviens-moi, je lance le premier déploiement."
 echo "Le site répondra sur : https://$DOMAIN"

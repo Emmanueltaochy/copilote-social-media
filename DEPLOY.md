@@ -53,6 +53,11 @@ utilise déjà ce domaine.
 
 À la fin, il affiche trois blocs à copier. Garde la fenêtre ouverte.
 
+> **Le bloc `VPS_SSH_KEY` est une clé privée : elle donne un accès complet au
+> serveur.** Elle va dans GitHub et nulle part ailleurs — ni dans un chat, ni
+> dans un e-mail, ni dans une capture d'écran. Si elle sort d'un de ces deux
+> endroits, il faut la remplacer (voir « Remplacer la clé » plus bas).
+
 ---
 
 ## Étape 2 — Trois secrets dans GitHub
@@ -126,6 +131,27 @@ cd /opt/copilote-social-media && docker compose up -d
 ```
 
 Dans tous les cas : copie-colle-moi le message d'erreur, je m'en occupe.
+
+---
+
+## Remplacer la clé de déploiement
+
+À faire si la clé privée a été exposée : collée dans une conversation, envoyée
+par e-mail, apparue sur une capture d'écran.
+
+Sur le VPS :
+
+```bash
+OLD=$(cat /root/.ssh/gh_deploy_copilote.pub)
+grep -vxF "$OLD" /root/.ssh/authorized_keys > /tmp/ak && mv /tmp/ak /root/.ssh/authorized_keys
+rm -f /root/.ssh/gh_deploy_copilote /root/.ssh/gh_deploy_copilote.pub
+ssh-keygen -t ed25519 -C "github-actions-copilote" -f /root/.ssh/gh_deploy_copilote -N "" -q
+cat /root/.ssh/gh_deploy_copilote.pub >> /root/.ssh/authorized_keys
+cat /root/.ssh/gh_deploy_copilote
+```
+
+La dernière ligne affiche la nouvelle clé : remplace le secret `VPS_SSH_KEY`
+dans GitHub par sa valeur. L'ancienne ne fonctionne plus dès la première ligne.
 
 ---
 
