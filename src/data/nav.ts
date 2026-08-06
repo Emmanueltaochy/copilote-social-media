@@ -1,23 +1,21 @@
 export type NavItem = {
   label: string;
   href: string;
-  /** Badge count. Empty when there is nothing waiting. */
-  count?: string;
-  /** Red dot: something in here is past its deadline. */
-  late?: boolean;
+  /** Coûts internes et marges : réservés à la direction. */
+  directionOnly?: boolean;
 };
 
 export const NAV: NavItem[] = [
   { label: "Cockpit", href: "/" },
   { label: "Avancement", href: "/avancement" },
   { label: "Calendrier", href: "/calendrier" },
-  { label: "Production", href: "/production", count: "24" },
-  { label: "Approbations", href: "/approbations", count: "6" },
-  { label: "À publier", href: "/a-publier", count: "4", late: true },
-  { label: "Tournages", href: "/tournages", count: "4" },
+  { label: "Production", href: "/production" },
+  { label: "Approbations", href: "/approbations" },
+  { label: "À publier", href: "/a-publier" },
+  { label: "Tournages", href: "/tournages" },
   { label: "Assets", href: "/assets" },
-  { label: "Ads", href: "/ads", count: "7" },
+  { label: "Ads", href: "/ads" },
   { label: "Rapports", href: "/rapports" },
-  { label: "Clients", href: "/clients", count: "13" },
-  { label: "Rentabilité", href: "/rentabilite" },
+  { label: "Clients", href: "/clients" },
+  { label: "Rentabilité", href: "/rentabilite", directionOnly: true },
 ];

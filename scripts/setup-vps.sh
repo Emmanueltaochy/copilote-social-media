@@ -139,6 +139,9 @@ if [[ -f "$ENV_FILE" ]]; then
   set_env APP_DOMAIN "$DOMAIN"
   grep -q '^APP_IMAGE=' "$ENV_FILE" || echo "APP_IMAGE=$IMAGE" >> "$ENV_FILE"
   grep -q '^APP_VERSION=' "$ENV_FILE" || echo "APP_VERSION=dev" >> "$ENV_FILE"
+  # Le mot de passe de la base ne doit jamais être régénéré : les données
+  # existantes deviendraient inaccessibles.
+  grep -q '^DB_PASSWORD=' "$ENV_FILE" || echo "DB_PASSWORD=$(openssl rand -hex 24)" >> "$ENV_FILE"
   ok "Configuration mise à jour dans $ENV_FILE"
 else
   cat > "$ENV_FILE" <<EOF
@@ -147,7 +150,9 @@ APP_PORT=$PORT
 APP_IMAGE=$IMAGE
 APP_VERSION=dev
 APP_DOMAIN=$DOMAIN
+DB_PASSWORD=$(openssl rand -hex 24)
 EOF
+  chmod 600 "$ENV_FILE"
   ok "Configuration écrite dans $ENV_FILE"
 fi
 
@@ -226,6 +231,32 @@ else
   fi
 fi
 
+# ---------------------------------------------------------- sauvegardes --
+step "Sauvegardes de la base"
+mkdir -p "$APP_DIR/backups"
+cat > /usr/local/bin/copilote-backup <<'BACKUP'
+#!/usr/bin/env bash
+# Sauvegarde quotidienne de la base, conservée 14 jours.
+set -euo pipefail
+DIR="/opt/copilote-social-media"
+cd "$DIR"
+mkdir -p backups
+STAMP="$(date +%Y-%m-%d_%H%M)"
+docker compose exec -T db pg_dump -U pilot pilot | gzip > "backups/pilot-$STAMP.sql.gz"
+# Une sauvegarde vide est pire qu'aucune : elle donne l'illusion d'être couvert.
+if [ ! -s "backups/pilot-$STAMP.sql.gz" ]; then
+  echo "Sauvegarde vide, échec" >&2
+  rm -f "backups/pilot-$STAMP.sql.gz"
+  exit 1
+fi
+find backups -name 'pilot-*.sql.gz' -mtime +14 -delete
+BACKUP
+chmod +x /usr/local/bin/copilote-backup
+# 3h30 du matin, heure du serveur
+( crontab -l 2>/dev/null | grep -v copilote-backup ; echo "30 3 * * * /usr/local/bin/copilote-backup" ) | crontab -
+ok "Sauvegarde quotidienne à 3h30, conservée 14 jours"
+ok "Sauvegarde manuelle : copilote-backup"
+
 # ------------------------------------------------------------------ clé SSH --
 step "Clé de déploiement GitHub"
 # Nom propre au projet. Un chemin générique comme gh_deploy est déjà utilisé par
@@ -287,5 +318,7 @@ echo "${yellow}  ni dans un e-mail, ni dans une capture d'écran.${off}"
 echo "${yellow}  Pour la réafficher plus tard : cat $KEY${off}"
 echo
 echo "Ensuite préviens-moi, je lance le premier déploiement."
-echo "Le site répondra sur : https://$DOMAIN"
+echo
+echo "Au premier lancement, ouvre https://$DOMAIN : l'outil te demandera"
+echo "de créer ton compte administrateur. Cette page ne s'affiche qu'une fois."
 echo

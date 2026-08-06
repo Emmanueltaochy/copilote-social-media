@@ -5,14 +5,22 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { NAV } from "@/data/nav";
-import { byName, PACED_CLIENTS } from "@/data/clients";
 import { ALL_CLIENTS, useApp } from "@/state/app";
 import { Dot } from "@/components/ui/primitives";
+import { logout } from "@/app/connexion/actions";
+
+const ROLE_LABEL: Record<string, string> = {
+  direction: "Direction",
+  equipe: "Équipe",
+  client: "Client",
+};
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { scope, setScope, setPortalOpen } = useApp();
+  const { scope, setScope, setPortalOpen, clients, user } = useApp();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  const nav = NAV.filter((item) => !item.directionOnly || user.role === "direction");
 
   return (
     <aside className="flex w-[232px] flex-none flex-col gap-3 overflow-hidden bg-night p-[10px] pt-3">
@@ -24,7 +32,7 @@ export function Sidebar() {
         <span className="text-micro text-ink-2">1.0</span>
       </div>
 
-      {/* Client scope — the single filter that follows you across every screen. */}
+      {/* Le filtre client suit l'utilisateur d'un écran à l'autre. */}
       <div className="relative">
         <button
           type="button"
@@ -34,7 +42,7 @@ export function Sidebar() {
           <span className="eyebrow text-ink-3">Client</span>
           <span className="flex items-center justify-between gap-2">
             <span className="clip text-base font-medium text-paper">{scope}</span>
-            <span className="text-micro text-ink-3">⌘K</span>
+            <span className="text-micro text-ink-3">{clients.length || ""}</span>
           </span>
         </button>
 
@@ -51,29 +59,35 @@ export function Sidebar() {
               {ALL_CLIENTS}
             </button>
             <div className="mx-1 my-[6px] h-px bg-line" />
-            {byName(PACED_CLIENTS).map((c) => (
-              <button
-                key={c.name}
-                type="button"
-                onClick={() => {
-                  setScope(c.name);
-                  setSwitcherOpen(false);
-                }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-control px-[10px] py-[7px] text-left text-base text-ink hover:bg-canvas"
-              >
-                <Dot tone={c.pace.tone} />
-                <span className="clip flex-1">{c.name}</span>
-                <span className="text-small text-ink-3 tabular-nums">
-                  {c.done}/{c.target}
-                </span>
-              </button>
-            ))}
+            {clients.length === 0 ? (
+              <p className="px-[10px] py-2 text-small text-ink-3">
+                Aucun client pour l&apos;instant.
+              </p>
+            ) : (
+              clients.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setScope(c.name);
+                    setSwitcherOpen(false);
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-control px-[10px] py-[7px] text-left text-base text-ink hover:bg-canvas"
+                >
+                  <Dot tone={c.tone} />
+                  <span className="clip flex-1">{c.name}</span>
+                  <span className="text-small text-ink-3 tabular-nums">
+                    {c.done}/{c.target}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         ) : null}
       </div>
 
       <nav className="flex flex-col gap-px overflow-auto">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = pathname === item.href;
           return (
             <Link
@@ -91,16 +105,9 @@ export function Sidebar() {
                 )}
               />
               <span
-                className={cn(
-                  "text-base",
-                  active ? "font-medium text-paper" : "text-night-ink",
-                )}
+                className={cn("text-base", active ? "font-medium text-paper" : "text-night-ink")}
               >
                 {item.label}
-              </span>
-              <span className="flex items-center gap-[6px]">
-                {item.late ? <span className="h-[5px] w-[5px] rounded-full bg-alert" /> : null}
-                <span className="text-small text-ink-3 tabular-nums">{item.count ?? ""}</span>
               </span>
             </Link>
           );
@@ -116,17 +123,18 @@ export function Sidebar() {
           <span className="text-base text-night-ink">Portail client</span>
           <span className="eyebrow text-ink-2">Aperçu</span>
         </button>
-        <button
-          type="button"
-          className="flex w-full cursor-pointer items-center justify-between rounded-control px-[10px] py-2 text-left hover:bg-night-2"
-        >
-          <span className="text-base text-night-ink">Copilote</span>
-          <span className="text-micro text-ink-2">⌘J</span>
-        </button>
         <div className="flex items-center justify-between px-[10px] py-2">
-          <span className="text-base text-night-ink">Emmanuel</span>
-          <span className="eyebrow text-ink-3">Direction</span>
+          <span className="clip text-base text-night-ink">{user.name}</span>
+          <span className="eyebrow text-ink-3">{ROLE_LABEL[user.role]}</span>
         </div>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="w-full cursor-pointer rounded-control px-[10px] py-2 text-left text-base text-ink-2 hover:bg-night-2 hover:text-night-ink"
+          >
+            Se déconnecter
+          </button>
+        </form>
       </div>
     </aside>
   );

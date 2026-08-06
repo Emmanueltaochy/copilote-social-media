@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
 
 /**
  * Every screen opens the same way: what am I looking at, when, and the one
@@ -9,12 +8,10 @@ import { Button } from "@/components/ui/Button";
 export function PageHeader({
   title,
   sub,
-  action,
   children,
 }: {
   title: string;
   sub: string;
-  action?: string;
   children?: ReactNode;
 }) {
   return (
@@ -23,15 +20,8 @@ export function PageHeader({
         <h1 className="text-title font-semibold">{title}</h1>
         <span className="text-small text-ink-3 tabular-nums">{sub}</span>
       </div>
-      <div className="flex flex-none items-center gap-2">
-        {children}
-        <Button className="px-[11px] py-[7px]">Exporter</Button>
-        {action ? (
-          <Button variant="primary" className="px-[11px] py-[7px]">
-            {action}
-          </Button>
-        ) : null}
-      </div>
+      {/* Aucun bouton décoratif : une action affichée doit faire quelque chose. */}
+      {children ? <div className="flex flex-none items-center gap-2">{children}</div> : null}
     </header>
   );
 }

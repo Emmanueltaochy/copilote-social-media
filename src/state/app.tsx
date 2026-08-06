@@ -1,17 +1,34 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { PACED_CLIENTS, type PacedClient } from "@/data/clients";
+import type { Tone } from "@/lib/tone";
 
 export const ALL_CLIENTS = "Tous les clients";
 
+/** Ce que la coquille a besoin de savoir d'un client, rien de plus. */
+export type ScopeClient = {
+  id: string;
+  name: string;
+  shortName: string;
+  done: number;
+  target: number;
+  tone: Tone;
+};
+
+export type SessionUser = {
+  name: string;
+  role: "direction" | "equipe" | "client";
+  initials: string;
+};
+
 type AppState = {
-  /** Client filter shared by every screen. Full name, or ALL_CLIENTS. */
+  user: SessionUser;
+  clients: ScopeClient[];
+  /** Filtre client partagé par tous les écrans. Nom complet, ou ALL_CLIENTS. */
   scope: string;
   setScope: (scope: string) => void;
-  /** Short name of the scoped client, or null when viewing everything. */
   scopedShort: string | null;
-  /** True when a row belongs to the current scope. Rows carry short names. */
+  scopedId: string | null;
   inScope: (shortName: string) => boolean;
   portalOpen: boolean;
   setPortalOpen: (open: boolean) => void;
@@ -19,29 +36,39 @@ type AppState = {
 
 const Ctx = createContext<AppState | null>(null);
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({
+  children,
+  user,
+  clients,
+}: {
+  children: ReactNode;
+  user: SessionUser;
+  clients: ScopeClient[];
+}) {
   const [scope, setScope] = useState<string>(ALL_CLIENTS);
   const [portalOpen, setPortalOpen] = useState(false);
 
   const value = useMemo<AppState>(() => {
-    const scoped: PacedClient | undefined =
-      scope === ALL_CLIENTS ? undefined : PACED_CLIENTS.find((c) => c.name === scope);
-    const scopedShort = scoped?.short ?? null;
+    const scoped = scope === ALL_CLIENTS ? undefined : clients.find((c) => c.name === scope);
+    const scopedShort = scoped?.shortName ?? null;
     return {
+      user,
+      clients,
       scope,
       setScope,
       scopedShort,
+      scopedId: scoped?.id ?? null,
       inScope: (shortName: string) => scopedShort === null || scopedShort === shortName,
       portalOpen,
       setPortalOpen,
     };
-  }, [scope, portalOpen]);
+  }, [scope, portalOpen, user, clients]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useApp(): AppState {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useApp must be used inside <AppProvider>");
+  if (!ctx) throw new Error("useApp doit être utilisé dans <AppProvider>");
   return ctx;
 }

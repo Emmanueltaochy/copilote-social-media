@@ -39,6 +39,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # public/ doit exister dans le dépôt (voir public/.gitkeep) : git ne suivant pas
 # les dossiers vides, son absence ferait échouer cette copie.
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Les fichiers de migration sont lus au démarrage par src/instrumentation.ts.
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 
 USER nextjs
 EXPOSE 3000

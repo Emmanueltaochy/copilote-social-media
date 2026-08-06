@@ -2,6 +2,30 @@
 # sur GHCR : le VPS ne fait que la tirer, il ne compile jamais rien (un build
 # Next sur une petite machine partagée finit souvent en OOM).
 services:
+  db:
+    image: postgres:17-alpine
+    container_name: copilote-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pilot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans .env}
+      POSTGRES_DB: pilot
+    volumes:
+      - pilot-db:/var/lib/postgresql/data
+    # Aucun port publié : seul le conteneur applicatif y accède, par le réseau
+    # interne. La base n'est donc joignable ni depuis Internet ni depuis les
+    # autres services du VPS.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pilot -d pilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   app:
     image: ${APP_IMAGE:-ghcr.io/emmanueltaochy/copilote-social-media:latest}
     container_name: copilote-social-media
@@ -11,9 +35,13 @@ services:
     # test direct sur http://IP:PORT.
     ports:
       - "127.0.0.1:${APP_PORT:-3001}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       APP_VERSION: ${APP_VERSION:-dev}
+      DATABASE_URL: postgres://pilot:${DB_PASSWORD}@db:5432/pilot
     healthcheck:
       test:
         [
@@ -31,3 +59,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  pilot-db:
