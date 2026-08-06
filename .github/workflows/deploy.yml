@@ -107,9 +107,28 @@ jobs:
             git fetch --depth 1 origin main
             git reset --hard origin/main
 
+            # Une nouvelle version peut introduire une variable que le .env du
+            # serveur ne connaît pas encore. On la crée ici plutôt que de
+            # laisser le déploiement échouer sur une machine déjà en service.
+            # Un secret généré n'est jamais réécrit : les données existantes
+            # deviendraient illisibles.
+            if ! grep -q '^DB_PASSWORD=' .env; then
+              echo "DB_PASSWORD=$(openssl rand -hex 24)" >> .env
+              echo "DB_PASSWORD généré"
+            fi
+
             # Épingle la version déployée au commit, pour que /api/health dise
             # la vérité et qu'un rollback soit possible.
             sed -i "s|^APP_VERSION=.*|APP_VERSION=${GITHUB_SHA::7}|" .env
+
+            # Validation AVANT de toucher à quoi que ce soit. « docker compose
+            # up » recrée les conteneurs : s'il échoue sur une variable
+            # manquante, l'ancienne version est déjà détruite et le site tombe.
+            # Cette vérification échoue sans rien arrêter.
+            if ! docker compose config --quiet; then
+              echo "Configuration invalide — rien n'a été modifié, l'ancienne version tourne toujours."
+              exit 1
+            fi
 
             docker compose pull
             docker compose up -d --remove-orphans
@@ -127,5 +146,18 @@ jobs:
 
             echo "L'app n'est pas devenue saine en 150 s — logs :"
             docker compose logs --tail 80 app
+
+            # Ne jamais laisser le domaine sans rien derrière : sur une machine
+            # partagée, un port libéré peut être capté par un autre service et
+            # afficher le mauvais site. On revient à la version précédente.
+            PREV="$(docker images --format '{{.Repository}}:{{.Tag}}' \
+              ghcr.io/emmanueltaochy/copilote-social-media \
+              | grep -v ':latest' | head -n1 || true)"
+            if [ -n "$PREV" ]; then
+              echo "Retour à $PREV"
+              sed -i "s|^APP_IMAGE=.*|APP_IMAGE=$PREV|" .env
+              docker compose up -d --remove-orphans || true
+            fi
+
             docker logout ghcr.io >/dev/null 2>&1 || true
             exit 1
