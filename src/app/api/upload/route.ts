@@ -39,7 +39,11 @@ export async function POST(request: Request) {
   }
 
   const mimeType = (request.headers.get("content-type") ?? "").split(";")[0].trim();
-  const declared = Number(request.headers.get("content-length") ?? "");
+  // « x-filesize » d'abord : il vient du navigateur et traverse les relais
+  // intacts, là où Content-Length peut être remplacé par un encodage par blocs.
+  const declared = Number(
+    request.headers.get("x-filesize") ?? request.headers.get("content-length") ?? "",
+  );
 
   if (!request.body) {
     return Response.json({ error: "Fichier vide." }, { status: 400 });

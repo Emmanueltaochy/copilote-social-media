@@ -40,6 +40,11 @@ function upload(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/upload?clientId=${encodeURIComponent(clientId)}`);
     xhr.setRequestHeader("x-filename", encodeURIComponent(file.name));
+    // La taille attendue voyage dans un en-tête à nous. Content-Length peut
+    // disparaître en chemin — un relais qui retransmet par blocs le retire —
+    // et sans taille de référence, un envoi coupé est indiscernable d'un
+    // envoi terminé.
+    xhr.setRequestHeader("x-filesize", String(file.size));
     // Le type vient du navigateur ; vide pour certains formats, le serveur le
     // refusera alors avec un message clair plutôt que de deviner.
     xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
@@ -95,9 +100,20 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
     for (let i = 0; i < queue.length; i += 1) {
       setItems((prev) => prev.map((it, k) => (k === i ? { ...it, state: "envoi" } : it)));
 
-      const result = await upload(queue[i].file, clientId, (bytes) => {
+      const onProgress = (bytes: number) =>
         setItems((prev) => prev.map((it, k) => (k === i ? { ...it, sent: bytes } : it)));
-      });
+
+      let result = await upload(queue[i].file, clientId, onProgress);
+
+      // Une coupure en cours d'envoi est le cas le plus courant sur une
+      // connexion domestique, et le serveur refuse alors le fichier sans rien
+      // enregistrer. Une seconde tentative suffit presque toujours, et la
+      // demander à la main pour trente fichiers reviendrait à ne jamais les
+      // importer. Une seule reprise : au-delà, ce n'est plus un hasard.
+      if (result.error && /interrompu/i.test(result.error)) {
+        onProgress(0);
+        result = await upload(queue[i].file, clientId, onProgress);
+      }
 
       setItems((prev) =>
         prev.map((it, k) =>

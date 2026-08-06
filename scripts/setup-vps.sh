@@ -180,8 +180,15 @@ if [[ -f "$VHOST" ]]; then
   # nginx refuse par défaut tout corps de requête au-delà d'un mégaoctet : une
   # photo de photographe serait rejetée avant même d'atteindre l'application,
   # avec une erreur 413 que rien n'explique côté écran.
+  # Répare un vhost posé par une version précédente du script : la
+  # transmission au fil de l'eau tronquait les envois lents.
+  if grep -q 'proxy_request_buffering off' "$VHOST"; then
+    sed -i 's|proxy_request_buffering off;|proxy_request_buffering on;\n        client_body_buffer_size 1m;\n        client_body_timeout 900s;|' "$VHOST"
+    ok "Transmission des envois corrigée (nginx encaisse avant de relayer)"
+  fi
+
   if ! grep -q 'client_max_body_size' "$VHOST"; then
-    sed -i "0,/location \/ {/s||location / {\n        client_max_body_size 0;\n        proxy_request_buffering off;\n        proxy_read_timeout 900s;\n        proxy_send_timeout 900s;|" "$VHOST"
+    sed -i "0,/location \/ {/s||location / {\n        client_max_body_size 0;\n        proxy_request_buffering on;\n        client_body_buffer_size 1m;\n        client_body_timeout 900s;\n        proxy_read_timeout 900s;\n        proxy_send_timeout 900s;|" "$VHOST"
     ok "Limite de taille d'envoi levée dans le vhost"
   fi
   ok "Vhost existant conservé (configuration TLS intacte), port mis à jour"
@@ -198,11 +205,18 @@ server {
         # ne pèsent presque rien une fois stockées, mais elles arrivent
         # parfois à plusieurs dizaines de mégaoctets.
         client_max_body_size 0;
-        # Transmet le flux au fur et à mesure au lieu de mettre l'envoi
-        # entier en tampon sur le disque de nginx avant de le relayer.
-        proxy_request_buffering off;
-        # Un envoi de plusieurs centaines de mégaoctets sur une connexion
-        # domestique dépasse largement le délai par défaut d'une minute.
+        # nginx encaisse l'envoi en entier avant de le relayer. Le relayer au
+        # fil de l'eau faisait remonter les hoquets de la connexion du client
+        # jusqu'à l'application, qui recevait alors un fichier coupé sans que
+        # rien ne signale l'interruption. Ici nginx absorbe la lenteur puis
+        # transmet d'un trait en local : l'application ne voit que des envois
+        # complets.
+        proxy_request_buffering on;
+        client_body_buffer_size 1m;
+
+        # Une photo de plusieurs dizaines de mégaoctets depuis une connexion
+        # domestique dépasse largement les délais par défaut d'une minute.
+        client_body_timeout 900s;
         proxy_read_timeout 900s;
         proxy_send_timeout 900s;
 

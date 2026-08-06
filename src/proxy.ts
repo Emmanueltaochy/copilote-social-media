@@ -34,5 +34,16 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Sans exclusion, le proxy s'appliquerait aussi aux fichiers statiques et
   // bloquerait le CSS et les images de la page de connexion elle-même.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
+  //
+  // « api/upload » est écarté pour une autre raison, plus grave : dès qu'un
+  // proxy existe, Next recopie le corps de chaque requête en mémoire pour
+  // qu'il puisse être lu deux fois, avec un plafond de dix mégaoctets. Au-delà,
+  // il tronque — et, par conception, sans erreur ni avertissement au client.
+  // Les photos de plus de dix mégaoctets arrivaient donc coupées, et la
+  // bibliothèque se remplissait d'images à moitié décodées. Hors du filtre,
+  // le corps traverse en flux, sans copie ni plafond. Le contrôle d'accès n'y
+  // perd rien : la route vérifie elle-même la session, comme toutes les autres.
+  matcher: [
+    "/((?!api/upload|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+  ],
 };

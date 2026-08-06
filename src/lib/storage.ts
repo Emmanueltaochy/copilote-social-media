@@ -196,6 +196,7 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
   const tmpPath = path.join(tmpDir, id);
   const hash = createHash("sha256");
   let received = 0;
+  let settled = false;
 
   const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
 
@@ -220,6 +221,19 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
     );
 
     if (received === 0) throw new UploadError("Fichier vide.");
+
+    // Un flux interrompu se termine sans erreur : la lecture s'arrête, tout
+    // paraît normal, et le fichier écrit est un JPEG coupé au milieu. Sans ce
+    // contrôle, il entrerait dans la bibliothèque comme une image valide et
+    // n'échouerait qu'au moment de le lire — « premature end of JPEG image ».
+    // Comparer à la taille annoncée est le seul moyen de faire la différence
+    // entre un envoi terminé et un envoi coupé.
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError(
+        `Envoi interrompu : ${formatBytes(received)} reçus sur ${formatBytes(file.declaredBytes)} annoncés. ` +
+          "Rien n'a été enregistré, relance ce fichier.",
+      );
+    }
 
     const checksum = hash.digest("hex");
 
@@ -246,6 +260,7 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
         .webp({ quality: 74 })
         .toFile(path.join(MEDIA_ROOT, thumbPathFor(webPath)));
 
+      settled = true;
       return {
         storagePath: webPath,
         mimeType: "image/webp",
@@ -262,6 +277,7 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
     // volume ne recopie rien, même pour plusieurs gigaoctets.
     await rename(tmpPath, path.join(MEDIA_ROOT, videoPath));
 
+    settled = true;
     return {
       storagePath: videoPath,
       mimeType: file.mimeType,
@@ -271,6 +287,14 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
       checksum,
     };
   } catch (error) {
+    // libvips signale une image coupée par « premature end ». C'est un envoi
+    // interrompu, pas un mauvais format : le dire autrement enverrait chercher
+    // un problème dans le fichier d'origine, qui est intact.
+    if (error instanceof Error && /premature end|truncat/i.test(error.message)) {
+      throw new UploadError(
+        "Envoi interrompu : l'image est arrivée incomplète. Rien n'a été enregistré, relance ce fichier.",
+      );
+    }
     if (error instanceof Error && /unsupported image format|Input file/i.test(error.message)) {
       throw new UploadError(
         "Cette image n'a pas pu être lue. Si elle vient directement d'un boîtier, " +
@@ -282,6 +306,14 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
     // Le temporaire d'une image a fini son office ; celui d'une vidéo a été
     // déplacé et n'existe plus. Dans les deux cas, il ne doit rien rester.
     await unlink(tmpPath).catch(() => {});
+    // Une conversion interrompue laisse une dérivée à moitié écrite. Sans
+    // ligne en base, plus rien ne la désigne : elle occuperait le disque sans
+    // que personne puisse la retrouver ni la supprimer.
+    if (!settled) {
+      const webPath = path.join(dir, `${id}.webp`);
+      await unlink(path.join(MEDIA_ROOT, webPath)).catch(() => {});
+      await unlink(path.join(MEDIA_ROOT, thumbPathFor(webPath))).catch(() => {});
+    }
   }
 }
 
