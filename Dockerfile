@@ -42,6 +42,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Les fichiers de migration sont lus au démarrage par src/instrumentation.ts.
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 
+# Les médias sont montés ici par docker compose. Le dossier doit exister et
+# appartenir à l'utilisateur applicatif, sinon le premier import échoue.
+RUN mkdir -p /data/assets && chown -R nextjs:nodejs /data
+
 USER nextjs
 EXPOSE 3000
 

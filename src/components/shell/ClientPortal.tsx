@@ -45,7 +45,8 @@ export function ClientPortal() {
               : "Le portail affichera les contenus en attente de validation et l'avancement du mois. Il se remplira dès que des contenus seront programmés."}
           </p>
           <p className="mt-3 text-small text-ink-3">
-            Les accès clients s&apos;ouvriront depuis la fiche de chaque compte.
+            Les accès s&apos;ouvrent depuis la fiche de chaque client : le contact reçoit un lien,
+            choisit son mot de passe, et accède à son espace.
           </p>
         </div>
       </div>

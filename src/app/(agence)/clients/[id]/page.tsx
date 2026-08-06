@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
@@ -8,7 +9,10 @@ import { requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
 import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
-import { archiveClient, updateClient } from "../actions";
+import { ClientAccessForm } from "../ClientAccess";
+import { InviteLink } from "./InviteLink";
+import { archiveClient, revokeClientAccess, updateClient } from "../actions";
+import { listClientAccess } from "@/db/queries";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireStaff();
@@ -17,8 +21,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const client = await getClientWithPace(id);
   if (!client) notFound();
 
-  const lines = await listContractLines(id);
+  const [lines, access] = await Promise.all([listContractLines(id), listClientAccess(id)]);
   const { pace } = client;
+
+  // Adresse publique du site, telle que le navigateur l'a demandée. Derrière
+  // nginx, c'est l'en-tête transmis qui porte le vrai domaine : sans lui, le
+  // lien d'invitation pointerait vers l'adresse interne du conteneur.
+  const head = await headers();
+  const host = head.get("x-forwarded-host") ?? head.get("host") ?? "";
+  const scheme = head.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const origin = host ? `${scheme}://${host}` : "";
 
   return (
     <>
@@ -127,6 +139,51 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 adsBudgetLabel: client.adsBudgetLabel ?? "",
               }}
             />
+          </Card>
+
+          <Card className="flex flex-col gap-4 p-5">
+            <div>
+              <Eyebrow>Portail client</Eyebrow>
+              <h2 className="text-title font-semibold">Accès du client</h2>
+              <p className="mt-1 text-base text-ink-2">
+                Le contact reçoit un lien d&apos;invitation et choisit son mot de passe. Il ne verra
+                que son propre espace : ses contenus, son mois, ses médias — jamais les coûts ni les
+                autres clients.
+              </p>
+            </div>
+
+            {access.length > 0 ? (
+              <div className="overflow-hidden rounded-card border border-line">
+                {access.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-3 border-b border-line px-3 py-[10px]"
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="clip text-base font-medium">{a.name}</span>
+                      <span className="clip text-small text-ink-3">{a.email}</span>
+                    </span>
+                    {a.inviteToken ? (
+                      <InviteLink url={`${origin}/invitation/${a.inviteToken}`} />
+                    ) : (
+                      <span className="text-small text-ok">Compte actif</span>
+                    )}
+                    <form action={revokeClientAccess}>
+                      <input type="hidden" name="userId" value={a.id} />
+                      <input type="hidden" name="clientId" value={client.id} />
+                      <button
+                        type="submit"
+                        className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-3 hover:border-alert hover:text-alert"
+                      >
+                        Révoquer
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <ClientAccessForm clientId={client.id} />
           </Card>
 
           <Card className="flex items-center justify-between gap-4 p-5">

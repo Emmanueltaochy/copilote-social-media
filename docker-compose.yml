@@ -42,6 +42,11 @@ services:
       NODE_ENV: production
       APP_VERSION: ${APP_VERSION:-dev}
       DATABASE_URL: postgres://pilot:${DB_PASSWORD}@db:5432/pilot
+      MEDIA_ROOT: /data/assets
+    volumes:
+      # Les médias vivent hors du conteneur : une mise à jour recrée le
+      # conteneur, elle ne doit pas emporter les photos des clients.
+      - pilot-media:/data/assets
     healthcheck:
       test:
         [
@@ -62,3 +67,4 @@ services:
 
 volumes:
   pilot-db:
+  pilot-media:

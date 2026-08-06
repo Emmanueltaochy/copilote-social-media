@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db, brands, clients, contractLines } from "@/db";
-import { requireStaff } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
+import { db, brands, clients, contractLines, users } from "@/db";
+import { initialsFrom, requireStaff } from "@/lib/auth";
 
 /**
  * Un client sans engagement chiffré reste valide : certains comptes sont à la
@@ -134,5 +135,54 @@ export async function addContractLine(formData: FormData): Promise<void> {
     monthlyTarget: Number.isFinite(target) ? target : 0,
     position: existing.length,
   });
+  revalidatePath(`/clients/${clientId}`);
+}
+
+
+/**
+ * Ouvre un accès au portail pour un contact du client.
+ *
+ * Aucun mot de passe n'est choisi ici : un lien d'invitation à usage unique
+ * est généré, et c'est le client qui définit le sien. Personne dans l'agence
+ * ne connaît donc le mot de passe d'un client.
+ */
+export async function createClientAccess(
+  _prev: ClientFormState,
+  formData: FormData,
+): Promise<ClientFormState> {
+  await requireStaff();
+
+  const clientId = String(formData.get("clientId") ?? "");
+  const name = String(formData.get("contactName") ?? "").trim();
+  const email = String(formData.get("contactEmail") ?? "").trim().toLowerCase();
+  if (!clientId || !name || !email) return { error: "Nom et adresse du contact sont nécessaires." };
+
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  if (existing.length) return { error: "Un compte utilise déjà cette adresse." };
+
+  const token = randomBytes(32).toString("base64url");
+  await db.insert(users).values({
+    name,
+    email,
+    initials: initialsFrom(name),
+    role: "client",
+    clientId,
+    inviteToken: token,
+    // Une invitation qui traîne est une porte ouverte : elle expire.
+    inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+  });
+
+  revalidatePath(`/clients/${clientId}`);
+  return {};
+}
+
+export async function revokeClientAccess(formData: FormData): Promise<void> {
+  await requireStaff();
+  const userId = String(formData.get("userId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!userId) return;
+  // Désactiver plutôt que supprimer : l'historique des actions du contact
+  // reste rattaché à quelqu'un.
+  await db.update(users).set({ active: false }).where(eq(users.id, userId));
   revalidatePath(`/clients/${clientId}`);
 }

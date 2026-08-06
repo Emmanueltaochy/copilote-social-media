@@ -9,6 +9,7 @@ import {
   comments,
   contents,
   contentVersions,
+  assets,
   contractLines,
   shoots,
   timeEntries,
@@ -294,4 +295,43 @@ export async function listClientOptions() {
     .from(clients)
     .where(eq(clients.active, true))
     .orderBy(asc(clients.shortName));
+}
+
+
+/* ----------------------------------------------------------------- assets -- */
+
+export async function listAssets(clientId?: string) {
+  return db
+    .select({ asset: assets, clientName: clients.shortName, authorName: users.name })
+    .from(assets)
+    .innerJoin(clients, eq(clients.id, assets.clientId))
+    .leftJoin(users, eq(users.id, assets.authorId))
+    .where(clientId ? eq(assets.clientId, clientId) : undefined)
+    .orderBy(desc(assets.createdAt));
+}
+
+/** Poids total des médias : sert l'indicateur d'espace de l'écran Assets. */
+export async function assetsFootprint() {
+  const [row] = await db
+    .select({
+      files: count(),
+      bytes: raw<number>`coalesce(sum(${assets.sizeBytes}), 0)::bigint`,
+    })
+    .from(assets);
+  return { files: row?.files ?? 0, bytes: Number(row?.bytes ?? 0) };
+}
+
+
+/** Comptes portail rattachés à un client. */
+export async function listClientAccess(clientId: string) {
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      inviteToken: users.inviteToken,
+    })
+    .from(users)
+    .where(and(eq(users.clientId, clientId), eq(users.active, true)))
+    .orderBy(asc(users.name));
 }
