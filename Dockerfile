@@ -3,12 +3,16 @@
 # ---- deps : installe les dépendances une seule fois -------------------------
 FROM node:22-alpine AS deps
 WORKDIR /app
+# Next.js s'appuie sur des binaires liés à la glibc : sur Alpine (musl), cette
+# compatibilité doit être ajoutée explicitement.
+RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- builder : compile l'app ------------------------------------------------
 FROM node:22-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache libc6-compat
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -32,6 +36,8 @@ RUN addgroup --system --gid 1001 nodejs \
 # sont copiés à côté car le serveur les sert depuis le disque.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# public/ doit exister dans le dépôt (voir public/.gitkeep) : git ne suivant pas
+# les dossiers vides, son absence ferait échouer cette copie.
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
