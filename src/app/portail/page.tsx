@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { and, desc, eq, gte, isNotNull, lt } from "drizzle-orm";
-import { db, assets, clients, contents } from "@/db";
+import { and, desc, eq, gte, isNotNull, lt, sql as raw } from "drizzle-orm";
+import { db, activity, assets, clients, contents } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/connexion/actions";
 import { Card } from "@/components/ui/Card";
@@ -10,6 +10,7 @@ import { Eyebrow } from "@/components/ui/primitives";
 import { CONTENT_STATUS } from "@/data/content";
 import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { isVideo } from "@/lib/storage";
+import { ValidationCard } from "./ValidationCard";
 import { toneText } from "@/lib/tone";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function PortailPage() {
 
   const { start, end } = monthRange();
 
-  const [published, waiting, upcoming, media] = await Promise.all([
+  const [published, waiting, upcoming, media, answers] = await Promise.all([
     db
       .select({ content: contents })
       .from(contents)
@@ -61,6 +62,15 @@ export default async function PortailPage() {
       .where(eq(assets.clientId, client.id))
       .orderBy(desc(assets.createdAt))
       .limit(12),
+    // Les réponses déjà données. Une confirmation qui disparaît avec la carte
+    // ne prouve rien : passé le clic, le client doit pouvoir vérifier que sa
+    // réponse est bien arrivée, même après avoir rechargé la page.
+    db
+      .select({ entry: activity })
+      .from(activity)
+      .where(and(eq(activity.clientId, client.id), raw`${activity.text} like '%par le client%'`))
+      .orderBy(desc(activity.createdAt))
+      .limit(5),
   ]);
 
   const p = pace(published.length, client.contentTarget);
@@ -99,26 +109,43 @@ export default async function PortailPage() {
               </span>
             </div>
             {waiting.map(({ content }) => (
-              <div key={content.id} className="flex items-center gap-4 border-b border-line px-6 py-4">
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="clip text-lead font-medium">{content.title}</span>
-                  <span className="text-base text-ink-3">
-                    {content.scheduledAt
-                      ? `Prévu le ${content.scheduledAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
-                      : "Date à définir"}
-                  </span>
-                </span>
-                <span className="text-base text-warn">
-                  {content.submittedAt
-                    ? `En attente depuis le ${content.submittedAt.toLocaleDateString("fr-FR")}`
-                    : ""}
-                </span>
-              </div>
+              <ValidationCard
+                key={content.id}
+                id={content.id}
+                title={content.title}
+                scheduled={
+                  content.scheduledAt
+                    ? content.scheduledAt.toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "long",
+                      })
+                    : null
+                }
+                waitingSince={
+                  content.submittedAt ? content.submittedAt.toLocaleDateString("fr-FR") : null
+                }
+              />
             ))}
             <p className="px-6 py-4 text-base text-ink-3">
-              Pour valider ou demander une modification, répondez à Léa — la validation en ligne
-              arrive prochainement.
+              Une validation programme la publication. Une demande de modification renvoie le
+              contenu en fabrication avec votre remarque.
             </p>
+          </Card>
+        ) : null}
+
+        {answers.length > 0 ? (
+          <Card>
+            <div className="border-b border-line px-6 py-5">
+              <span className="text-title font-semibold">Vos dernières réponses</span>
+            </div>
+            {answers.map(({ entry }) => (
+              <div key={entry.id} className="flex items-baseline gap-4 border-b border-line px-6 py-3">
+                <span className="w-[110px] flex-none text-base tabular-nums text-ink-3">
+                  {entry.createdAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                </span>
+                <span className="min-w-0 flex-1 text-base text-ink-2">{entry.text}</span>
+              </div>
+            ))}
           </Card>
         ) : null}
 

@@ -113,3 +113,54 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/**
+ * Impression.
+ *
+ * Le rapport mensuel part chez le client en PDF, et le PDF sort de la boîte
+ * d'impression du navigateur : pas de bibliothèque de génération embarquée,
+ * donc rien à maintenir en parallèle du rendu écran. Il reste à retirer ce qui
+ * n'a pas de sens sur papier — la navigation, les boutons — et à rendre les
+ * couleurs franches, les imprimantes n'ayant pas les fonds gris de l'écran.
+ */
+@media print {
+  /* Barre latérale, navigation, et l'en-tête d'écran : le document imprimé
+     porte son propre titre, celui de l'application ferait doublon. */
+  aside,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: white;
+  }
+
+  /* Les conteneurs de l'application défilent ; une page imprimée, non :
+     sans cela, seul le premier écran du rapport sortirait. */
+  body *,
+  body {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Une carte coupée entre deux pages devient illisible. */
+  section {
+    break-inside: avoid;
+    border-color: #d5d2cc !important;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

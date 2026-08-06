@@ -10,6 +10,7 @@ import {
   clients,
   comments,
   contents,
+  contentStats,
   contentVersions,
   assets,
   contractLines,
@@ -544,4 +545,99 @@ export async function listRates() {
     .from(users)
     .where(raw`${users.role} in ('direction','equipe')`)
     .orderBy(asc(users.name));
+}
+
+/* ---------------------------------------------------------------- rapports -- */
+
+/**
+ * Tout ce que contient le rapport mensuel d'un client.
+ *
+ * Une seule fonction plutôt qu'une par bloc : le rapport se lit comme un tout,
+ * et charger ses morceaux depuis plusieurs endroits finirait par produire des
+ * chiffres qui ne se recoupent pas d'un bloc à l'autre.
+ */
+export async function monthlyReport(clientId: string, now: Date = new Date()) {
+  const { start, end } = monthRange(now);
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+
+  const [published, shootRows, mediaCount, campaignRows] = await Promise.all([
+    db
+      .select({ content: contents, stats: contentStats })
+      .from(contents)
+      .leftJoin(contentStats, eq(contentStats.contentId, contents.id))
+      .where(
+        and(
+          eq(contents.clientId, clientId),
+          isNotNull(contents.publishedAt),
+          gte(contents.publishedAt, start),
+          lt(contents.publishedAt, end),
+        ),
+      )
+      .orderBy(asc(contents.publishedAt)),
+
+    db
+      .select()
+      .from(shoots)
+      .where(
+        and(gte(shoots.startsAt, start), lt(shoots.startsAt, end), eq(shoots.clientId, clientId)),
+      )
+      .orderBy(asc(shoots.startsAt)),
+
+    db
+      .select({ n: count() })
+      .from(assets)
+      .where(
+        and(
+          eq(assets.clientId, clientId),
+          gte(assets.createdAt, start),
+          lt(assets.createdAt, end),
+        ),
+      ),
+
+    db
+      .select({
+        campaign: campaigns,
+        spendCents: raw<number>`coalesce((
+          select sum(m.spend_cents) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+        impressions: raw<number>`coalesce((
+          select sum(m.impressions) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+        clicks: raw<number>`coalesce((
+          select sum(m.clicks) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+        leads: raw<number>`coalesce((
+          select sum(m.leads) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+        conversions: raw<number>`coalesce((
+          select sum(m.conversions) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+        revenueCents: raw<number>`coalesce((
+          select sum(m.revenue_cents) from ad_metrics m
+          join ad_sets s on s.id = m.ad_set_id
+          where s.campaign_id = campaigns.id and m.week_start >= ${from} and m.week_start < ${to}
+        ), 0)::int`,
+      })
+      .from(campaigns)
+      .where(eq(campaigns.clientId, clientId))
+      .orderBy(desc(campaigns.createdAt)),
+  ]);
+
+  return {
+    published,
+    shoots: shootRows,
+    mediaCount: mediaCount[0]?.n ?? 0,
+    campaigns: campaignRows.filter((c) => c.spendCents > 0 || c.campaign.status === "active"),
+  };
 }
