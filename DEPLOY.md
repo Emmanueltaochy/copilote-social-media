@@ -34,11 +34,15 @@ navigateur**. (Ou en SSH si tu préfères, c'est pareil.)
 Colle ceci, en une seule fois, et appuie sur Entrée :
 
 ```bash
-sudo apt-get update -qq && sudo apt-get install -y -qq git && \
-sudo rm -rf /tmp/pilot-setup && \
-sudo git clone -q https://github.com/Emmanueltaochy/copilote-social-media.git /tmp/pilot-setup && \
-sudo bash /tmp/pilot-setup/scripts/setup-vps.sh --domain marketing.taochyconsulting.fr
+apt-get update -qq && apt-get install -y -qq git && \
+rm -rf /tmp/pilot-setup && \
+git clone -q https://github.com/Emmanueltaochy/copilote-social-media.git /tmp/pilot-setup && \
+bash /tmp/pilot-setup/scripts/setup-vps.sh --domain marketing.taochyconsulting.fr
 ```
+
+Le terminal Hostinger ouvre directement une session `root` — d'où l'absence de
+`sudo`, qui n'est d'ailleurs pas installé sur ces images. Si ton invite n'affiche
+pas `root@`, ajoute `sudo ` devant chacune des quatre lignes.
 
 Ça prend 2 à 5 minutes. Le script installe ce qui manque, configure le domaine,
 pose le certificat HTTPS et prépare la connexion avec GitHub.
@@ -93,7 +97,7 @@ Pour passer à `taochyagency.com` : ajoute le DNS chez ton registrar, puis
 relance la commande de l'étape 1 en changeant seulement le domaine :
 
 ```bash
-sudo bash /opt/copilote-social-media/scripts/setup-vps.sh --domain marketing.taochyagency.com
+bash /opt/copilote-social-media/scripts/setup-vps.sh --domain marketing.taochyagency.com
 ```
 
 L'ancienne adresse continue de répondre tant que tu ne la retires pas.
@@ -117,7 +121,7 @@ cd /opt/copilote-social-media && git log --oneline -5
 Prends le code à 7 caractères d'une version qui marchait, puis :
 
 ```bash
-sudo sed -i 's|:latest|:LE_CODE|' /opt/copilote-social-media/.env
+sed -i 's|:latest|:LE_CODE|' /opt/copilote-social-media/.env
 cd /opt/copilote-social-media && docker compose up -d
 ```
 

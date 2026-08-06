@@ -58,7 +58,14 @@ port_taken() {
   return 1
 }
 
-[[ $EUID -eq 0 ]] || die "À lancer avec sudo : sudo bash $0 --domain $DOMAIN"
+# Beaucoup d'images VPS (dont Hostinger) ouvrent une session root sans installer
+# sudo : conseiller « sudo » quand la commande n'existe pas envoie dans le mur.
+if [[ $EUID -ne 0 ]]; then
+  if command -v sudo >/dev/null 2>&1; then
+    die "À lancer en administrateur : sudo bash $0 --domain $DOMAIN"
+  fi
+  die "À lancer en administrateur. Connecte-toi en root, puis : bash $0 --domain $DOMAIN"
+fi
 command -v apt-get >/dev/null || die "Ce script vise Debian/Ubuntu. Dis-le moi et j'adapte."
 
 echo "${bold}Installation de Taochy Pilot${off}"
