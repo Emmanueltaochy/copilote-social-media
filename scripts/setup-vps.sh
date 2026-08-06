@@ -172,9 +172,18 @@ fi
 # Réécrire le vhost effacerait le bloc « listen 443 » que certbot y ajoute.
 # Sans bloc HTTPS, nginx sert le site par DÉFAUT en 443 — c'est-à-dire un
 # autre site de la machine, à notre adresse. On ne réécrit donc jamais un
-# vhost existant : on met seulement le port à jour.
+# vhost existant : on met seulement le port à jour, sans réécrire le fichier —
+# une réécriture effacerait le bloc « listen 443 » ajouté par certbot.
 if [[ -f "$VHOST" ]]; then
   sed -i "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$PORT;|g" "$VHOST"
+
+  # nginx refuse par défaut tout corps de requête au-delà d'un mégaoctet : une
+  # photo de photographe serait rejetée avant même d'atteindre l'application,
+  # avec une erreur 413 que rien n'explique côté écran.
+  if ! grep -q 'client_max_body_size' "$VHOST"; then
+    sed -i "0,/location \/ {/s||location / {\n        client_max_body_size 0;\n        proxy_request_buffering off;\n        proxy_read_timeout 900s;\n        proxy_send_timeout 900s;|" "$VHOST"
+    ok "Limite de taille d'envoi levée dans le vhost"
+  fi
   ok "Vhost existant conservé (configuration TLS intacte), port mis à jour"
 else
   cat > "$VHOST" <<EOF
@@ -185,6 +194,18 @@ server {
     server_name $DOMAIN;
 
     location / {
+        # Aucune limite de taille : les images sont réencodées à l'import et
+        # ne pèsent presque rien une fois stockées, mais elles arrivent
+        # parfois à plusieurs dizaines de mégaoctets.
+        client_max_body_size 0;
+        # Transmet le flux au fur et à mesure au lieu de mettre l'envoi
+        # entier en tampon sur le disque de nginx avant de le relayer.
+        proxy_request_buffering off;
+        # Un envoi de plusieurs centaines de mégaoctets sur une connexion
+        # domestique dépasse largement le délai par défaut d'une minute.
+        proxy_read_timeout 900s;
+        proxy_send_timeout 900s;
+
         proxy_pass http://127.0.0.1:$PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -278,8 +299,10 @@ fi
 # pour les lire, sans dépendre du chemin interne de Docker sur la machine.
 VOLUME="$(docker volume ls -q --filter name=pilot-media | head -n1)"
 if [ -n "$VOLUME" ]; then
+  # « .tmp » contient les fichiers en cours de réception : ils n'ont pas
+  # d'entrée en base et ne veulent rien dire une fois restaurés.
   docker run --rm -v "$VOLUME":/data:ro -v "$DIR/backups":/out alpine \
-    tar czf "/out/medias-$STAMP.tar.gz" -C /data . 
+    tar czf "/out/medias-$STAMP.tar.gz" --exclude='./.tmp' -C /data . 
   if [ ! -s "backups/medias-$STAMP.tar.gz" ]; then
     echo "Sauvegarde des médias vide, échec" >&2
     rm -f "backups/medias-$STAMP.tar.gz"

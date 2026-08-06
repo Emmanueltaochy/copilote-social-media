@@ -9,7 +9,7 @@ import {
   diskUsage,
   formatBytes,
   isVideo,
-  MAX_UPLOAD_BYTES,
+  MAX_VIDEO_BYTES,
   MIN_FREE_BYTES,
   WARN_FREE_BYTES,
 } from "@/lib/storage";
@@ -67,10 +67,13 @@ export default async function AssetsPage() {
             </div>
             <UploadForm clients={clients} />
             <p className="text-small text-ink-2">
-              Les images sont recompressées à l&apos;import et une miniature est générée : un
-              original d&apos;appareil photo pèse dix fois la version publiée. Maximum{" "}
-              {formatBytes(MAX_UPLOAD_BYTES)} par fichier — <strong>les rushes de tournage
-              n&apos;ont pas leur place ici</strong>, seulement les médias livrés et réutilisables.
+              Les images sont recompressées à l&apos;import et une miniature est générée :
+              envoie les fichiers de ton photographe tels quels, quelle que soit leur taille —
+              une photo de 60 Mo occupe quelques centaines de kilo-octets une fois traitée.
+              Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW) ne sont pas lisibles :
+              exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{" "}
+              {formatBytes(MAX_VIDEO_BYTES)} — <strong>les rushes de tournage n&apos;ont pas leur
+              place ici</strong>, seulement les médias livrés et réutilisables.
             </p>
             {/* L'alerte se mesure en espace restant, pas en pourcentage rempli :
                 un disque à 90 % avec 200 Go libres ne gêne personne, tandis

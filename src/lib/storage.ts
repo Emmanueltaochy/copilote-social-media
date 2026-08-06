@@ -1,29 +1,52 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, rename, stat, unlink } from "node:fs/promises";
 import { statfs } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import sharp from "sharp";
 
 /**
  * Stockage des médias sur le disque du VPS.
  *
- * Le principe : on ne garde que ce qui est publiable et réutilisable. Les
- * rushes de tournage restent chez l'agence — un seul tournage en 4K pèse plus
- * que six mois de médias livrés, et les mettre ici remplirait le disque en
- * quelques semaines.
+ * Deux règles portent tout le reste.
  *
- * Trois garde-fous en découlent : une taille maximale par fichier, un refus
- * d'envoi quand le disque se remplit, et une dérivée web générée à
- * l'importation pour que les écrans n'aient jamais à servir l'original.
+ * D'abord, rien ne transite par la mémoire. Un fichier arrive en flux et part
+ * directement sur le disque, puis est traité depuis son chemin. Charger
+ * trente photos de photographe en mémoire pour les traiter ensemble suffirait
+ * à faire tomber le serveur, et il héberge d'autres sites.
+ *
+ * Ensuite, une image n'est jamais conservée telle quelle : elle est réencodée
+ * à une taille d'affichage et l'original est jeté. Le poids du fichier envoyé
+ * n'a donc presque aucun effet sur le disque. Les vidéos, elles, sont gardées
+ * en l'état — les réencoder demanderait ffmpeg et bien plus de processeur que
+ * n'en a un VPS partagé.
  */
 
 /** Racine des médias. Volume Docker en production, dossier local sinon. */
 export const MEDIA_ROOT = process.env.MEDIA_ROOT ?? "/data/assets";
 
-/** Au-delà, c'est un rush, pas un média livré. */
-export const MAX_UPLOAD_BYTES = 120 * 1024 * 1024; // 120 Mo
+/**
+ * Plafonds par fichier.
+ *
+ * Une image n'est jamais conservée telle quelle : elle est réencodée à une
+ * taille d'affichage et l'original est jeté. Un fichier de 80 Mo sorti d'un
+ * boîtier professionnel finit donc à quelques centaines de kilo-octets sur le
+ * disque — accepter du lourd ne coûte rien en stockage, seulement du temps de
+ * transfert. Le plafond ne sert plus qu'à écarter ce qui n'est manifestement
+ * pas une photo.
+ *
+ * Une vidéo, elle, est stockée telle quelle : son plafond reste le vrai
+ * garde-fou, avec le contrôle d'espace libre.
+ */
+export const MAX_IMAGE_BYTES = 400 * 1024 * 1024; // 400 Mo
+export const MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024; // 4 Go
+
+export const maxBytesFor = (mime: string) => (isVideo(mime) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES);
 
 /** En dessous, on refuse d'écrire : un disque plein arrête aussi PostgreSQL. */
 export const MIN_FREE_BYTES = 5 * 1024 * 1024 * 1024; // 5 Go
@@ -31,8 +54,25 @@ export const MIN_FREE_BYTES = 5 * 1024 * 1024 * 1024; // 5 Go
 /** En dessous, on prévient : il reste de la marge, mais plus pour longtemps. */
 export const WARN_FREE_BYTES = 15 * 1024 * 1024 * 1024; // 15 Go
 
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
-const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+/**
+ * Formats acceptés — ceux que libvips sait ouvrir.
+ *
+ * Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW…) n'en font pas partie :
+ * les décoder demanderait une bibliothèque de dématriçage, et un photographe
+ * livre de toute façon des fichiers développés. Mieux vaut le dire clairement
+ * que d'accepter un fichier qu'on ne saurait pas afficher.
+ */
+const IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/tiff",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+]);
+const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/x-matroska"]);
 
 export const isImage = (mime: string) => IMAGE_TYPES.has(mime);
 export const isVideo = (mime: string) => VIDEO_TYPES.has(mime);
@@ -94,21 +134,39 @@ export class UploadError extends Error {}
  * quelles — les réencoder demanderait ffmpeg et bien plus de processeur que
  * n'en a un VPS partagé.
  */
-export async function storeUpload(file: File, clientId: string): Promise<StoredFile> {
-  if (!isAccepted(file.type)) {
+export type IncomingFile = {
+  filename: string;
+  mimeType: string;
+  /** Taille annoncée, quand elle est connue. Sert au contrôle préalable. */
+  declaredBytes: number | null;
+  body: NodeReadableStream | Readable;
+};
+
+/**
+ * Reçoit un fichier en flux et l'écrit sur le disque.
+ *
+ * L'écriture passe par un fichier temporaire : une connexion coupée au milieu
+ * d'un envoi ne doit pas laisser une image tronquée dans la bibliothèque, où
+ * plus rien ne la distinguerait d'une image entière.
+ */
+export async function storeIncoming(file: IncomingFile, clientId: string): Promise<StoredFile> {
+  if (!isAccepted(file.mimeType)) {
     throw new UploadError(
-      "Format non accepté. Images JPEG, PNG, WebP, AVIF ou vidéos MP4, MOV, WebM.",
+      "Format non reconnu. Images JPEG, PNG, TIFF, WebP, AVIF, HEIC ou vidéos MP4, MOV, WebM. " +
+        "Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW) ne sont pas lisibles ici : " +
+        "exporte-les en JPEG ou TIFF.",
     );
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
+
+  const limit = maxBytesFor(file.mimeType);
+  if (file.declaredBytes !== null && file.declaredBytes > limit) {
     throw new UploadError(
-      `Fichier trop lourd (${formatBytes(file.size)}). Maximum ${formatBytes(MAX_UPLOAD_BYTES)} : ` +
-        "les rushes de tournage n'ont pas leur place ici, seulement les médias livrés.",
+      `Fichier trop lourd (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(limit)}.`,
     );
   }
 
   const disk = await diskUsage();
-  if (disk && disk.freeBytes - file.size < MIN_FREE_BYTES) {
+  if (disk && disk.freeBytes - (file.declaredBytes ?? 0) < MIN_FREE_BYTES) {
     throw new UploadError(
       `Espace disque insuffisant (${formatBytes(disk.freeBytes)} libres). ` +
         "Fais de la place avant d'importer : un disque plein arrête aussi la base de données.",
@@ -117,53 +175,97 @@ export async function storeUpload(file: File, clientId: string): Promise<StoredF
 
   const dir = relativeDir(clientId);
   await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const checksum = createHash("sha256").update(buffer).digest("hex");
   const id = randomUUID();
+  const tmpPath = path.join(tmpDir, id);
+  const hash = createHash("sha256");
+  let received = 0;
 
-  if (isImage(file.type)) {
-    const image = sharp(buffer, { failOn: "none" });
-    const meta = await image.metadata();
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
 
-    // 2048 px suffit : au-delà, on stocke des pixels que personne n'affiche.
-    const webPath = path.join(dir, `${id}.webp`);
-    const output = await image
-      .rotate() // respecte l'orientation EXIF, sinon les photos partent de travers
-      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 82 })
-      .toBuffer();
-    await writeFile(path.join(MEDIA_ROOT, webPath), output);
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          // La taille annoncée peut mentir : on recompte en écrivant, et on
+          // coupe court plutôt que de remplir le disque.
+          if (received > limit) {
+            throw new UploadError(
+              `Fichier trop lourd (plus de ${formatBytes(limit)}).`,
+            );
+          }
+          hash.update(chunk);
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
 
-    // Miniature servie dans les grilles : c'est elle qui rend l'écran fluide.
-    await sharp(buffer, { failOn: "none" })
-      .rotate()
-      .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 74 })
-      .toFile(path.join(MEDIA_ROOT, thumbPathFor(webPath)));
+    if (received === 0) throw new UploadError("Fichier vide.");
+
+    const checksum = hash.digest("hex");
+
+    if (isImage(file.mimeType)) {
+      // sharp lit depuis le chemin : le fichier d'origine n'est jamais tenu
+      // en mémoire, quelle que soit sa taille.
+      const meta = await sharp(tmpPath, { failOn: "none", limitInputPixels: false }).metadata();
+
+      const webPath = path.join(dir, `${id}.webp`);
+      // 2048 px suffit : au-delà, on stocke des pixels que personne n'affiche.
+      const info = await sharp(tmpPath, { failOn: "none", limitInputPixels: false })
+        .rotate() // respecte l'orientation EXIF, sinon les photos partent de travers
+        .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 82 })
+        .toFile(path.join(MEDIA_ROOT, webPath));
+
+      // Miniature servie dans les grilles : c'est elle qui rend l'écran fluide.
+      await sharp(tmpPath, { failOn: "none", limitInputPixels: false })
+        .rotate()
+        .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 74 })
+        .toFile(path.join(MEDIA_ROOT, thumbPathFor(webPath)));
+
+      return {
+        storagePath: webPath,
+        mimeType: "image/webp",
+        sizeBytes: info.size,
+        width: meta.width ?? null,
+        height: meta.height ?? null,
+        checksum,
+      };
+    }
+
+    const ext = path.extname(file.filename) || ".mp4";
+    const videoPath = path.join(dir, `${id}${ext}`);
+    // Le temporaire devient le fichier final : un déplacement sur le même
+    // volume ne recopie rien, même pour plusieurs gigaoctets.
+    await rename(tmpPath, path.join(MEDIA_ROOT, videoPath));
 
     return {
-      storagePath: webPath,
-      mimeType: "image/webp",
-      sizeBytes: output.length,
-      width: meta.width ?? null,
-      height: meta.height ?? null,
+      storagePath: videoPath,
+      mimeType: file.mimeType,
+      sizeBytes: received,
+      width: null,
+      height: null,
       checksum,
     };
+  } catch (error) {
+    if (error instanceof Error && /unsupported image format|Input file/i.test(error.message)) {
+      throw new UploadError(
+        "Cette image n'a pas pu être lue. Si elle vient directement d'un boîtier, " +
+          "exporte-la en JPEG ou TIFF avant de l'importer.",
+      );
+    }
+    throw error;
+  } finally {
+    // Le temporaire d'une image a fini son office ; celui d'une vidéo a été
+    // déplacé et n'existe plus. Dans les deux cas, il ne doit rien rester.
+    await unlink(tmpPath).catch(() => {});
   }
-
-  const ext = path.extname(file.name) || ".mp4";
-  const videoPath = path.join(dir, `${id}${ext}`);
-  await writeFile(path.join(MEDIA_ROOT, videoPath), buffer);
-
-  return {
-    storagePath: videoPath,
-    mimeType: file.type,
-    sizeBytes: buffer.length,
-    width: null,
-    height: null,
-    checksum,
-  };
 }
 
 /** La miniature vit à côté du fichier, suffixée : pas de second index à tenir. */
