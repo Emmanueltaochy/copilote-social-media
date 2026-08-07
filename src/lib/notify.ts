@@ -46,6 +46,13 @@ export type NotifyInput = {
   ownerId?: string | null;
   /** L'auteur de l'action ne se prévient pas lui-même. */
   exceptUserId?: string | null;
+  /**
+   * Envoyer aussi un courriel. Vrai par défaut — mais la messagerie interne
+   * le met à faux : un e-mail par réplique transformerait une conversation de
+   * dix messages en dix courriels, et c'est ainsi qu'on finit par filtrer
+   * l'expéditeur, y compris pour ce qui comptait vraiment.
+   */
+  email?: boolean;
 };
 
 /**
@@ -148,6 +155,8 @@ export async function notify(input: NotifyInput): Promise<void> {
         })),
       )
       .returning({ id: notifications.id, userId: notifications.userId });
+
+    if (input.email === false) return;
 
     const byUser = new Map(rows.map((r) => [r.userId, r.id]));
 

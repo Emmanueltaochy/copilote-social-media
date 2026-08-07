@@ -502,3 +502,81 @@ export async function storeDocument(
     await unlink(tmpPath).catch(() => {});
   }
 }
+
+/* ------------------------------------------------------ photos de profil -- */
+
+/** Une photo de profil ne dépassera jamais cette taille à l'entrée. */
+export const MAX_AVATAR_BYTES = 25 * 1024 * 1024; // 25 Mo
+
+/**
+ * Enregistre la photo de profil de quelqu'un.
+ *
+ * Elle est recadrée en carré et réduite à 256 px : c'est la plus grande taille
+ * à laquelle elle sera jamais affichée, et une photo de téléphone de 8 Mo
+ * servie telle quelle dans une liste de conversations ferait ramer l'écran
+ * pour des pixels que personne ne voit.
+ *
+ * Le fichier porte le nom de la personne suivi d'un identifiant tiré au sort :
+ * remplacer sa photo doit changer l'adresse, sinon le navigateur continue
+ * d'afficher l'ancienne, qu'on croit alors ne pas avoir réussi à envoyer.
+ */
+export async function storeAvatar(file: IncomingFile, userId: string): Promise<string> {
+  const mime = resolveMime(file.mimeType, file.filename);
+  if (!isImage(mime)) {
+    throw new UploadError("Une photo, donc une image : JPEG, PNG, HEIC ou WebP.");
+  }
+  if (file.declaredBytes !== null && file.declaredBytes > MAX_AVATAR_BYTES) {
+    throw new UploadError(
+      `Photo trop lourde (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_AVATAR_BYTES)}.`,
+    );
+  }
+
+  const dir = "avatars";
+  await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
+
+  const tmpPath = path.join(tmpDir, randomUUID());
+  let received = 0;
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
+
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          if (received > MAX_AVATAR_BYTES) {
+            throw new UploadError(`Photo trop lourde (plus de ${formatBytes(MAX_AVATAR_BYTES)}).`);
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
+
+    if (received === 0) throw new UploadError("Fichier vide.");
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError("Envoi interrompu. Rien n'a été enregistré, relance la photo.");
+    }
+
+    const storagePath = path.join(dir, `${userId}-${randomUUID().slice(0, 8)}.webp`);
+    await sharp(tmpPath, { failOn: "none" })
+      .rotate() // sans quoi les portraits pris au téléphone arrivent couchés
+      .resize({ width: 256, height: 256, fit: "cover", position: "attention" })
+      .webp({ quality: 82 })
+      .toFile(path.join(MEDIA_ROOT, storagePath));
+
+    return storagePath;
+  } catch (error) {
+    if (error instanceof Error && /premature end|truncat/i.test(error.message)) {
+      throw new UploadError("Envoi interrompu : la photo est arrivée incomplète. Relance-la.");
+    }
+    if (error instanceof Error && /unsupported image format|Input file/i.test(error.message)) {
+      throw new UploadError("Cette image n'a pas pu être lue. Essaie un JPEG ou un PNG.");
+    }
+    throw error;
+  } finally {
+    await unlink(tmpPath).catch(() => {});
+  }
+}

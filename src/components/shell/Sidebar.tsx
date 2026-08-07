@@ -6,7 +6,7 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { NAV } from "@/data/nav";
 import { ALL_CLIENTS, useApp } from "@/state/app";
-import { Dot } from "@/components/ui/primitives";
+import { Avatar, Dot } from "@/components/ui/primitives";
 import { logout } from "@/app/connexion/actions";
 import { Bell, type Notice } from "./Bell";
 
@@ -142,10 +142,24 @@ export function Sidebar({
           <span className="text-base text-night-ink">Portail client</span>
           <span className="eyebrow text-ink-2">Aperçu</span>
         </button>
-        <div className="flex items-center justify-between px-[10px] py-2">
-          <span className="clip text-base text-night-ink">{user.name}</span>
-          <span className="eyebrow text-ink-3">{ROLE_LABEL[user.role]}</span>
-        </div>
+        {/* Son propre nom mène à son compte : c'est là qu'on va le chercher,
+            et un item de menu de plus pour trois réglages encombrerait la
+            navigation de tous les jours. */}
+        <Link
+          href="/compte"
+          className={cn(
+            "flex items-center gap-2 rounded-control px-[10px] py-2 no-underline hover:bg-night-2 hover:no-underline",
+            pathname === "/compte" ? "bg-night-2" : "",
+          )}
+        >
+          <Avatar initials={user.initials} src={user.avatar} size={26} />
+          {/* Le rôle passe sous le nom : côte à côte, les deux ne tiennent pas
+              dans la largeur de la barre et c'est le nom qui se fait couper. */}
+          <span className="flex min-w-0 flex-col">
+            <span className="clip text-base text-night-ink">{user.name}</span>
+            <span className="eyebrow text-ink-3">{ROLE_LABEL[user.role]}</span>
+          </span>
+        </Link>
         <form action={logout}>
           <button
             type="submit"

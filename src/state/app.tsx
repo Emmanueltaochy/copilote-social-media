@@ -19,6 +19,8 @@ export type SessionUser = {
   name: string;
   role: "direction" | "equipe" | "client";
   initials: string;
+  /** Adresse de sa photo de profil, ou null : les initiales prennent le relais. */
+  avatar: string | null;
 };
 
 type AppState = {

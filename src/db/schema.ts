@@ -42,6 +42,12 @@ export const users = pgTable(
     name: text("name").notNull(),
     /** Initiales affichées dans les pastilles et les cartes. */
     initials: text("initials").notNull(),
+    /**
+     * Photo de profil, redimensionnée à l'enregistrement. Vide = les initiales
+     * font l'affaire. Le chemin est relatif à MEDIA_ROOT, comme les médias :
+     * une photo n'est pas plus publique qu'un visuel client.
+     */
+    avatarPath: text("avatar_path"),
     role: userRole("role").notNull().default("equipe"),
     /** Renseigné pour les comptes clients : le portail auquel ils accèdent. */
     clientId: uuid("client_id"),
@@ -717,4 +723,67 @@ export const gearPresets = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("gear_presets_user_idx").on(t.userId)],
+);
+
+/* ------------------------------------------------------------ messagerie -- */
+
+/**
+ * Une conversation : le fil de l'équipe, ou un tête-à-tête.
+ *
+ * Deux formes seulement, et c'est volontaire. Des salons thématiques créés
+ * librement finissent en archives mortes qu'on ne relit pas et où l'on cherche
+ * ensuite dans lequel telle décision a été prise. Ici on parle à tout le monde,
+ * ou à une personne — et dans les deux cas on sait où retrouver l'échange.
+ */
+export const conversationKind = pgEnum("conversation_kind", ["equipe", "direct"]);
+
+export const conversations = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: conversationKind("kind").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Qui participe, et jusqu'où il a lu.
+ *
+ * La date de dernière lecture est portée par la personne, pas par le message :
+ * c'est ce qui permet à chacun d'avoir son propre compteur de non-lus sans
+ * marquer chaque message un par un.
+ */
+export const conversationMembers = pgTable(
+  "conversation_members",
+  {
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.conversationId, t.userId] }),
+    index("conversation_members_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * Un message.
+ *
+ * L'auteur peut disparaître — un freelance dont le compte est supprimé — sans
+ * emporter la conversation : ce qui a été dit reste, même sans nom en face.
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("messages_conversation_idx").on(t.conversationId, t.createdAt)],
 );

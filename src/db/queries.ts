@@ -271,7 +271,14 @@ export async function getShoot(id: string) {
       .where(eq(shootDeliverables.shootId, id))
       .orderBy(asc(shootDeliverables.position)),
     db
-      .select({ userId: shootCrew.userId, roleLabel: shootCrew.roleLabel, state: shootCrew.state, name: users.name, initials: users.initials })
+      .select({
+        userId: shootCrew.userId,
+        roleLabel: shootCrew.roleLabel,
+        state: shootCrew.state,
+        name: users.name,
+        initials: users.initials,
+        avatarPath: users.avatarPath,
+      })
       .from(shootCrew)
       .innerJoin(users, eq(users.id, shootCrew.userId))
       .where(eq(shootCrew.shootId, id))
@@ -679,6 +686,7 @@ export async function listTeam(now: Date = new Date()) {
       name: users.name,
       email: users.email,
       initials: users.initials,
+      avatarPath: users.avatarPath,
       role: users.role,
       active: users.active,
       inviteToken: users.inviteToken,

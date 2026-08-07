@@ -79,7 +79,11 @@ export default async function EquipePage() {
                   key={t.id}
                   className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3"
                 >
-                  <Avatar initials={t.initials} />
+                  <Avatar
+                    initials={t.initials}
+                    src={t.avatarPath ? `/api/avatar/${t.id}` : null}
+                    size={28}
+                  />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="clip text-base font-medium">
                       {t.name}

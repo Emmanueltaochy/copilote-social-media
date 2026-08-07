@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { toneDot, toneDotSolid, tonePill, toneText, type Tone } from "@/lib/tone";
@@ -115,16 +116,40 @@ export function CheckBox({ checked }: { checked: boolean }) {
   );
 }
 
-/** Round avatar with initials. */
+/**
+ * Round avatar: the person's photo when there is one, their initials otherwise.
+ *
+ * Initials stay the fallback rather than a generic silhouette — in a small
+ * team, "LC" identifies someone; a grey bust identifies nobody.
+ */
 export function Avatar({
   initials,
+  src,
   tone = "neutral",
   size = 24,
 }: {
   initials: string;
+  /** Photo URL. Falls back to initials when absent. */
+  src?: string | null;
   tone?: "neutral" | "gold";
   size?: number;
 }) {
+  if (src) {
+    return (
+      <Image
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        // Déjà réduite à 256 px et servie par une route authentifiée :
+        // l'optimiseur de Next n'a rien à y gagner et ne peut pas la lire.
+        unoptimized
+        className="flex-none rounded-full border border-line bg-slot object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   return (
     <span
       className={cn(

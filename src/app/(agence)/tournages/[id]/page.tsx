@@ -236,7 +236,10 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                   key={c.userId}
                   className="flex items-center gap-3 border-b border-line px-[14px] py-2"
                 >
-                  <Avatar initials={c.initials} />
+                  <Avatar
+                    initials={c.initials}
+                    src={c.avatarPath ? `/api/avatar/${c.userId}` : null}
+                  />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="clip text-base font-medium">{c.name}</span>
                     {c.roleLabel ? (

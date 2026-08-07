@@ -1,8 +1,10 @@
 import { AppProvider } from "@/state/app";
 import { Sidebar } from "@/components/shell/Sidebar";
+import { ChatDock } from "@/components/shell/ChatDock";
 import { ClientPortal } from "@/components/shell/ClientPortal";
 import { requireStaff } from "@/lib/auth";
 import { listClientsWithPace } from "@/db/queries";
+import { unreadTotal } from "@/lib/chat";
 import { countUnread, recent } from "@/lib/notify";
 
 /**
@@ -11,15 +13,21 @@ import { countUnread, recent } from "@/lib/notify";
  */
 export default async function AgenceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
-  const [clients, notices, unreadCount] = await Promise.all([
+  const [clients, notices, unreadCount, chatUnread] = await Promise.all([
     listClientsWithPace(),
     recent(user.id, 20),
     countUnread(user.id),
+    unreadTotal(user.id),
   ]);
 
   return (
     <AppProvider
-      user={{ name: user.name, role: user.role, initials: user.initials }}
+      user={{
+        name: user.name,
+        role: user.role,
+        initials: user.initials,
+        avatar: user.avatarPath ? `/api/avatar/${user.id}` : null,
+      }}
       clients={clients.map((c) => ({
         id: c.id,
         name: c.name,
@@ -46,6 +54,10 @@ export default async function AgenceLayout({ children }: { children: React.React
         </main>
       </div>
       <ClientPortal />
+      {/* Hors du cadre à débordement caché de la coquille : une bulle fixée en
+          bas à droite doit flotter au-dessus de l'écran, pas être rognée par
+          la colonne qui défile. */}
+      <ChatDock me={user.id} initialUnread={chatUnread} />
     </AppProvider>
   );
 }
