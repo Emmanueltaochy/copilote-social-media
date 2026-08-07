@@ -10,6 +10,19 @@ type Item = {
   error?: string;
 };
 
+/**
+ * Plafonds, repris du serveur.
+ *
+ * Contrôlés ici aussi, avant d'envoyer : annoncer « trop lourd » au bout de
+ * dix minutes de transfert est la pire façon de le dire. Le serveur reste
+ * l'autorité — ce contrôle-ci ne fait qu'épargner l'attente.
+ */
+const MAX_IMAGE = 400 * 1024 * 1024;
+const MAX_VIDEO = 4 * 1024 * 1024 * 1024;
+
+const estVideo = (f: File) =>
+  f.type.startsWith("video/") || /\.(mp4|m4v|mov|webm|mkv)$/i.test(f.name);
+
 /** « 1,2 Go », « 340 Ko » — mêmes règles que côté serveur. */
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} o`;
@@ -54,7 +67,12 @@ function upload(
       if (xhr.status >= 200 && xhr.status < 300) return resolve({});
       let message = `Refusé par le serveur (${xhr.status}).`;
       if (xhr.status === 413) {
-        message = "Fichier refusé par le serveur web : il dépasse la taille autorisée.";
+        // 413 vient de nginx, pas de l'application : c'est sa propre limite
+        // de taille, réglée par le script d'installation. Le dire évite de
+        // chercher le problème dans le fichier, qui n'a rien.
+        message =
+          "Refusé par le serveur web avant d'arriver à l'application : sa limite de taille " +
+          "n'est pas levée. Relance scripts/setup-vps.sh sur le VPS.";
       }
       try {
         const body = JSON.parse(xhr.responseText);
@@ -88,6 +106,15 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
     if (!clientId) return setError("Choisis un client.");
     const files = only ?? Array.from(inputRef.current?.files ?? []);
     if (files.length === 0) return setError("Aucun fichier sélectionné.");
+
+    const tropLourd = files.find((f) => f.size > (estVideo(f) ? MAX_VIDEO : MAX_IMAGE));
+    if (tropLourd) {
+      return setError(
+        `${tropLourd.name} pèse ${formatBytes(tropLourd.size)}, au-delà des ` +
+          `${formatBytes(estVideo(tropLourd) ? MAX_VIDEO : MAX_IMAGE)} autorisés pour ` +
+          `${estVideo(tropLourd) ? "une vidéo" : "une image"}. Rien n'a été envoyé.`,
+      );
+    }
 
     setError(null);
     setRunning(true);

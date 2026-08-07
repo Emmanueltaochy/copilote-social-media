@@ -122,6 +122,38 @@ export const isImage = (mime: string) => IMAGE_TYPES.has(mime);
 export const isVideo = (mime: string) => VIDEO_TYPES.has(mime);
 export const isAccepted = (mime: string) => isImage(mime) || isVideo(mime);
 
+/**
+ * Type déduit de l'extension, quand le navigateur ne le dit pas.
+ *
+ * Il arrive qu'il annonce « application/octet-stream », ou rien du tout :
+ * selon le système, un .MOV venu d'un iPhone ou un .mkv passé par un disque
+ * externe arrivent sans type. Refuser dans ce cas reviendrait à rejeter un
+ * fichier parfaitement lisible pour une raison que rien n'explique à l'écran.
+ */
+const BY_EXTENSION: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".tif": "image/tiff",
+  ".tiff": "image/tiff",
+  ".gif": "image/gif",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".mkv": "video/x-matroska",
+};
+
+export function resolveMime(declared: string, filename: string): string {
+  if (isAccepted(declared)) return declared;
+  const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
+  return BY_EXTENSION[ext] ?? declared;
+}
+
 export type DiskUsage = { freeBytes: number; totalBytes: number; usedRatio: number };
 
 export async function diskUsage(): Promise<DiskUsage | null> {
@@ -193,7 +225,9 @@ export type IncomingFile = {
  * d'un envoi ne doit pas laisser une image tronquée dans la bibliothèque, où
  * plus rien ne la distinguerait d'une image entière.
  */
-export async function storeIncoming(file: IncomingFile, clientId: string): Promise<StoredFile> {
+export async function storeIncoming(input: IncomingFile, clientId: string): Promise<StoredFile> {
+  const file = { ...input, mimeType: resolveMime(input.mimeType, input.filename) };
+
   if (!isAccepted(file.mimeType)) {
     throw new UploadError(
       "Format non reconnu. Images JPEG, PNG, TIFF, WebP, AVIF, HEIC ou vidéos MP4, MOV, WebM. " +
@@ -205,7 +239,8 @@ export async function storeIncoming(file: IncomingFile, clientId: string): Promi
   const limit = maxBytesFor(file.mimeType);
   if (file.declaredBytes !== null && file.declaredBytes > limit) {
     throw new UploadError(
-      `Fichier trop lourd (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(limit)}.`,
+      `Fichier trop lourd : ${formatBytes(file.declaredBytes)}, contre ${formatBytes(limit)} ` +
+        `autorisés pour ${isVideo(file.mimeType) ? "une vidéo" : "une image"}.`,
     );
   }
 
