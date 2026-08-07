@@ -377,10 +377,31 @@ if [ "$USED_KB" -gt 20971520 ]; then
 fi
 BACKUP
 chmod +x /usr/local/bin/copilote-backup
-# 3h30 du matin, heure du serveur
-( crontab -l 2>/dev/null | grep -v copilote-backup ; echo "30 3 * * * /usr/local/bin/copilote-backup" ) | crontab -
-ok "Sauvegarde quotidienne à 3h30 (base + médias), conservée 14 jours"
-ok "Sauvegarde manuelle : copilote-backup"
+
+# Programmer la sauvegarde ne doit jamais faire échouer l'installation : c'est
+# un confort, alors que l'étape suivante démarre l'application. Sur une machine
+# sans cron, la version précédente s'arrêtait ici en silence, et le serveur
+# repartait sans avoir relu sa configuration.
+#
+# Le `|| true` sur le grep est indispensable : quand la crontab est vide, grep
+# ne trouve rien et sort en erreur. Sans lui, la ligne de sauvegarde ne serait
+# jamais écrite — et « crontab - » recevrait une entrée vide, ce qui efface la
+# crontab existante au lieu de l'enrichir.
+if command -v crontab >/dev/null 2>&1; then
+  ancienne="$(crontab -l 2>/dev/null || true)"
+  if printf '%s\n%s\n' \
+      "$(printf '%s\n' "$ancienne" | grep -v copilote-backup || true)" \
+      "30 3 * * * /usr/local/bin/copilote-backup" | grep -v '^$' | crontab -; then
+    ok "Sauvegarde quotidienne à 3h30 (base + médias), conservée 14 jours"
+  else
+    warn "La sauvegarde automatique n'a pas pu être programmée."
+    [[ -n "$ancienne" ]] && printf '%s\n' "$ancienne" | crontab - || true
+  fi
+else
+  warn "cron n'est pas installé : aucune sauvegarde automatique."
+  warn "Pour l'activer : apt install cron, puis relance ce script."
+fi
+ok "Sauvegarde manuelle, à tout moment : copilote-backup"
 
 # ------------------------------------------------------------------ clé SSH --
 step "Clé de déploiement GitHub"
