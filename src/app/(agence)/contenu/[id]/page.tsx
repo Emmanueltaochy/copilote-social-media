@@ -10,6 +10,7 @@ import {
   listAssets,
   listClientOptions,
   listComments,
+  listContentLinks,
   listContentMedia,
   listStaff,
   listVersions,
@@ -46,7 +47,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
   if (!row) notFound();
   const { content, client, ownerName } = row;
 
-  const [thread, versions, history, clients, staff, attached, library] = await Promise.all([
+  const [thread, versions, history, clients, staff, attached, library, links] = await Promise.all([
     listComments(id),
     listVersions(id),
     listActivity(id),
@@ -54,6 +55,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     listStaff(),
     listContentMedia(id),
     listAssets(content.clientId),
+    listContentLinks(id),
   ]);
 
   const st = CONTENT_STATUS[content.status];
@@ -218,8 +220,10 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
 
           <MediaCard
             contentId={content.id}
+            clientId={content.clientId}
             attached={attached.map((a) => a.asset)}
             library={library.map((a) => a.asset)}
+            links={links.map((l) => ({ ...l.link, addedByName: l.addedByName }))}
             isCarousel={content.kind === "carrousel"}
           />
 

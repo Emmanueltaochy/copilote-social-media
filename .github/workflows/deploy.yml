@@ -130,6 +130,13 @@ jobs:
               exit 1
             fi
 
+            # Le serveur web impose sa propre limite de taille, indépendante de
+            # l'application : une vidéo est refusée avant même de l'atteindre.
+            # Le déploiement répare ce qu'il sait réparer plutôt que d'attendre
+            # qu'on relance l'installation à la main.
+            DOMAIN="$(grep '^APP_DOMAIN=' .env | cut -d= -f2)"
+            [ -n "$DOMAIN" ] && bash scripts/ensure-nginx.sh "$DOMAIN" || true
+
             docker compose pull
             docker compose up -d --remove-orphans
 

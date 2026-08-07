@@ -10,6 +10,7 @@ import {
   clientFiles,
   clients,
   comments,
+  contentLinks,
   contents,
   contentStats,
   contentVersions,
@@ -780,4 +781,14 @@ export async function slidesFor(contentIds: string[]) {
     map.set(r.contentId, list);
   }
   return map;
+}
+
+/** Liens externes d'un contenu : Drive, WeTransfer, montage en ligne. */
+export async function listContentLinks(contentId: string) {
+  return db
+    .select({ link: contentLinks, addedByName: users.name })
+    .from(contentLinks)
+    .leftJoin(users, eq(users.id, contentLinks.addedById))
+    .where(eq(contentLinks.contentId, contentId))
+    .orderBy(asc(contentLinks.createdAt));
 }

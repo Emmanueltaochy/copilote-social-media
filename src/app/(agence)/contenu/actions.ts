@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, activity, assets, assetUsages, comments, contents, contentVersions } from "@/db";
+import { db, activity, assets, assetUsages, comments, contentLinks, contents, contentVersions } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
 import { notify } from "@/lib/notify";
@@ -500,5 +500,49 @@ export async function moveAsset(formData: FormData): Promise<void> {
       .where(and(eq(assetUsages.contentId, contentId), eq(assetUsages.assetId, row.assetId)));
   }
 
+  revalidateAll(contentId);
+}
+
+/* --------------------------------------------------------- lien externe -- */
+
+/**
+ * Ajoute un lien vers un fichier hébergé ailleurs.
+ *
+ * Un montage de plusieurs gigaoctets rendu par un prestataire est déjà stocké
+ * quelque part : le recopier ici ne ferait qu'une seconde copie à tenir à
+ * jour. Le lien dit où regarder, et c'est tout ce dont l'équipe a besoin.
+ */
+export async function addLink(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const contentId = String(formData.get("contentId") ?? "");
+  const url = String(formData.get("url") ?? "").trim();
+  const label = String(formData.get("label") ?? "").trim();
+  if (!contentId || !url) return;
+
+  // Seuls http et https : un lien « javascript: » collé dans un champ
+  // deviendrait exécutable au clic pour la personne suivante.
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
+
+  await db.insert(contentLinks).values({
+    contentId,
+    url: parsed.toString(),
+    label: label || null,
+    addedById: user.id,
+  });
+  revalidateAll(contentId);
+}
+
+export async function removeLink(formData: FormData): Promise<void> {
+  await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const contentId = String(formData.get("contentId") ?? "");
+  if (!id) return;
+  await db.delete(contentLinks).where(eq(contentLinks.id, id));
   revalidateAll(contentId);
 }

@@ -1,5 +1,6 @@
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { db, assets } from "@/db";
+import { eq, sql } from "drizzle-orm";
+import { db, assets, assetUsages, contents } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { storeIncoming, UploadError } from "@/lib/storage";
 
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
   if (!clientId) {
     return Response.json({ error: "Client manquant." }, { status: 400 });
   }
+  // Rattachement immédiat quand l'import part de la fiche d'un contenu :
+  // importer puis retourner chercher le média dans une liste fait trois
+  // écrans pour une seule intention.
+  const contentId = url.searchParams.get("contentId") ?? "";
 
   // Le nom de fichier voyage encodé : il contient volontiers des accents et
   // des espaces, qu'un en-tête HTTP ne transporte pas tels quels.
@@ -73,6 +78,26 @@ export async function POST(request: Request) {
         authorId: user.id,
       })
       .returning({ id: assets.id });
+
+    if (contentId) {
+      const [target] = await db
+        .select({ clientId: contents.clientId })
+        .from(contents)
+        .where(eq(contents.id, contentId))
+        .limit(1);
+      // Un média appartient à une marque : le rattacher au contenu d'une
+      // autre le ferait apparaître dans le mauvais portail client.
+      if (target?.clientId === clientId) {
+        const [last] = await db
+          .select({ n: sql<number>`coalesce(max(${assetUsages.position}), -1)::int` })
+          .from(assetUsages)
+          .where(eq(assetUsages.contentId, contentId));
+        await db
+          .insert(assetUsages)
+          .values({ contentId, assetId: row.id, position: (last?.n ?? -1) + 1 })
+          .onConflictDoNothing();
+      }
+    }
 
     return Response.json({ id: row.id, filename, sizeBytes: stored.sizeBytes });
   } catch (error) {

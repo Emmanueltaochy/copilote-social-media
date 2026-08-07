@@ -668,3 +668,28 @@ export const notifications = pgTable(
   },
   (t) => [index("notifications_user_idx").on(t.userId, t.readAt)],
 );
+
+/* ----------------------------------------------------- liens externes -- */
+
+/**
+ * Un visuel qui vit ailleurs : Drive, WeTransfer, Frame.io.
+ *
+ * Tout ne passe pas par la bibliothèque. Un montage de 3 Go rendu par un
+ * prestataire n'a rien à faire sur ce serveur — il est déjà stocké quelque
+ * part, et le recopier ne ferait que remplir le disque d'une seconde copie
+ * qu'il faudrait ensuite garder à jour. Le lien suffit à savoir où regarder.
+ */
+export const contentLinks = pgTable(
+  "content_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    contentId: uuid("content_id")
+      .notNull()
+      .references(() => contents.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    label: text("label"),
+    addedById: uuid("added_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("content_links_content_idx").on(t.contentId)],
+);

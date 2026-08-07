@@ -17,6 +17,7 @@ export const NAV: NavItem[] = [
   { label: "Ads", href: "/ads" },
   { label: "Rapports", href: "/rapports" },
   { label: "Mes heures", href: "/heures" },
+  { label: "Terrain", href: "/terrain" },
   { label: "Clients", href: "/clients" },
   { label: "Équipe", href: "/equipe", directionOnly: true },
   { label: "Rentabilité", href: "/rentabilite", directionOnly: true },

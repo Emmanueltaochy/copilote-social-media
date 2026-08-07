@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -7,6 +7,17 @@ const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
+
+/**
+ * Sans cette déclaration, un téléphone rend la page à la largeur d'un écran
+ * de bureau puis la réduit : tout devient illisible, y compris la version
+ * terrain conçue pour lui.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#121212",
+};
 
 export const metadata: Metadata = {
   title: "Taochy Pilot",
