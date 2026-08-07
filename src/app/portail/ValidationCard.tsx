@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Carousel, type Slide } from "@/components/ui/Carousel";
 import { Cover, type CoverAsset } from "@/components/ui/Cover";
 import { clientApprove, clientRequestChange, type PortalFormState } from "./actions";
 
@@ -16,6 +17,7 @@ export function ValidationCard({
   title,
   kind,
   cover,
+  slides,
   scheduled,
   waitingSince,
 }: {
@@ -23,6 +25,8 @@ export function ValidationCard({
   title: string;
   kind: string;
   cover: CoverAsset;
+  /** Vues d'un carrousel, dans l'ordre. Vide pour les autres formats. */
+  slides: Slide[];
   scheduled: string | null;
   waitingSince: string | null;
 }) {
@@ -42,7 +46,11 @@ export function ValidationCard({
       {/* Le visuel occupe la gauche, à une taille où l'on voit vraiment ce
           qu'on approuve : un cadrage ou une faute de date se repèrent à cette
           échelle, pas sur une vignette. */}
-      <Cover asset={cover} ratio="4/5" className="w-[180px] flex-none" label="Visuel à venir" />
+      {slides.length > 1 ? (
+        <Carousel slides={slides} className="w-[180px] flex-none" />
+      ) : (
+        <Cover asset={cover} ratio="4/5" className="w-[180px] flex-none" label="Visuel à venir" />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-3">

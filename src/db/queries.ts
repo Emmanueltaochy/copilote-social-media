@@ -688,7 +688,7 @@ export async function listContentMedia(contentId: string) {
     .from(assetUsages)
     .innerJoin(assets, eq(assets.id, assetUsages.assetId))
     .where(eq(assetUsages.contentId, contentId))
-    .orderBy(asc(assets.createdAt));
+    .orderBy(asc(assetUsages.position));
 }
 
 /**
@@ -706,7 +706,7 @@ export async function coversFor(contentIds: string[]) {
       contentId: assetUsages.contentId,
       id: assets.id,
       mimeType: assets.mimeType,
-      createdAt: assets.createdAt,
+      position: assetUsages.position,
     })
     .from(assetUsages)
     .innerJoin(assets, eq(assets.id, assetUsages.assetId))
@@ -716,7 +716,7 @@ export async function coversFor(contentIds: string[]) {
         raw`, `,
       )})`,
     )
-    .orderBy(asc(assets.createdAt));
+    .orderBy(asc(assetUsages.position));
 
   const covers = new Map<string, { id: string; mimeType: string }>();
   for (const r of rows) {
@@ -742,4 +742,42 @@ export async function listClientFiles(clientId: string) {
     .leftJoin(users, eq(users.id, clientFiles.uploadedById))
     .where(eq(clientFiles.clientId, clientId))
     .orderBy(desc(clientFiles.createdAt));
+}
+
+/**
+ * Toutes les vues de plusieurs contenus, dans leur ordre de carrousel.
+ *
+ * Une requête pour l'écran entier : la page d'approbation ou le portail
+ * affichent plusieurs carrousels à la fois, et les charger un par un se
+ * verrait à l'ouverture.
+ */
+export async function slidesFor(contentIds: string[]) {
+  if (contentIds.length === 0) {
+    return new Map<string, { id: string; mimeType: string; filename: string }[]>();
+  }
+
+  const rows = await db
+    .select({
+      contentId: assetUsages.contentId,
+      id: assets.id,
+      mimeType: assets.mimeType,
+      filename: assets.filename,
+    })
+    .from(assetUsages)
+    .innerJoin(assets, eq(assets.id, assetUsages.assetId))
+    .where(
+      raw`${assetUsages.contentId} in (${raw.join(
+        contentIds.map((c) => raw`${c}::uuid`),
+        raw`, `,
+      )})`,
+    )
+    .orderBy(asc(assetUsages.position));
+
+  const map = new Map<string, { id: string; mimeType: string; filename: string }[]>();
+  for (const r of rows) {
+    const list = map.get(r.contentId) ?? [];
+    list.push({ id: r.id, mimeType: r.mimeType, filename: r.filename });
+    map.set(r.contentId, list);
+  }
+  return map;
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, activity, assets, assetUsages, comments, contents, contentVersions } from "@/db";
 import { requireStaff } from "@/lib/auth";
@@ -337,7 +337,17 @@ export async function attachAsset(formData: FormData): Promise<void> {
   // le ferait apparaître dans le mauvais portail client.
   if (!content || !asset || asset.clientId !== content.clientId) return;
 
-  await db.insert(assetUsages).values({ contentId, assetId }).onConflictDoNothing();
+  // La nouvelle vue se place en dernier : dans un carrousel, l'ordre est
+  // celui du récit, et l'ordre d'ajout en est la première approximation.
+  const [last] = await db
+    .select({ n: sql<number>`coalesce(max(${assetUsages.position}), -1)::int` })
+    .from(assetUsages)
+    .where(eq(assetUsages.contentId, contentId));
+
+  await db
+    .insert(assetUsages)
+    .values({ contentId, assetId, position: (last?.n ?? -1) + 1 })
+    .onConflictDoNothing();
   revalidateAll(contentId);
 }
 
@@ -372,4 +382,43 @@ export async function assignContent(formData: FormData): Promise<void> {
     .where(eq(contents.id, id));
 
   revalidateAll(id);
+}
+
+/**
+ * Déplace une vue dans l'ordre du carrousel.
+ *
+ * L'échange se fait avec la voisine plutôt que par une position absolue :
+ * deux personnes qui réordonnent en même temps produiraient sinon des trous
+ * ou des doublons dans la numérotation.
+ */
+export async function moveAsset(formData: FormData): Promise<void> {
+  await requireStaff();
+  const contentId = String(formData.get("contentId") ?? "");
+  const assetId = String(formData.get("assetId") ?? "");
+  const direction = String(formData.get("direction") ?? "");
+  if (!contentId || !assetId || !["up", "down"].includes(direction)) return;
+
+  const rows = await db
+    .select({ assetId: assetUsages.assetId, position: assetUsages.position })
+    .from(assetUsages)
+    .where(eq(assetUsages.contentId, contentId))
+    .orderBy(assetUsages.position);
+
+  const i = rows.findIndex((r) => r.assetId === assetId);
+  const j = direction === "up" ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= rows.length) return;
+
+  // Les positions sont réécrites en entier : quelques vues par contenu, et
+  // une numérotation repartie de zéro reste juste même après des suppressions.
+  const reordered = [...rows];
+  [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+
+  for (const [position, row] of reordered.entries()) {
+    await db
+      .update(assetUsages)
+      .set({ position })
+      .where(and(eq(assetUsages.contentId, contentId), eq(assetUsages.assetId, row.assetId)));
+  }
+
+  revalidateAll(contentId);
 }

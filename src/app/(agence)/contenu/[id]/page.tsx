@@ -220,6 +220,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             contentId={content.id}
             attached={attached.map((a) => a.asset)}
             library={library.map((a) => a.asset)}
+            isCarousel={content.kind === "carrousel"}
           />
 
           <Card className="flex flex-wrap items-center justify-between gap-4 p-4">

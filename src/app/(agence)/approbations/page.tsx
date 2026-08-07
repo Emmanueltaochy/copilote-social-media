@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
-import { coversFor, listAwaitingApproval, listClientsWithPace } from "@/db/queries";
+import { coversFor, listAwaitingApproval, listClientsWithPace, slidesFor } from "@/db/queries";
+import { Carousel } from "@/components/ui/Carousel";
 import { Cover } from "@/components/ui/Cover";
 import { CONTENT_KIND, CONTENT_STATUS } from "@/data/content";
 import { monthLabel } from "@/lib/pacing";
@@ -20,6 +21,7 @@ export default async function ApprobationsPage() {
   await requireStaff();
   const [clients, rows] = await Promise.all([listClientsWithPace(), listAwaitingApproval()]);
   const covers = await coversFor(rows.map((r) => r.content.id));
+  const slides = await slidesFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0 || rows.length === 0) {
     return (
@@ -55,14 +57,18 @@ export default async function ApprobationsPage() {
                 <div className="flex items-start gap-4">
                   {/* Le visuel d'abord, et en grand : on ne valide pas un titre,
                       on valide ce que le client verra. */}
-                  <Link href={`/contenu/${content.id}`} className="flex-none no-underline">
-                    <Cover
-                      asset={covers.get(content.id)}
-                      ratio="4/5"
-                      className="w-[200px]"
-                      label="Visuel à rattacher"
-                    />
-                  </Link>
+                  {content.kind === "carrousel" && (slides.get(content.id)?.length ?? 0) > 1 ? (
+                    <Carousel slides={slides.get(content.id) ?? []} className="w-[200px] flex-none" />
+                  ) : (
+                    <Link href={`/contenu/${content.id}`} className="flex-none no-underline">
+                      <Cover
+                        asset={covers.get(content.id)}
+                        ratio="4/5"
+                        className="w-[200px]"
+                        label="Visuel à rattacher"
+                      />
+                    </Link>
+                  )}
 
                   <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
                     <Eyebrow>

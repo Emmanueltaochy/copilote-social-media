@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Cover } from "@/components/ui/Cover";
-import { attachAsset, detachAsset } from "../actions";
+import { Carousel } from "@/components/ui/Carousel";
+import { attachAsset, detachAsset, moveAsset } from "../actions";
 
 type Asset = { id: string; filename: string; mimeType: string };
 
@@ -20,24 +21,37 @@ export function MediaCard({
   contentId,
   attached,
   library,
+  isCarousel,
 }: {
   contentId: string;
   attached: Asset[];
   library: Asset[];
+  /** Un carrousel se juge vue par vue, dans l'ordre : il a droit à son aperçu. */
+  isCarousel: boolean;
 }) {
   const free = library.filter((a) => !attached.some((b) => b.id === a.id));
 
   return (
     <Card>
       <CardHead
-        title="Visuel"
+        title={isCarousel ? "Vues du carrousel" : "Visuel"}
         meta={attached.length > 0 ? `${attached.length}` : undefined}
       />
 
+      {isCarousel && attached.length > 0 ? (
+        <div className="border-b border-line px-[14px] py-4">
+          <p className="mb-3 text-small text-ink-3">
+            Aperçu tel que le verra l&apos;audience — et le client dans son portail.
+          </p>
+          <Carousel slides={attached} className="mx-auto max-w-[320px]" />
+        </div>
+      ) : null}
+
       {attached.length === 0 ? (
         <p className="px-[14px] py-4 text-base text-ink-2">
-          Aucun visuel rattaché. Tant qu&apos;il n&apos;y en a pas, le client valide un titre sans
-          voir ce qui sera publié, et la carte reste vide dans le pipeline comme au calendrier.
+          {isCarousel
+            ? "Aucune vue. Un carrousel se compose de plusieurs images, dans l'ordre où elles seront balayées : rattache-les une à une ci-dessous."
+            : "Aucun visuel rattaché. Tant qu'il n'y en a pas, le client valide un titre sans voir ce qui sera publié, et la carte reste vide dans le pipeline comme au calendrier."}
         </p>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 p-[14px]">
@@ -45,9 +59,30 @@ export function MediaCard({
             <div key={a.id} className="flex flex-col gap-1">
               <Cover asset={a} ratio="4/5" />
               <span className="clip text-micro text-ink-3">
-                {i === 0 ? "Couverture · " : ""}
+                {isCarousel ? `Vue ${i + 1} · ` : i === 0 ? "Couverture · " : ""}
                 {a.filename}
               </span>
+
+              {attached.length > 1 ? (
+                <div className="flex gap-1">
+                  {(["up", "down"] as const).map((direction) => (
+                    <form key={direction} action={moveAsset} className="flex-1">
+                      <input type="hidden" name="contentId" value={contentId} />
+                      <input type="hidden" name="assetId" value={a.id} />
+                      <input type="hidden" name="direction" value={direction} />
+                      <button
+                        type="submit"
+                        disabled={direction === "up" ? i === 0 : i === attached.length - 1}
+                        title={direction === "up" ? "Avancer" : "Reculer"}
+                        className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink disabled:cursor-default disabled:opacity-40"
+                      >
+                        {direction === "up" ? "←" : "→"}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              ) : null}
+
               <form action={detachAsset}>
                 <input type="hidden" name="contentId" value={contentId} />
                 <input type="hidden" name="assetId" value={a.id} />
