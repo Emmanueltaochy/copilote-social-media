@@ -1,5 +1,9 @@
 "use server";
 
+/** Les valeurs acceptées, pour ne pas laisser un champ bricolé atteindre la base. */
+const CONTENT_KINDS = ["feed", "story", "reel", "carrousel", "autre"];
+const NETWORKS = ["instagram", "facebook", "linkedin", "tiktok", "google"];
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -125,12 +129,23 @@ export async function archiveClient(formData: FormData): Promise<void> {
   redirect("/clients");
 }
 
+/**
+ * Ajoute une ligne à la décomposition de l'engagement.
+ *
+ * Le format et le réseau sont demandés en plus du libellé : c'est ce qui
+ * permet, chaque début de mois, de fabriquer les contenus au lieu de seulement
+ * les compter. Le libellé reste libre — il est écrit pour l'équipe, pas pour la
+ * machine.
+ */
 export async function addContractLine(formData: FormData): Promise<void> {
   await requireStaff();
   const clientId = String(formData.get("clientId") ?? "");
   const label = String(formData.get("label") ?? "").trim();
   const target = Number(formData.get("monthlyTarget") ?? 0);
+  const kind = String(formData.get("kind") ?? "feed");
+  const network = String(formData.get("network") ?? "instagram");
   if (!clientId || !label) return;
+  if (!CONTENT_KINDS.includes(kind) || !NETWORKS.includes(network)) return;
 
   const existing = await db
     .select({ id: contractLines.id })
@@ -140,10 +155,25 @@ export async function addContractLine(formData: FormData): Promise<void> {
   await db.insert(contractLines).values({
     clientId,
     label,
-    monthlyTarget: Number.isFinite(target) ? target : 0,
+    monthlyTarget: Number.isFinite(target) && target > 0 ? Math.floor(target) : 0,
+    kind: kind as "feed",
+    network: network as "instagram",
     position: existing.length,
   });
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/preparer");
+}
+
+/** Retire une ligne. Les contenus déjà créés à partir d'elle ne bougent pas. */
+export async function removeContractLine(formData: FormData): Promise<void> {
+  await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!id) return;
+
+  await db.delete(contractLines).where(eq(contractLines.id, id));
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/preparer");
 }
 
 

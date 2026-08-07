@@ -9,6 +9,7 @@ export const NAV: NavItem[] = [
   { label: "Cockpit", href: "/" },
   { label: "Avancement", href: "/avancement" },
   { label: "Calendrier", href: "/calendrier" },
+  { label: "Préparer le mois", href: "/preparer" },
   { label: "Production", href: "/production" },
   { label: "Approbations", href: "/approbations" },
   { label: "À publier", href: "/a-publier" },

@@ -86,6 +86,15 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/*
+ * Format et réseau : déclarés avant les clients parce que la décomposition
+ * de leur engagement s'en sert. Une ligne de contrat porte le format qu'elle
+ * produit, ce qui permet de fabriquer le mois et non seulement de le compter.
+ */
+export const contentKind = pgEnum("content_kind", ["feed", "story", "reel", "carrousel", "autre"]);
+
+export const network = pgEnum("network", ["instagram", "facebook", "linkedin", "tiktok", "google"]);
+
 /* ---------------------------------------------------------------- clients -- */
 
 export const clients = pgTable(
@@ -133,6 +142,18 @@ export const contractLines = pgTable(
       .references(() => clients.id, { onDelete: "cascade" }),
     label: text("label").notNull(),
     monthlyTarget: integer("monthly_target").notNull().default(0),
+    /*
+     * Le format et le réseau de la ligne.
+     *
+     * Le libellé est écrit pour un humain — « Posts feed », « 3 reels
+     * produits » — et deux agences ne l'écrivent pas pareil. Deviner le format
+     * à partir de ce texte marcherait neuf fois sur dix, et la dixième
+     * créerait un mois entier au mauvais format. Ces deux champs sont donc
+     * renseignés une fois pour toutes, à la signature du contrat, et c'est eux
+     * qui permettent de fabriquer le mois plutôt que de seulement le compter.
+     */
+    kind: contentKind("kind").notNull().default("feed"),
+    network: network("network").notNull().default("instagram"),
     position: integer("position").notNull().default(0),
   },
   (t) => [index("contract_lines_client_idx").on(t.clientId)],
@@ -189,9 +210,7 @@ export const contentStatus = pgEnum("content_status", [
   "manque", // prévu, jamais publié
 ]);
 
-export const contentKind = pgEnum("content_kind", ["feed", "story", "reel", "carrousel", "autre"]);
 
-export const network = pgEnum("network", ["instagram", "facebook", "linkedin", "tiktok", "google"]);
 
 export const contents = pgTable(
   "contents",

@@ -7,12 +7,20 @@ import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
+import { CONTENT_KIND, NETWORK_LABEL } from "@/data/content";
+import { ContractLineForm } from "../ContractLineForm";
 import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
 import { ClientAccessForm } from "../ClientAccess";
 import { InviteLink } from "@/components/ui/InviteLink";
 import { SendByEmail } from "@/components/ui/SendByEmail";
-import { archiveClient, deleteClientFile, revokeClientAccess, updateClient } from "../actions";
+import {
+  archiveClient,
+  deleteClientFile,
+  removeContractLine,
+  revokeClientAccess,
+  updateClient,
+} from "../actions";
 import { FilesCard } from "./FilesCard";
 import { listClientAccess, listClientFiles } from "@/db/queries";
 
@@ -110,19 +118,37 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             {lines.length === 0 ? (
               <p className="px-[14px] py-4 text-base text-ink-2">
                 Aucune ligne pour l&apos;instant. La décomposition (posts feed, stories, reels…)
-                permet de suivre l&apos;engagement type par type, et pas seulement en total.
+                permet de suivre l&apos;engagement type par type — et surtout de{" "}
+                <Link href="/preparer">préparer le mois</Link> en un clic plutôt que de ressaisir
+                les mêmes contenus tous les trente jours.
               </p>
             ) : (
               lines.map((l) => (
                 <div
                   key={l.id}
-                  className="flex h-11 items-center justify-between border-b border-line px-[14px]"
+                  className="flex h-11 items-center gap-3 border-b border-line px-[14px]"
                 >
-                  <span className="text-base">{l.label}</span>
-                  <span className="text-base tabular-nums">{l.monthlyTarget} / mois</span>
+                  <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
+                  <span className="flex-none text-small text-ink-3">
+                    {CONTENT_KIND[l.kind] ?? l.kind} · {NETWORK_LABEL[l.network] ?? l.network}
+                  </span>
+                  <span className="flex-none text-base tabular-nums">{l.monthlyTarget} / mois</span>
+                  <form action={removeContractLine} className="flex-none">
+                    <input type="hidden" name="id" value={l.id} />
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <button
+                      type="submit"
+                      title="Retirer cette ligne"
+                      className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                    >
+                      ✕
+                    </button>
+                  </form>
                 </div>
               ))
             )}
+
+            <ContractLineForm clientId={client.id} />
           </Card>
 
           <Card className="p-5">
