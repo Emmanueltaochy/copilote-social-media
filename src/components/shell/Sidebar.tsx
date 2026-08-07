@@ -8,6 +8,7 @@ import { NAV } from "@/data/nav";
 import { ALL_CLIENTS, useApp } from "@/state/app";
 import { Dot } from "@/components/ui/primitives";
 import { logout } from "@/app/connexion/actions";
+import { Bell, type Notice } from "./Bell";
 
 const ROLE_LABEL: Record<string, string> = {
   direction: "Direction",
@@ -15,7 +16,13 @@ const ROLE_LABEL: Record<string, string> = {
   client: "Client",
 };
 
-export function Sidebar() {
+export function Sidebar({
+  notices,
+  unreadCount,
+}: {
+  notices: Notice[];
+  unreadCount: number;
+}) {
   const pathname = usePathname();
   const { scope, setScope, setPortalOpen, clients, user } = useApp();
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -29,7 +36,9 @@ export function Sidebar() {
           <span className="h-2 w-2 rounded-[2px] bg-gold" />
           <span className="eyebrow text-small text-paper">Taochy Pilot</span>
         </div>
-        <span className="text-micro text-ink-2">1.0</span>
+        {/* La cloche est en haut de la barre, où le regard passe déjà en
+            arrivant : reléguée en bas, elle ne serait vue qu'en partant. */}
+        <Bell notices={notices} unreadCount={unreadCount} />
       </div>
 
       {/* Le filtre client suit l'utilisateur d'un écran à l'autre. */}

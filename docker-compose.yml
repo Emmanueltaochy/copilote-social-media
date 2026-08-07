@@ -43,6 +43,14 @@ services:
       APP_VERSION: ${APP_VERSION:-dev}
       DATABASE_URL: postgres://pilot:${DB_PASSWORD}@db:5432/pilot
       MEDIA_ROOT: /data/assets
+      # Messagerie : les identifiants viennent du .env du serveur, jamais du
+      # dépôt. Un mot de passe de boîte mail commité y reste pour toujours,
+      # y compris après l'avoir changé.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       # Les médias vivent hors du conteneur : une mise à jour recrée le
       # conteneur, elle ne doit pas emporter les photos des clients.

@@ -10,6 +10,7 @@ import { euroFromCents, fr, monthLabel, monthProgressLabel } from "@/lib/pacing"
 import { derive, money, percent, sumTotals, times } from "@/lib/ads";
 import { SHOOT_STATUS, slotLabel } from "@/data/shoot";
 import { PrintButton } from "./PrintButton";
+import { SendByEmail } from "@/components/ui/SendByEmail";
 import { saveStats } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,9 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
     <>
       <PageHeader title={`Rapport · ${client.shortName}`} sub={`${monthLabel()} · ${monthProgressLabel()}`}>
         <PrintButton />
+        <span className="print:hidden">
+          <SendByEmail kind="rapport" id={client.id} label="Envoyer au client" />
+        </span>
         <Link
           href="/rapports"
           className="print:hidden rounded-control border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"

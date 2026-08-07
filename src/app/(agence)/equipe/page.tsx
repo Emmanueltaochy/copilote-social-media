@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Avatar, Eyebrow } from "@/components/ui/primitives";
 import { InviteLink } from "@/components/ui/InviteLink";
+import { SendByEmail } from "@/components/ui/SendByEmail";
 import { requireDirection } from "@/lib/auth";
 import { listTeam } from "@/db/queries";
 import { formatDuration } from "@/lib/duration";
@@ -169,6 +170,7 @@ export default async function EquipePage() {
                           Invitation expirée ou révoquée.
                         </span>
                       )}
+                      <SendByEmail kind="invitation" id={t.id} defaultTo={t.email} label="Envoyer le lien" />
                       <form action={renewInvite} className="flex-none">
                         <input type="hidden" name="id" value={t.id} />
                         <button

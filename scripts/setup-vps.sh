@@ -156,6 +156,48 @@ EOF
   ok "Configuration écrite dans $ENV_FILE"
 fi
 
+# --------------------------------------------------------------- messagerie --
+# Les notifications partent par la boîte de l'agence. Les identifiants ne sont
+# demandés qu'une fois : rejouer le script ne les redemande pas, et ne les
+# affiche jamais à l'écran.
+step "Messagerie (notifications par courriel)"
+if grep -q '^SMTP_PASSWORD=.\+' "$ENV_FILE" 2>/dev/null; then
+  ok "Messagerie déjà configurée — laissée telle quelle"
+  ok "Pour la changer : modifie SMTP_* dans $ENV_FILE puis « docker compose up -d »"
+else
+  echo "  Les notifications (contenu à valider, publication, assignation) partent"
+  echo "  par courriel. Laisse vide pour ne rien envoyer : la cloche dans"
+  echo "  l'application fonctionnera quand même."
+  echo
+  read -r -p "  Serveur SMTP [smtp.hostinger.com] : " SMTP_HOST_IN
+  SMTP_HOST_IN="${SMTP_HOST_IN:-smtp.hostinger.com}"
+  read -r -p "  Port [465] : " SMTP_PORT_IN
+  SMTP_PORT_IN="${SMTP_PORT_IN:-465}"
+  read -r -p "  Adresse d'envoi : " SMTP_USER_IN
+  if [[ -n "$SMTP_USER_IN" ]]; then
+    # -s : le mot de passe ne s'affiche pas et ne reste pas dans l'historique
+    # du terminal, où n'importe qui le relirait ensuite.
+    read -r -s -p "  Mot de passe : " SMTP_PASSWORD_IN
+    echo
+    set_env_quiet() {
+      if grep -q "^$1=" "$ENV_FILE"; then
+        sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+      else
+        echo "$1=$2" >> "$ENV_FILE"
+      fi
+    }
+    set_env_quiet SMTP_HOST "$SMTP_HOST_IN"
+    set_env_quiet SMTP_PORT "$SMTP_PORT_IN"
+    set_env_quiet SMTP_USER "$SMTP_USER_IN"
+    set_env_quiet SMTP_PASSWORD "$SMTP_PASSWORD_IN"
+    set_env_quiet SMTP_FROM "Taochy Consulting <$SMTP_USER_IN>"
+    chmod 600 "$ENV_FILE"
+    ok "Messagerie configurée pour $SMTP_USER_IN"
+  else
+    warn "Aucune adresse saisie — les courriels ne partiront pas, la cloche reste active"
+  fi
+fi
+
 # -------------------------------------------------------------------- nginx --
 step "Configuration nginx pour $DOMAIN"
 VHOST="/etc/nginx/sites-available/$DOMAIN"

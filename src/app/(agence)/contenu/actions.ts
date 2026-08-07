@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db, activity, assets, assetUsages, comments, contents, contentVersions } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
+import { notify } from "@/lib/notify";
 
 const STAGES = CONTENT_STAGES as readonly string[];
 
@@ -152,6 +153,21 @@ export async function moveStage(formData: FormData): Promise<void> {
     text: `« ${before.title} » déplacé vers ${stage}`,
   });
 
+  // C'est le passage en validation qui demande une action à quelqu'un
+  // d'extérieur : les autres étapes se voient sur le pipeline, et prévenir à
+  // chacune ferait de la cloche un bruit de fond.
+  if (stage === "validation" && before.status !== "validation") {
+    await notify({
+      kind: "validation_attendue",
+      title: `À valider : ${before.title}`,
+      body: "Un contenu attend votre validation dans votre espace.",
+      href: "/portail",
+      clientId: before.clientId,
+      contentId: id,
+      audience: "client",
+    });
+  }
+
   revalidateAll(id);
 }
 
@@ -187,6 +203,28 @@ export async function markPublished(formData: FormData): Promise<void> {
     contentId: id,
     actorId: user.id,
     text: `« ${before.title} » publié`,
+  });
+
+  // Une publication engage l'agence vis-à-vis du client : l'équipe et le
+  // client sont prévenus tous les deux, avec le lien du post en ligne.
+  await notify({
+    kind: "publie",
+    title: `Publié : ${before.title}`,
+    body: `Le contenu est en ligne.\n${url}`,
+    href: `/contenu/${id}`,
+    clientId: before.clientId,
+    contentId: id,
+    audience: "equipe",
+    exceptUserId: user.id,
+  });
+  await notify({
+    kind: "publie",
+    title: `Publié : ${before.title}`,
+    body: `Votre contenu est en ligne.\n${url}`,
+    href: "/portail",
+    clientId: before.clientId,
+    contentId: id,
+    audience: "client",
   });
 
   revalidateAll(id);
@@ -236,6 +274,18 @@ export async function approveContent(formData: FormData): Promise<void> {
     contentId: id,
     actorId: user.id,
     text: `« ${before.title} » validé`,
+  });
+
+  await notify({
+    kind: "valide",
+    title: `Validé : ${before.title}`,
+    body: "Le contenu passe en « prêt à publier ».",
+    href: `/contenu/${id}`,
+    clientId: before.clientId,
+    contentId: id,
+    audience: "owner",
+    ownerId: before.ownerId,
+    exceptUserId: user.id,
   });
 
   revalidateAll(id);
@@ -291,6 +341,18 @@ export async function requestChange(formData: FormData): Promise<void> {
     contentId: id,
     actorId: user.id,
     text: `Modification demandée sur « ${before.title} »${reason ? ` · ${reason}` : ""}`,
+  });
+
+  await notify({
+    kind: "modification_demandee",
+    title: `À reprendre : ${before.title}`,
+    body: [reason && `Motif : ${reason}`, note].filter(Boolean).join("\n\n") || undefined,
+    href: `/contenu/${id}`,
+    clientId: before.clientId,
+    contentId: id,
+    audience: "owner",
+    ownerId: before.ownerId,
+    exceptUserId: user.id,
   });
 
   revalidateAll(id);
@@ -371,15 +433,33 @@ export async function detachAsset(formData: FormData): Promise<void> {
  * C'est l'étape du pipeline qui dit ce qui reste à faire, pas le nom.
  */
 export async function assignContent(formData: FormData): Promise<void> {
-  await requireStaff();
+  const user = await requireStaff();
   const id = String(formData.get("id") ?? "");
   const ownerId = String(formData.get("ownerId") ?? "");
   if (!id) return;
+
+  const [before] = await db.select().from(contents).where(eq(contents.id, id)).limit(1);
+  if (!before) return;
 
   await db
     .update(contents)
     .set({ ownerId: ownerId || null, updatedAt: new Date() })
     .where(eq(contents.id, id));
+
+  // On ne prévient qu'au changement, et jamais soi-même : réassigner deux
+  // fois de suite ne doit pas envoyer deux messages identiques.
+  if (ownerId && ownerId !== before.ownerId) {
+    await notify({
+      kind: "assignation",
+      title: `Assigné : ${before.title}`,
+      body: "Ce contenu vous revient.",
+      href: `/contenu/${id}`,
+      clientId: before.clientId,
+      contentId: id,
+      userIds: [ownerId],
+      exceptUserId: user.id,
+    });
+  }
 
   revalidateAll(id);
 }

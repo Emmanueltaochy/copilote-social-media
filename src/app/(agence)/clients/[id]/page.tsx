@@ -11,6 +11,7 @@ import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
 import { ClientAccessForm } from "../ClientAccess";
 import { InviteLink } from "@/components/ui/InviteLink";
+import { SendByEmail } from "@/components/ui/SendByEmail";
 import { archiveClient, deleteClientFile, revokeClientAccess, updateClient } from "../actions";
 import { FilesCard } from "./FilesCard";
 import { listClientAccess, listClientFiles } from "@/db/queries";
@@ -172,7 +173,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       <span className="clip text-small text-ink-3">{a.email}</span>
                     </span>
                     {a.inviteToken ? (
-                      <InviteLink url={`${origin}/invitation/${a.inviteToken}`} />
+                      <>
+                        <InviteLink url={`${origin}/invitation/${a.inviteToken}`} />
+                        <SendByEmail kind="invitation" id={a.id} defaultTo={a.email} label="Envoyer" />
+                      </>
                     ) : (
                       <span className="text-small text-ok">Compte actif</span>
                     )}

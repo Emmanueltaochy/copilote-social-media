@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq } from "drizzle-orm";
 import { db, activity, comments, contents, contentVersions } from "@/db";
 import { requireUser } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 
 export type PortalFormState = { error?: string; ok?: string };
 
@@ -65,6 +66,17 @@ export async function clientApprove(
     text: `« ${content.title} » validé par le client`,
   });
 
+  await notify({
+    kind: "valide",
+    title: `Validé par le client : ${content.title}`,
+    body: `${user.name} a validé le contenu. Il passe en « prêt à publier ».`,
+    href: `/contenu/${content.id}`,
+    clientId: content.clientId,
+    contentId: content.id,
+    audience: "owner",
+    ownerId: content.ownerId,
+  });
+
   refresh(content.id);
   return { ok: `« ${content.title} » est validé. Nous programmons la publication.` };
 }
@@ -114,6 +126,28 @@ export async function clientRequestChange(
     contentId: content.id,
     actorId: user.id,
     text: `Modification demandée par le client sur « ${content.title} » · ${note}`,
+  });
+
+  // Un refus client engage un aller-retour : le responsable est prévenu, et
+  // la direction aussi, parce que c'est elle qui suit le rythme du mois.
+  await notify({
+    kind: "modification_demandee",
+    title: `Modification demandée : ${content.title}`,
+    body: `${user.name} demande une modification.\n\n« ${note} »`,
+    href: `/contenu/${content.id}`,
+    clientId: content.clientId,
+    contentId: content.id,
+    audience: "owner",
+    ownerId: content.ownerId,
+  });
+  await notify({
+    kind: "modification_demandee",
+    title: `Modification demandée : ${content.title}`,
+    body: `${user.name} demande une modification.\n\n« ${note} »`,
+    href: `/contenu/${content.id}`,
+    clientId: content.clientId,
+    contentId: content.id,
+    audience: "direction",
   });
 
   refresh(content.id);

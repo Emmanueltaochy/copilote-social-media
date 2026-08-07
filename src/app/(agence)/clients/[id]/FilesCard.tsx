@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHead } from "@/components/ui/Card";
+import { SendByEmail } from "@/components/ui/SendByEmail";
 
 type File_ = {
   id: string;
@@ -105,6 +106,7 @@ export function FilesCard({
                 {f.uploadedByName ? ` · ${f.uploadedByName}` : ""}
               </span>
             </span>
+            <SendByEmail kind="fichier" id={f.id} />
             <form action={onDelete} className="flex-none">
               <input type="hidden" name="id" value={f.id} />
               <input type="hidden" name="clientId" value={clientId} />
