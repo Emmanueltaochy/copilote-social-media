@@ -18,6 +18,7 @@ export function ValidationCard({
   kind,
   cover,
   slides,
+  links,
   scheduled,
   waitingSince,
 }: {
@@ -27,6 +28,8 @@ export function ValidationCard({
   cover: CoverAsset;
   /** Vues d'un carrousel, dans l'ordre. Vide pour les autres formats. */
   slides: Slide[];
+  /** Liens externes — Drive le plus souvent — quand le fichier vit ailleurs. */
+  links: { id: string; url: string; label: string | null }[];
   scheduled: string | null;
   waitingSince: string | null;
 }) {
@@ -48,6 +51,18 @@ export function ValidationCard({
           échelle, pas sur une vignette. */}
       {slides.length > 1 ? (
         <Carousel slides={slides} className="w-[180px] flex-none" />
+      ) : !cover && links.length > 0 ? (
+        // Rien n'est hébergé ici, mais le contenu existe : une vidéo trop
+        // lourde reste sur un Drive. Le cadre gris « visuel à venir » ferait
+        // croire que la fabrication n'est pas commencée.
+        <a
+          href={links[0].url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex aspect-4/5 w-[180px] flex-none items-center justify-center rounded-card border border-dashed border-line bg-slot px-3 text-center text-base font-medium text-ink-2 no-underline hover:border-gold hover:text-ink hover:no-underline"
+        >
+          Ouvrir le contenu ↗
+        </a>
       ) : (
         <Cover asset={cover} ratio="4/5" className="w-[180px] flex-none" label="Visuel à venir" />
       )}
@@ -63,6 +78,29 @@ export function ValidationCard({
             {waitingSince ? ` · en attente depuis le ${waitingSince}` : ""}
           </span>
         </div>
+
+        {links.length > 0 ? (
+          <div className="flex flex-col gap-1 rounded-control border border-line bg-canvas px-3 py-[10px]">
+            <span className="eyebrow text-ink-3">
+              {links.length > 1 ? "À consulter" : "Le contenu à valider"}
+            </span>
+            {links.map((l) => (
+              <a
+                key={l.id}
+                href={l.url}
+                target="_blank"
+                rel="noreferrer"
+                className="clip text-base font-medium"
+              >
+                {l.label || l.url} ↗
+              </a>
+            ))}
+            <span className="text-small text-ink-3">
+              Le fichier est trop lourd pour être affiché ici : il s&apos;ouvre dans un nouvel
+              onglet.
+            </span>
+          </div>
+        ) : null}
 
       {state.ok ? (
         <p className="rounded-control border border-ok bg-ok-bg px-3 py-2 text-base text-ok">

@@ -21,6 +21,7 @@ export function CheckList({
   addLabel,
   hint,
   empty,
+  footer,
 }: {
   title: string;
   meta?: string;
@@ -41,6 +42,8 @@ export function CheckList({
   addLabel: string;
   hint?: string;
   empty: string;
+  /** Bloc supplémentaire sous la liste — la liste de matériel personnelle. */
+  footer?: React.ReactNode;
 }) {
   return (
     <Card className="flex flex-col">
@@ -115,6 +118,7 @@ export function CheckList({
       </form>
 
       {hint ? <p className="px-[14px] pb-3 text-small text-ink-3">{hint}</p> : null}
+      {footer}
     </Card>
   );
 }

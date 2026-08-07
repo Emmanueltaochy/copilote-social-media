@@ -5,10 +5,11 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { Avatar, Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
-import { getShoot, listStaff } from "@/db/queries";
+import { getShoot, listGearPresets, listStaff } from "@/db/queries";
 import { durationHours, readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel } from "@/data/shoot";
 import { isVideo } from "@/lib/storage";
 import { CheckList } from "./CheckList";
+import { GearPresets } from "./GearPresets";
 import {
   addCrew,
   addDeliverable,
@@ -32,10 +33,14 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ShootPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  const user = await requireStaff();
   const { id } = await params;
 
-  const [data, staff] = await Promise.all([getShoot(id), listStaff()]);
+  const [data, staff, presets] = await Promise.all([
+    getShoot(id),
+    listStaff(),
+    listGearPresets(user.id),
+  ]);
   if (!data) notFound();
 
   const { shoot, client, shots, gear, rights, deliverables, crew, media } = data;
@@ -162,6 +167,13 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               addLabel="Ajouter"
               hint="Le matériel non réservé bloque le départ : il peut être pris ailleurs le jour même."
               empty="Aucun matériel listé."
+              footer={
+                <GearPresets
+                  shootId={shoot.id}
+                  presets={presets}
+                  alreadyOnShoot={new Set(gear.map((g) => g.label))}
+                />
+              }
             />
 
             <CheckList

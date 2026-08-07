@@ -38,12 +38,14 @@ export function readiness(counts: {
   if (counts.crew === 0) blocking.push("aucune personne assignée");
   if (counts.shots === 0) blocking.push("shotlist vide");
   if (counts.gearTotal > counts.gearReserved) {
-    blocking.push(`${counts.gearTotal - counts.gearReserved} matériel non réservé`);
+    const n = counts.gearTotal - counts.gearReserved;
+    blocking.push(`${n} matériel${n > 1 ? "s" : ""} non réservé${n > 1 ? "s" : ""}`);
   }
   // Une autorisation manquante ne se rattrape pas après coup : c'est elle qui
   // fait retirer une publication, parfois des semaines plus tard.
   if (counts.rightsTotal > counts.rightsSigned) {
-    blocking.push(`${counts.rightsTotal - counts.rightsSigned} autorisation non signée`);
+    const n = counts.rightsTotal - counts.rightsSigned;
+    blocking.push(`${n} autorisation${n > 1 ? "s" : ""} non signée${n > 1 ? "s" : ""}`);
   }
   return { blocking, ready: blocking.length === 0 };
 }

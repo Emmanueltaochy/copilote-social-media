@@ -17,6 +17,7 @@ import {
   assets,
   assetUsages,
   contractLines,
+  gearPresets,
   shoots,
   shootCrew,
   shootDeliverables,
@@ -453,6 +454,20 @@ export async function listAssets(clientId?: string) {
     .orderBy(desc(assets.createdAt));
 }
 
+/**
+ * Combien de médias par client.
+ *
+ * Sert les filtres de la bibliothèque : un client affiché sans compte oblige
+ * à cliquer pour découvrir qu'il n'a rien.
+ */
+export async function assetCountsByClient() {
+  const rows = await db
+    .select({ clientId: assets.clientId, n: count() })
+    .from(assets)
+    .groupBy(assets.clientId);
+  return new Map(rows.map((r) => [r.clientId, r.n]));
+}
+
 /** Poids total des médias : sert l'indicateur d'espace de l'écran Assets. */
 export async function assetsFootprint() {
   const [row] = await db
@@ -791,4 +806,49 @@ export async function listContentLinks(contentId: string) {
     .leftJoin(users, eq(users.id, contentLinks.addedById))
     .where(eq(contentLinks.contentId, contentId))
     .orderBy(asc(contentLinks.createdAt));
+}
+
+/**
+ * Les liens externes de plusieurs contenus d'un coup.
+ *
+ * Le portail en a besoin pour toutes les cartes en attente : quand la vidéo
+ * est trop lourde pour être hébergée ici, le lien Drive *est* le contenu à
+ * valider. Sans lui la carte est vide, et on demande au client d'approuver
+ * quelque chose qu'il ne peut pas voir.
+ */
+export async function linksFor(contentIds: string[]) {
+  const map = new Map<string, { id: string; url: string; label: string | null }[]>();
+  if (contentIds.length === 0) return map;
+
+  const rows = await db
+    .select({
+      contentId: contentLinks.contentId,
+      id: contentLinks.id,
+      url: contentLinks.url,
+      label: contentLinks.label,
+    })
+    .from(contentLinks)
+    .where(
+      raw`${contentLinks.contentId} in (${raw.join(
+        contentIds.map((c) => raw`${c}::uuid`),
+        raw`, `,
+      )})`,
+    )
+    .orderBy(asc(contentLinks.createdAt));
+
+  for (const r of rows) {
+    const list = map.get(r.contentId) ?? [];
+    list.push({ id: r.id, url: r.url, label: r.label });
+    map.set(r.contentId, list);
+  }
+  return map;
+}
+
+/** La liste de matériel personnelle de quelqu'un. */
+export async function listGearPresets(userId: string) {
+  return db
+    .select()
+    .from(gearPresets)
+    .where(eq(gearPresets.userId, userId))
+    .orderBy(asc(gearPresets.position));
 }

@@ -693,3 +693,28 @@ export const contentLinks = pgTable(
   },
   (t) => [index("content_links_content_idx").on(t.contentId)],
 );
+
+/* ------------------------------------------------- matériel personnel -- */
+
+/**
+ * Le matériel habituel de quelqu'un.
+ *
+ * Chacun part avec à peu près le même sac d'un tournage à l'autre, et le
+ * ressaisir ligne par ligne à chaque fiche est le genre de corvée qu'on finit
+ * par sauter — laissant la liste vide, donc inutile. La liste est personnelle
+ * et non partagée : le sac d'un cadreur n'est pas celui d'un photographe, et
+ * une liste commune obligerait chacun à trier ce qui ne le concerne pas.
+ */
+export const gearPresets = pgTable(
+  "gear_presets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("gear_presets_user_idx").on(t.userId)],
+);

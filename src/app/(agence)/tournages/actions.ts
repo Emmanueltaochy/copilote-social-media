@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
+  gearPresets,
   shootCrew,
   shootDeliverables,
   shootGear,
@@ -298,5 +299,77 @@ export async function removeCrew(formData: FormData): Promise<void> {
   const userId = String(formData.get("userId") ?? "");
   if (!shootId || !userId) return;
   await db.delete(shootCrew).where(and(eq(shootCrew.shootId, shootId), eq(shootCrew.userId, userId)));
+  refresh(shootId);
+}
+
+/* ----------------------------------------------- matériel personnel -- */
+
+/**
+ * Ajoute une ligne à sa propre liste de matériel.
+ *
+ * La liste appartient à la personne, jamais à l'agence : le sac d'un cadreur
+ * n'est pas celui d'un photographe, et une liste commune obligerait chacun à
+ * trier ce qui ne le concerne pas.
+ */
+export async function addGearPreset(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const label = String(formData.get("label") ?? "").trim();
+  const shootId = String(formData.get("shootId") ?? "");
+  if (!label) return;
+
+  const [row] = await db
+    .select({ n: sql<number>`coalesce(max(${gearPresets.position}), -1)::int` })
+    .from(gearPresets)
+    .where(eq(gearPresets.userId, user.id));
+
+  await db
+    .insert(gearPresets)
+    .values({ userId: user.id, label, position: (row?.n ?? -1) + 1 });
+
+  refresh(shootId);
+}
+
+export async function removeGearPreset(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const shootId = String(formData.get("shootId") ?? "");
+  if (!id) return;
+  // La condition sur le propriétaire est dans la requête : aucun chemin
+  // d'appel ne peut l'oublier, et personne n'efface la liste d'un autre.
+  await db.delete(gearPresets).where(and(eq(gearPresets.id, id), eq(gearPresets.userId, user.id)));
+  refresh(shootId);
+}
+
+/**
+ * Verse le matériel coché de sa liste dans la fiche du tournage.
+ *
+ * Les lignes déjà présentes sont ignorées plutôt que dupliquées : cocher deux
+ * fois le même boîtier est un geste courant, et se retrouver avec deux
+ * « Boîtier A7 IV » à réserver séparément n'aiderait personne.
+ */
+export async function addGearFromPresets(formData: FormData): Promise<void> {
+  await requireStaff();
+  const shootId = String(formData.get("shootId") ?? "");
+  const ids = formData.getAll("presetIds").map(String).filter(Boolean);
+  if (!shootId || ids.length === 0) return;
+
+  const chosen = await db
+    .select({ label: gearPresets.label })
+    .from(gearPresets)
+    .where(inArray(gearPresets.id, ids));
+
+  const existing = await db
+    .select({ label: shootGear.label, position: shootGear.position })
+    .from(shootGear)
+    .where(eq(shootGear.shootId, shootId));
+
+  const known = new Set(existing.map((g) => g.label));
+  let position = existing.reduce((max, g) => Math.max(max, g.position), -1);
+
+  const nouveaux = chosen
+    .filter((c) => !known.has(c.label))
+    .map((c) => ({ shootId, label: c.label, state: "Non réservé", position: ++position }));
+
+  if (nouveaux.length > 0) await db.insert(shootGear).values(nouveaux);
   refresh(shootId);
 }

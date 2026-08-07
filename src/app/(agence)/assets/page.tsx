@@ -1,10 +1,11 @@
 import Image from "next/image";
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
-import { assetsFootprint, listAssets, listClientOptions } from "@/db/queries";
+import { assetCountsByClient, assetsFootprint, listAssets, listClientOptions } from "@/db/queries";
 import {
   diskUsage,
   formatBytes,
@@ -24,14 +25,44 @@ const RIGHTS: Record<string, { label: string; tone: Tone }> = {
   expires: { label: "Droits expirés", tone: "alert" },
 };
 
-export default async function AssetsPage() {
+/** Un onglet de filtre. Le compte évite d'ouvrir un client pour rien. */
+function Chip({ href, label, n, on }: { href: string; label: string; n: number; on: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-[6px] rounded-control border px-[10px] py-[5px] text-small no-underline hover:no-underline",
+        on
+          ? "border-ink bg-ink text-paper"
+          : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
+      )}
+    >
+      {label}
+      <span className={cn("text-micro tabular-nums", on ? "text-night-ink" : "text-ink-3")}>
+        {n}
+      </span>
+    </Link>
+  );
+}
+
+export default async function AssetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
   await requireStaff();
-  const [clients, rows, footprint, disk] = await Promise.all([
+  const [{ client: demandé }, clients, counts, footprint, disk] = await Promise.all([
+    searchParams,
     listClientOptions(),
-    listAssets(),
+    assetCountsByClient(),
     assetsFootprint(),
     diskUsage(),
   ]);
+
+  // On ne passe à la requête qu'un identifiant reconnu : une valeur bricolée
+  // dans l'URL ne doit pas atteindre la base.
+  const selected = clients.find((c) => c.id === demandé)?.id;
+  const rows = await listAssets(selected);
 
   if (clients.length === 0) {
     return (
@@ -46,12 +77,16 @@ export default async function AssetsPage() {
   }
 
   const watch = rows.filter((r) => r.asset.rights !== "illimites").length;
+  const selectedName = clients.find((c) => c.id === selected)?.name;
 
   return (
     <>
       <PageHeader
         title="Bibliothèque d'assets"
-        sub={`${rows.length} média${rows.length > 1 ? "s" : ""} · ${watch} avec des droits à surveiller`}
+        sub={
+          `${selectedName ? `${selectedName} · ` : ""}` +
+          `${rows.length} média${rows.length > 1 ? "s" : ""} · ${watch} avec des droits à surveiller`
+        }
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
@@ -87,12 +122,27 @@ export default async function AssetsPage() {
             ) : null}
           </Card>
 
+          {/* Le filtre passe par l'URL : la vue d'un client se met en favori,
+              se partage et survit à un retour arrière. */}
+          <div className="flex flex-wrap items-center gap-[6px]">
+            <Chip href="/assets" label="Tous les clients" n={footprint.files} on={!selected} />
+            {clients.map((c) => (
+              <Chip
+                key={c.id}
+                href={`/assets?client=${c.id}`}
+                label={c.name}
+                n={counts.get(c.id) ?? 0}
+                on={selected === c.id}
+              />
+            ))}
+          </div>
+
           {rows.length === 0 ? (
             <Card className="p-5">
               <p className="text-base text-ink-2">
-                Aucun média pour l&apos;instant. Importe les photos et vidéos livrées : elles
-                apparaîtront ici, réutilisables d&apos;un contenu à l&apos;autre, et visibles par le
-                client dans son portail.
+                {selectedName
+                  ? `Aucun média pour ${selectedName}. Importe ses photos et vidéos livrées, ou reviens à tous les clients.`
+                  : "Aucun média pour l'instant. Importe les photos et vidéos livrées : elles apparaîtront ici, réutilisables d'un contenu à l'autre, et visibles par le client dans son portail."}
               </p>
             </Card>
           ) : (

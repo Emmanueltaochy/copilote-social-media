@@ -2,7 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { and, desc, eq, gte, isNotNull, lt, sql as raw } from "drizzle-orm";
 import { db, activity, assets, clients, contents } from "@/db";
-import { coversFor, slidesFor } from "@/db/queries";
+import { coversFor, linksFor, slidesFor } from "@/db/queries";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/connexion/actions";
 import { Card } from "@/components/ui/Card";
@@ -79,6 +79,10 @@ export default async function PortailPage() {
   // Un carrousel se juge vue par vue : le client doit pouvoir le balayer
   // comme le fera son audience, pas deviner sur la première image.
   const slides = await slidesFor(waiting.map((w) => w.content.id));
+  // Une vidéo trop lourde pour être hébergée ici vit sur un Drive : le lien
+  // est alors la seule chose à montrer, et sans lui la carte demande une
+  // validation à l'aveugle.
+  const links = await linksFor(waiting.map((w) => w.content.id));
 
   const p = pace(published.length, client.contentTarget);
 
@@ -123,6 +127,7 @@ export default async function PortailPage() {
                 kind={CONTENT_KIND[content.kind] ?? content.kind}
                 cover={covers.get(content.id)}
                 slides={content.kind === "carrousel" ? (slides.get(content.id) ?? []) : []}
+                links={links.get(content.id) ?? []}
                 scheduled={
                   content.scheduledAt
                     ? content.scheduledAt.toLocaleDateString("fr-FR", {
