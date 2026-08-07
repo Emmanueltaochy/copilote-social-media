@@ -49,7 +49,7 @@ export default async function APublierPage() {
         sub={`${today} · ${done} publié${done > 1 ? "s" : ""} · ${late} en retard · ${ahead} à venir`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto w-full max-w-[1060px]">
           <Card>
             <CardHead title="File du jour" meta={`${queue.length}`} />

@@ -119,3 +119,27 @@ export function MetaRow({
     </div>
   );
 }
+
+/**
+ * Enveloppe une table dense pour qu'elle défile dans sa carte, et non avec
+ * la page.
+ *
+ * Une table de six colonnes ne tient pas sur un téléphone. La rétrécir la
+ * rendrait illisible ; laisser la page entière glisser sur le côté ferait
+ * partir l'en-tête et les autres cartes avec elle, et on se retrouve à
+ * chercher où l'on est. Le défilement reste donc là où la largeur manque.
+ */
+export function TableScroll({
+  min = 740,
+  children,
+}: {
+  /** Largeur en deçà de laquelle les colonnes s'écraseraient. */
+  min?: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: min }}>{children}</div>
+    </div>
+  );
+}

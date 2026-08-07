@@ -168,7 +168,10 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
   return (
     <>
       {open ? (
-        <div className="fixed right-5 bottom-[84px] z-50 flex h-[520px] max-h-[calc(100vh-120px)] w-[360px] max-w-[calc(100vw-40px)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_12px_32px_rgba(18,18,18,0.18)]">
+        // Sur téléphone, la conversation prend l'écran : un panneau de 360 px
+        // flottant dans un écran de 390 laisse des marges qui ne servent à
+        // rien et rogne la seule chose qu'on regarde, le texte.
+        <div className="fixed inset-x-3 bottom-[80px] z-50 flex h-[min(560px,calc(100dvh-140px))] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_12px_32px_rgba(18,18,18,0.18)] sm:inset-x-auto sm:right-5 sm:bottom-[84px] sm:h-[520px] sm:max-h-[calc(100dvh-120px)] sm:w-[360px]">
           <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-[10px]">
             {current ? (
               <button

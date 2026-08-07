@@ -3,7 +3,7 @@ import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { Num, TableHead, TableRow, Th } from "@/components/ui/Table";
+import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { requireStaff } from "@/lib/auth";
 import { byUrgency, listClientsWithPace } from "@/db/queries";
 import { fr, monthLabel, monthProgressLabel } from "@/lib/pacing";
@@ -45,7 +45,7 @@ export default async function AvancementPage() {
         sub={`${monthLabel()} · ${monthProgressLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           <Card className="p-5">
             <Eyebrow>Tous engagements confondus</Eyebrow>
@@ -72,6 +72,7 @@ export default async function AvancementPage() {
               title="Engagement client par client"
               meta="Le repère or marque le rythme attendu aujourd'hui"
             />
+            <TableScroll min={780}>
             <TableHead cols={COLS} sticky>
               <Th>Client</Th>
               <Th>Avancement</Th>
@@ -98,6 +99,7 @@ export default async function AvancementPage() {
                 </span>
               </TableRow>
             ))}
+            </TableScroll>
           </Card>
         </div>
       </div>

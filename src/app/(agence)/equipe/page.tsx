@@ -50,7 +50,7 @@ export default async function EquipePage() {
         }${pending.length > 0 ? ` · ${pending.length} invitation${pending.length > 1 ? "s" : ""} en attente` : ""} · ${monthLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-5">
             <div>

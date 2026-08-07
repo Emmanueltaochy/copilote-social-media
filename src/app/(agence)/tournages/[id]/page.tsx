@@ -77,7 +77,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           {/* Ce qui bloque le départ, avant tout le reste : c'est la seule
               information qui change ce qu'on fait dans l'heure. */}

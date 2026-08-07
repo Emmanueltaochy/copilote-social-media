@@ -52,7 +52,7 @@ export function ContentForm({
     <form action={formAction} className="flex flex-col gap-4">
       {values.id ? <input type="hidden" name="id" value={values.id} /> : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Client</span>
           <select name="clientId" required defaultValue={values.clientId ?? ""} className={field}>
@@ -72,7 +72,7 @@ export function ContentForm({
         </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Format</span>
           <select name="kind" defaultValue={values.kind ?? "feed"} className={field}>

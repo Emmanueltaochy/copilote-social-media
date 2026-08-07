@@ -26,7 +26,7 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();
-  const { scope, setScope, setPortalOpen, clients, user } = useApp();
+  const { scope, setScope, setPortalOpen, clients, user, navOpen, setNavOpen } = useApp();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const nav = NAV.filter((item) => !item.directionOnly || user.role === "direction");
@@ -46,16 +46,51 @@ export function Sidebar({
   }
 
   return (
-    <aside className="flex w-[232px] flex-none flex-col gap-3 overflow-hidden bg-night p-[10px] pt-3">
-      <div className="flex items-center justify-between px-[6px] py-1">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-[2px] bg-gold" />
-          <span className="eyebrow text-small text-paper">Taochy Pilot</span>
+    <>
+      {/* Le voile ne sert pas qu'à assombrir : sur un téléphone, refermer le
+          menu en touchant à côté est le geste réflexe, et sans lui il faut
+          viser une petite croix. */}
+      {navOpen ? (
+        <button
+          type="button"
+          aria-label="Fermer le menu"
+          onClick={() => setNavOpen(false)}
+          className="fixed inset-0 z-40 cursor-default border-none bg-[rgba(18,18,18,0.45)] lg:hidden"
+        />
+      ) : null}
+
+      <aside
+        className={cn(
+          // Sur mobile la barre glisse par-dessus l'écran plutôt que de le
+          // partager : 232 px pris sur 390 laisseraient au contenu une colonne
+          // où plus rien n'est lisible.
+          "fixed inset-y-0 left-0 z-50 flex w-[232px] flex-none flex-col gap-3 overflow-hidden bg-night p-[10px] pt-3 transition-transform duration-200",
+          "lg:static lg:z-auto lg:translate-x-0",
+          navOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <div className="flex items-center justify-between px-[6px] py-1">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-[2px] bg-gold" />
+            <span className="eyebrow text-small text-paper">Taochy Pilot</span>
+          </div>
+          <span className="flex items-center gap-1">
+            {/* La cloche est en haut de la barre, où le regard passe déjà en
+                arrivant : reléguée en bas, elle ne serait vue qu'en partant.
+                Sur mobile elle vit dans la barre du haut, toujours visible. */}
+            <span className="hidden lg:flex">
+              <Bell notices={notices} unreadCount={unreadCount} />
+            </span>
+            <button
+              type="button"
+              onClick={() => setNavOpen(false)}
+              aria-label="Fermer le menu"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control border border-transparent bg-transparent text-night-ink hover:border-night-border hover:text-paper lg:hidden"
+            >
+              ✕
+            </button>
+          </span>
         </div>
-        {/* La cloche est en haut de la barre, où le regard passe déjà en
-            arrivant : reléguée en bas, elle ne serait vue qu'en partant. */}
-        <Bell notices={notices} unreadCount={unreadCount} />
-      </div>
 
       {/* Le filtre client suit l'utilisateur d'un écran à l'autre. */}
       <div className="relative">
@@ -112,6 +147,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setNavOpen(false)}
               className={cn(
                 "relative flex items-center justify-between gap-2 rounded-control px-[10px] py-2 no-underline hover:bg-night-2 hover:no-underline",
                 active ? "bg-night-2" : "bg-transparent",
@@ -136,7 +172,10 @@ export function Sidebar({
       <div className="mt-auto flex flex-col gap-px border-t border-night-line pt-2">
         <button
           type="button"
-          onClick={() => setPortalOpen(true)}
+          onClick={() => {
+            setPortalOpen(true);
+            setNavOpen(false);
+          }}
           className="flex w-full cursor-pointer items-center justify-between rounded-control px-[10px] py-2 text-left hover:bg-night-2"
         >
           <span className="text-base text-night-ink">Portail client</span>
@@ -147,6 +186,7 @@ export function Sidebar({
             navigation de tous les jours. */}
         <Link
           href="/compte"
+          onClick={() => setNavOpen(false)}
           className={cn(
             "flex items-center gap-2 rounded-control px-[10px] py-2 no-underline hover:bg-night-2 hover:no-underline",
             pathname === "/compte" ? "bg-night-2" : "",
@@ -168,7 +208,8 @@ export function Sidebar({
             Se déconnecter
           </button>
         </form>
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 }

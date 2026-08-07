@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Dot, Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { Num, TableHead, TableRow, Th } from "@/components/ui/Table";
+import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { canSeeMoney, requireStaff } from "@/lib/auth";
 import { listClientsWithPace } from "@/db/queries";
 import { euroFromCents, monthLabel } from "@/lib/pacing";
@@ -29,11 +29,12 @@ export default async function ClientsPage() {
         sub={`${monthLabel()} · ${clients.length} ${clients.length > 1 ? "comptes actifs" : "compte actif"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           {clients.length > 0 ? (
             <Card>
               <CardHead title="Portefeuille" meta="Le repère or marque le rythme attendu aujourd'hui" />
+              <TableScroll min={money ? 760 : 640}>
               <TableHead cols={money ? COLS_MONEY : COLS_PLAIN}>
                 <Th>Client</Th>
                 <Th>Avancement du mois</Th>
@@ -68,6 +69,7 @@ export default async function ClientsPage() {
                   </span>
                 </TableRow>
               ))}
+              </TableScroll>
             </Card>
           ) : null}
 

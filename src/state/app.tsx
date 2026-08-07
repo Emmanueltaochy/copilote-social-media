@@ -34,6 +34,9 @@ type AppState = {
   inScope: (shortName: string) => boolean;
   portalOpen: boolean;
   setPortalOpen: (open: boolean) => void;
+  /** Tiroir de navigation, sur mobile seulement. */
+  navOpen: boolean;
+  setNavOpen: (open: boolean) => void;
 };
 
 const Ctx = createContext<AppState | null>(null);
@@ -49,6 +52,7 @@ export function AppProvider({
 }) {
   const [scope, setScope] = useState<string>(ALL_CLIENTS);
   const [portalOpen, setPortalOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
   const value = useMemo<AppState>(() => {
     const scoped = scope === ALL_CLIENTS ? undefined : clients.find((c) => c.name === scope);
@@ -63,8 +67,10 @@ export function AppProvider({
       inScope: (shortName: string) => scopedShort === null || scopedShort === shortName,
       portalOpen,
       setPortalOpen,
+      navOpen,
+      setNavOpen,
     };
-  }, [scope, portalOpen, user, clients]);
+  }, [scope, portalOpen, navOpen, user, clients]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -66,6 +66,21 @@
 }
 
 @layer base {
+  /*
+   * La page elle-même ne défile jamais latéralement.
+   *
+   * L'application gère ses propres zones de défilement : un tableau large ou
+   * un pipeline à neuf colonnes glisse dans son cadre. Sans cette règle, un
+   * seul débordement suffit à faire dézoomer un navigateur mobile pour « tout
+   * faire tenir » — et c'est l'écran entier qui devient minuscule, pas
+   * seulement l'élément fautif.
+   */
+  html,
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
   body {
     background: var(--color-canvas);
     color: var(--color-ink);

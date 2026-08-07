@@ -26,7 +26,7 @@ export default async function NouveauContenuPage() {
   return (
     <>
       <PageHeader title="Nouveau contenu" sub="Il démarre à l'étape « Idée »" />
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto w-full max-w-[760px]">
           <Card className="p-5">
             <div className="mb-4">

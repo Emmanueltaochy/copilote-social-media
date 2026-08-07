@@ -4,7 +4,7 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Dot, StatusPill } from "@/components/ui/primitives";
-import { Num, TableHead, TableRow, Th } from "@/components/ui/Table";
+import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { requireStaff } from "@/lib/auth";
 import { byUrgency, countMissedPublications, listAwaitingApproval, listClientsWithPace, listTodayQueue, listUpcomingShoots } from "@/db/queries";
 import { cn } from "@/lib/cn";
@@ -75,12 +75,13 @@ export default async function CockpitPage() {
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-7">
-        <Card className="min-w-[740px]">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-7 lg:px-5">
+        <Card>
           <CardHead
             title="Pilotage des engagements · trié par urgence"
             meta="Le repère or marque le rythme attendu aujourd'hui"
           />
+          <TableScroll min={740}>
           <TableHead cols={COLS} sticky>
             <Th>Client</Th>
             <Th>Avancement du mois</Th>
@@ -109,7 +110,8 @@ export default async function CockpitPage() {
               </span>
             </TableRow>
           ))}
-          <div className="flex items-center justify-between px-[14px] py-[10px]">
+          </TableScroll>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-[14px] py-[10px]">
             <span className="text-small text-ink-3">
               Barre grise claire = projection au rythme actuel en fin de mois
             </span>

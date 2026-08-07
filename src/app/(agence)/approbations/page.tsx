@@ -47,7 +47,7 @@ export default async function ApprobationsPage() {
         sub={`${rows.length} ${rows.length > 1 ? "contenus en attente" : "contenu en attente"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
           {rows.map(({ content, clientName, waitingDays }) => {
             const days = waitingDays;

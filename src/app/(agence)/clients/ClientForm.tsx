@@ -43,7 +43,7 @@ export function ClientForm({
     <form action={formAction} className="flex flex-col gap-4">
       {values.id ? <input type="hidden" name="id" value={values.id} /> : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Nom du client</span>
           <input name="name" required defaultValue={values.name} className={field} />
@@ -64,7 +64,7 @@ export function ClientForm({
         <input name="sector" defaultValue={values.sector ?? ""} className={field} />
       </label>
 
-      <div className={showMoney ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+      <div className={showMoney ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "grid grid-cols-1 gap-3"}>
         {showMoney ? (
           <label className="flex flex-col gap-[6px]">
             <span className="eyebrow text-ink-3">Forfait mensuel (€ HT)</span>
@@ -93,7 +93,7 @@ export function ClientForm({
         </label>
       </div>
 
-      <div className={showMoney ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+      <div className={showMoney ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "grid grid-cols-1 gap-3"}>
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Shootings inclus</span>
           <input

@@ -45,12 +45,12 @@ export function ValidationCard({
   const state = approveState.ok || approveState.error ? approveState : changeState;
 
   return (
-    <div className="flex gap-5 border-b border-line px-6 py-5">
+    <div className="flex flex-col gap-4 border-b border-line px-4 py-5 sm:flex-row sm:gap-5 sm:px-6">
       {/* Le visuel occupe la gauche, à une taille où l'on voit vraiment ce
           qu'on approuve : un cadrage ou une faute de date se repèrent à cette
           échelle, pas sur une vignette. */}
       {slides.length > 1 ? (
-        <Carousel slides={slides} className="w-[180px] flex-none" />
+        <Carousel slides={slides} className="w-full sm:w-[180px] sm:flex-none" />
       ) : !cover && links.length > 0 ? (
         // Rien n'est hébergé ici, mais le contenu existe : une vidéo trop
         // lourde reste sur un Drive. Le cadre gris « visuel à venir » ferait
@@ -59,12 +59,12 @@ export function ValidationCard({
           href={links[0].url}
           target="_blank"
           rel="noreferrer"
-          className="flex aspect-4/5 w-[180px] flex-none items-center justify-center rounded-card border border-dashed border-line bg-slot px-3 text-center text-base font-medium text-ink-2 no-underline hover:border-gold hover:text-ink hover:no-underline"
+          className="flex aspect-4/5 w-full items-center justify-center sm:w-[180px] sm:flex-none rounded-card border border-dashed border-line bg-slot px-3 text-center text-base font-medium text-ink-2 no-underline hover:border-gold hover:text-ink hover:no-underline"
         >
           Ouvrir le contenu ↗
         </a>
       ) : (
-        <Cover asset={cover} ratio="4/5" className="w-[180px] flex-none" label="Visuel à venir" />
+        <Cover asset={cover} ratio="4/5" className="w-full sm:w-[180px] sm:flex-none" label="Visuel à venir" />
       )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">

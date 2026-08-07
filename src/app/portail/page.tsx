@@ -103,7 +103,7 @@ export default async function PortailPage() {
         </form>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 p-6">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 p-4 sm:p-6">
         <div className="flex flex-col gap-[2px]">
           <Eyebrow>
             {client.shortName} · {monthLabel()}
@@ -154,7 +154,7 @@ export default async function PortailPage() {
               <span className="text-title font-semibold">Vos dernières réponses</span>
             </div>
             {answers.map(({ entry }) => (
-              <div key={entry.id} className="flex items-baseline gap-4 border-b border-line px-6 py-3">
+              <div key={entry.id} className="flex flex-wrap items-baseline gap-x-4 border-b border-line px-4 py-3 sm:px-6">
                 <span className="w-[110px] flex-none text-base tabular-nums text-ink-3">
                   {entry.createdAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
                 </span>
@@ -198,7 +198,7 @@ export default async function PortailPage() {
               <span className="text-title font-semibold">Ce qui arrive</span>
             </div>
             {upcoming.map(({ content }) => (
-              <div key={content.id} className="flex items-center gap-4 border-b border-line px-6 py-4">
+              <div key={content.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-4 sm:px-6">
                 <span className="w-[160px] flex-none text-base font-medium text-ink-2 tabular-nums">
                   {content.scheduledAt?.toLocaleDateString("fr-FR", {
                     weekday: "short",
@@ -259,7 +259,7 @@ export default async function PortailPage() {
               <span className="text-title font-semibold">Publié ce mois</span>
             </div>
             {published.map(({ content }) => (
-              <div key={content.id} className="flex items-center gap-4 border-b border-line px-6 py-4">
+              <div key={content.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-4 sm:px-6">
                 <span className="w-[120px] flex-none text-base text-ink-2 tabular-nums">
                   {content.publishedAt?.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                 </span>

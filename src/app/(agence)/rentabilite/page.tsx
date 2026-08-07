@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Num, TableHead, TableRow, Th } from "@/components/ui/Table";
+import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { Eyebrow } from "@/components/ui/primitives";
 import { requireDirection } from "@/lib/auth";
 import { costByClient, listClientsWithPace, listRates } from "@/db/queries";
@@ -62,7 +62,7 @@ export default async function RentabilitePage() {
         } · ${monthProgressLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           {!hoursEntered || ratesSet === 0 ? (
             <Card className="border-warn bg-warn-bg px-5 py-4">
@@ -105,6 +105,7 @@ export default async function RentabilitePage() {
 
           <Card>
             <CardHead title="Par client" meta={`${clients.length}`} />
+            <TableScroll min={860}>
             <TableHead cols={COLS} sticky>
               <Th>Client</Th>
               <Th align="right">Forfait</Th>
@@ -153,6 +154,7 @@ export default async function RentabilitePage() {
                 </TableRow>
               );
             })}
+            </TableScroll>
             <div className="px-[14px] py-[10px]">
               <span className="text-small text-ink-3">
                 « Reste » compare les heures passées aux heures vendues : négatif, le compte

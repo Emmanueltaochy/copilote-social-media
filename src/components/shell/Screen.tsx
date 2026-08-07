@@ -15,7 +15,10 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <header className="flex flex-none items-center justify-between gap-4 border-b border-line bg-paper px-5 py-[10px]">
+    // Sur mobile l'action passe sous le titre plutôt que de le comprimer :
+    // « Pipeline de production » réduit à une colonne de deux lettres n'aide
+    // personne à savoir où il est.
+    <header className="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-paper px-4 py-[10px] lg:flex-nowrap lg:px-5">
       <div className="flex min-w-0 flex-col gap-px">
         <h1 className="text-title font-semibold">{title}</h1>
         <span className="text-small text-ink-3 tabular-nums">{sub}</span>
@@ -41,7 +44,7 @@ export function Toolbar({
   return (
     <div
       className={cn(
-        "flex flex-none items-center justify-between gap-4 border-b border-line bg-paper px-5 py-2",
+        "flex flex-none items-center justify-between gap-4 border-b border-line bg-paper px-4 py-2 lg:px-5",
         className,
       )}
       style={minWidth ? { minWidth } : undefined}
@@ -64,7 +67,7 @@ export function ScrollArea({
 }) {
   return (
     <div
-      className={cn("min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6", className)}
+      className={cn("min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5", className)}
       style={minWidth ? { minWidth } : undefined}
     >
       {children}

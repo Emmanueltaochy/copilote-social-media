@@ -68,7 +68,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6 print:overflow-visible print:p-0">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5 print:overflow-visible print:p-0">
         <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
           {/* En-tête du document : visible seulement à l'impression, là où la
               barre latérale et le titre de l'écran n'existent plus. */}

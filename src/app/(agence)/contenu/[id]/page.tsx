@@ -119,7 +119,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div
-        className="grid min-h-0 flex-1 items-start gap-4 overflow-auto px-5 pt-4 pb-6"
+        className="grid min-h-0 flex-1 items-start gap-4 overflow-auto px-4 pt-4 pb-6 lg:px-5"
         style={{ gridTemplateColumns: "minmax(360px,1fr) 360px" }}
       >
         <div className="flex min-w-0 flex-col gap-4">

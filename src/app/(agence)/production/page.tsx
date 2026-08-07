@@ -49,7 +49,7 @@ export default async function ProductionPage() {
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
         <div className="flex h-full min-w-max items-start gap-3">
           {CONTENT_STAGES.map((stage) => {
             const cards = rows.filter((r) => r.content.status === stage);

@@ -36,7 +36,7 @@ export default async function RapportsPage() {
     <>
       <PageHeader title="Rapports" sub={`${monthLabel()} · ${clients.length} client${clients.length > 1 ? "s" : ""}`} />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
           <Card>
             <CardHead title={`Rapport de ${monthLabel()}`} meta={`${clients.length}`} />

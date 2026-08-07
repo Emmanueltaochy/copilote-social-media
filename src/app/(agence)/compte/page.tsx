@@ -17,7 +17,7 @@ export default async function ComptePage() {
     <>
       <PageHeader title="Mon compte" sub={user.email} />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
           <Card>
             <CardHead title="Photo de profil" />

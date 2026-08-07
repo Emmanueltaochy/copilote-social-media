@@ -53,12 +53,20 @@ export default async function CalendrierPage() {
         sub={`${monthLabel()} · ${rows.length} ${rows.length > 1 ? "contenus programmés" : "contenu programmé"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
         <div className="flex flex-col gap-px overflow-hidden rounded-card border border-line bg-line">
           <div className="flex gap-px">
             {WEEK_DAYS.map((d) => (
-              <div key={d} className="min-w-0 flex-1 bg-canvas px-[10px] py-2">
-                <Eyebrow tone="neutral">{d}</Eyebrow>
+              <div key={d} className="min-w-0 flex-1 bg-canvas px-1 py-2 lg:px-[10px]">
+                {/* Sur téléphone, sept colonnes ne laissent pas la place
+                    d'écrire « mercredi » : le nom est coupé au milieu et se
+                    lit moins bien que son abrégé. */}
+                <Eyebrow tone="neutral" className="lg:hidden">
+                  {d.slice(0, 3)}
+                </Eyebrow>
+                <Eyebrow tone="neutral" className="hidden lg:inline">
+                  {d}
+                </Eyebrow>
               </div>
             ))}
           </div>
@@ -68,7 +76,7 @@ export default async function CalendrierPage() {
                 <div
                   key={cell.key}
                   className={cn(
-                    "flex min-h-[120px] min-w-0 flex-1 flex-col gap-1 px-[7px] py-[6px]",
+                    "flex min-h-[70px] min-w-0 flex-1 flex-col gap-1 px-1 py-[6px] lg:min-h-[120px] lg:px-[7px]",
                     !cell.inMonth ? "bg-canvas" : cell.isToday ? "bg-gold-wash" : "bg-paper",
                   )}
                 >
@@ -82,7 +90,11 @@ export default async function CalendrierPage() {
                       >
                         {cell.dayNum}
                       </span>
-                      {cell.isToday ? <Eyebrow tone="gold">Aujourd&apos;hui</Eyebrow> : null}
+                      {cell.isToday ? (
+                        <Eyebrow tone="gold" className="hidden sm:inline">
+                          Aujourd&apos;hui
+                        </Eyebrow>
+                      ) : null}
                     </span>
                   ) : null}
 

@@ -89,7 +89,7 @@ export default async function AssetsPage({
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pt-4 pb-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
