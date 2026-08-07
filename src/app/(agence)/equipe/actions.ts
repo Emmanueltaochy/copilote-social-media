@@ -5,10 +5,23 @@ import { revalidatePath } from "next/cache";
 import { and, eq, ne } from "drizzle-orm";
 import { db, sessions, users } from "@/db";
 import { initialsFrom, requireDirection } from "@/lib/auth";
+import { ACCESS_DURATIONS } from "@/data/team";
 
 export type TeamFormState = { error?: string; ok?: string };
 
 const ROLES = ["direction", "equipe"] as const;
+
+/** Fin d'accès à partir d'une durée choisie. Null = permanent. */
+function expiryFrom(choice: string): Date | null {
+  const days = ACCESS_DURATIONS[choice]?.days ?? null;
+  if (days === null) return null;
+  // La fin tombe à minuit du dernier jour : « une journée » veut dire la
+  // journée entière, pas vingt-quatre heures à partir du clic.
+  const end = new Date();
+  end.setDate(end.getDate() + days);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
 
 /**
  * Invitation d'un collaborateur.
@@ -30,8 +43,10 @@ export async function inviteTeammate(
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "equipe");
+  const duration = String(formData.get("duration") ?? "permanent");
 
   if (!name || !email) return { error: "Nom et adresse sont nécessaires." };
+  if (!(duration in ACCESS_DURATIONS)) return { error: "Durée inconnue." };
   if (!email.includes("@")) return { error: "Adresse électronique invalide." };
   if (!ROLES.includes(role as (typeof ROLES)[number])) return { error: "Rôle inconnu." };
 
@@ -50,10 +65,16 @@ export async function inviteTeammate(
     inviteToken: randomBytes(32).toString("base64url"),
     // Une invitation qui traîne est une porte ouverte : elle expire.
     inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+    accessExpiresAt: expiryFrom(duration),
   });
 
   revalidatePath("/equipe");
-  return { ok: `Invitation créée pour ${name}. Le lien est à envoyer ci-dessous.` };
+  const fin = expiryFrom(duration);
+  return {
+    ok:
+      `Invitation créée pour ${name}. Le lien est à envoyer ci-dessous.` +
+      (fin ? ` Accès jusqu'au ${fin.toLocaleDateString("fr-FR")}.` : ""),
+  };
 }
 
 /** Régénère le lien d'un collaborateur qui ne l'a jamais utilisé. */
@@ -136,4 +157,25 @@ export async function changeRole(formData: FormData): Promise<void> {
   revalidatePath("/equipe");
   revalidatePath("/", "layout");
   if (id === actor.id) revalidatePath("/rentabilite");
+}
+
+/**
+ * Prolonge ou lève la limite d'accès d'un renfort.
+ *
+ * Un accès expiré n'est pas supprimé : le compte reste, ses heures et ses
+ * actions aussi. Le prolonger d'un clic évite de réinviter quelqu'un qui
+ * revient la semaine suivante.
+ */
+export async function setAccessDuration(formData: FormData): Promise<void> {
+  await requireDirection();
+  const id = String(formData.get("id") ?? "");
+  const duration = String(formData.get("duration") ?? "");
+  if (!id || !(duration in ACCESS_DURATIONS)) return;
+
+  await db
+    .update(users)
+    .set({ accessExpiresAt: expiryFrom(duration) })
+    .where(eq(users.id, id));
+
+  revalidatePath("/equipe");
 }

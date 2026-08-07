@@ -11,8 +11,9 @@ import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
 import { ClientAccessForm } from "../ClientAccess";
 import { InviteLink } from "@/components/ui/InviteLink";
-import { archiveClient, revokeClientAccess, updateClient } from "../actions";
-import { listClientAccess } from "@/db/queries";
+import { archiveClient, deleteClientFile, revokeClientAccess, updateClient } from "../actions";
+import { FilesCard } from "./FilesCard";
+import { listClientAccess, listClientFiles } from "@/db/queries";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireStaff();
@@ -21,7 +22,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const client = await getClientWithPace(id);
   if (!client) notFound();
 
-  const [lines, access] = await Promise.all([listContractLines(id), listClientAccess(id)]);
+  const [lines, access, files] = await Promise.all([
+    listContractLines(id),
+    listClientAccess(id),
+    listClientFiles(id),
+  ]);
   const { pace } = client;
 
   // Adresse publique du site, telle que le navigateur l'a demandée. Derrière
@@ -141,6 +146,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               }}
             />
           </Card>
+
+          <FilesCard clientId={client.id} files={files} onDelete={deleteClientFile} />
 
           <Card className="flex flex-col gap-4 p-5">
             <div>

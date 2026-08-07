@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
-import { db, brands, clients, contractLines, users } from "@/db";
+import { unlink } from "node:fs/promises";
+import { db, brands, clientFiles, clients, contractLines, users } from "@/db";
+import { absolutePath } from "@/lib/storage";
 import { canSeeMoney, initialsFrom, requireStaff } from "@/lib/auth";
 
 /**
@@ -190,5 +192,26 @@ export async function revokeClientAccess(formData: FormData): Promise<void> {
   // Désactiver plutôt que supprimer : l'historique des actions du contact
   // reste rattaché à quelqu'un.
   await db.update(users).set({ active: false }).where(eq(users.id, userId));
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/**
+ * Retire une pièce jointe.
+ *
+ * Le fichier part du disque en même temps que la ligne : sans elle, plus rien
+ * ne le désigne et il occuperait le volume sans que personne puisse le
+ * retrouver.
+ */
+export async function deleteClientFile(formData: FormData): Promise<void> {
+  await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!id) return;
+
+  const [row] = await db.select().from(clientFiles).where(eq(clientFiles.id, id)).limit(1);
+  if (!row) return;
+
+  await unlink(absolutePath(row.storagePath)).catch(() => {});
+  await db.delete(clientFiles).where(eq(clientFiles.id, id));
   revalidatePath(`/clients/${clientId}`);
 }

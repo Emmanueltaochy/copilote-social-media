@@ -88,6 +88,36 @@ const IMAGE_TYPES = new Set([
 ]);
 const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/x-matroska"]);
 
+/**
+ * Documents rattachés à un client : contrat, charte, brief, devis.
+ *
+ * Ils sont stockés tels quels, sans transformation — un contrat signé ne se
+ * recompresse pas. La liste est fermée : accepter n'importe quel type
+ * reviendrait à héberger des exécutables sur un serveur qui sert des fichiers
+ * à des comptes extérieurs.
+ */
+const DOCUMENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "text/plain",
+  "text/csv",
+  "application/zip",
+]);
+
+export const isDocument = (mime: string) => DOCUMENT_TYPES.has(mime);
+
+/** Documents et images : une charte de marque arrive aussi bien en PDF qu'en PNG. */
+export const isAttachment = (mime: string) => isDocument(mime) || IMAGE_TYPES.has(mime);
+
+export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024; // 100 Mo
+
 export const isImage = (mime: string) => IMAGE_TYPES.has(mime);
 export const isVideo = (mime: string) => VIDEO_TYPES.has(mime);
 export const isAccepted = (mime: string) => isImage(mime) || isVideo(mime);
@@ -349,5 +379,91 @@ export async function fileExists(storagePath: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/* ------------------------------------------------- pièces jointes client -- */
+
+export type StoredDocument = {
+  storagePath: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+/**
+ * Écrit une pièce jointe telle quelle.
+ *
+ * Aucune transformation : un contrat, un devis, une charte doivent ressortir
+ * à l'octet près tels qu'ils sont entrés. Ils vivent à part des médias, dans
+ * un dossier « documents », pour qu'une sauvegarde ou une inspection à la
+ * main distingue d'un coup d'œil ce qui est publiable de ce qui est
+ * contractuel.
+ */
+export async function storeDocument(
+  file: IncomingFile,
+  clientId: string,
+): Promise<StoredDocument> {
+  if (!isAttachment(file.mimeType)) {
+    throw new UploadError(
+      "Format non accepté. PDF, Word, Excel, PowerPoint, OpenDocument, texte, CSV, ZIP ou image.",
+    );
+  }
+  if (file.declaredBytes !== null && file.declaredBytes > MAX_DOCUMENT_BYTES) {
+    throw new UploadError(
+      `Fichier trop lourd (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_DOCUMENT_BYTES)}.`,
+    );
+  }
+
+  const disk = await diskUsage();
+  if (disk && disk.freeBytes - (file.declaredBytes ?? 0) < MIN_FREE_BYTES) {
+    throw new UploadError(
+      `Espace disque insuffisant (${formatBytes(disk.freeBytes)} libres).`,
+    );
+  }
+
+  const dir = path.join(clientId, "documents");
+  await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
+
+  const id = randomUUID();
+  const tmpPath = path.join(tmpDir, id);
+  let received = 0;
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
+
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          if (received > MAX_DOCUMENT_BYTES) {
+            throw new UploadError(`Fichier trop lourd (plus de ${formatBytes(MAX_DOCUMENT_BYTES)}).`);
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
+
+    if (received === 0) throw new UploadError("Fichier vide.");
+    // Même contrôle que pour les médias : un envoi coupé produirait un PDF
+    // illisible que rien ne distinguerait d'un PDF entier.
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError(
+        `Envoi interrompu : ${formatBytes(received)} reçus sur ${formatBytes(file.declaredBytes)} annoncés. ` +
+          "Rien n'a été enregistré, relance ce fichier.",
+      );
+    }
+
+    // L'extension d'origine est conservée : c'est elle qui fait ouvrir le
+    // fichier avec le bon logiciel une fois téléchargé.
+    const ext = path.extname(file.filename).slice(0, 12);
+    const storagePath = path.join(dir, `${id}${ext}`);
+    await rename(tmpPath, path.join(MEDIA_ROOT, storagePath));
+
+    return { storagePath, mimeType: file.mimeType, sizeBytes: received };
+  } finally {
+    await unlink(tmpPath).catch(() => {});
   }
 }

@@ -253,6 +253,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 network: content.network,
                 scheduledAt: toLocalInput(content.scheduledAt),
                 caption: content.caption ?? "",
+                instructions: content.instructions ?? "",
               }}
             />
           </Card>

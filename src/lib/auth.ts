@@ -85,6 +85,12 @@ export async function currentUser(): Promise<User | null> {
 
   const user = rows[0]?.user;
   if (!user || !user.active) return null;
+
+  // Un accès à durée limitée s'arrête de lui-même. Le vérifier à chaque
+  // requête plutôt qu'au moment de la connexion : un renfort engagé pour la
+  // journée resterait sinon connecté tant qu'il ne ferme pas son onglet.
+  if (user.accessExpiresAt && user.accessExpiresAt <= new Date()) return null;
+
   return user;
 }
 

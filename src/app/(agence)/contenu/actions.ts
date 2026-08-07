@@ -17,6 +17,7 @@ const contentSchema = z.object({
   network: z.enum(["instagram", "facebook", "linkedin", "tiktok", "google"]),
   scheduledAt: z.string().optional(),
   caption: z.string().optional(),
+  instructions: z.string().optional(),
   ownerId: z.string().uuid().optional().or(z.literal("")),
 });
 
@@ -51,6 +52,7 @@ export async function createContent(
       network: v.network,
       status: "idee",
       caption: v.caption || null,
+      instructions: v.instructions || null,
       // Une date vide est légitime : une idée n'a pas encore de créneau.
       scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,
       // Sans responsable désigné, le contenu revient à toute l'équipe. Le
@@ -102,8 +104,12 @@ export async function updateContent(
       kind: v.kind,
       network: v.network,
       caption: v.caption || null,
+      instructions: v.instructions || null,
       scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,
-      ownerId: v.ownerId || null,
+      // Le responsable n'est pas dans ce formulaire : il se choisit depuis la
+      // carte du pipeline. L'écrire ici remettrait à zéro, à chaque
+      // enregistrement de la fiche, une assignation faite ailleurs.
+      ...(formData.has("ownerId") ? { ownerId: v.ownerId || null } : {}),
       updatedAt: new Date(),
     })
     .where(eq(contents.id, id));

@@ -7,6 +7,7 @@ import {
   adMetrics,
   adSets,
   campaigns,
+  clientFiles,
   clients,
   comments,
   contents,
@@ -666,6 +667,7 @@ export async function listTeam(now: Date = new Date()) {
       active: users.active,
       inviteToken: users.inviteToken,
       inviteExpiresAt: users.inviteExpiresAt,
+      accessExpiresAt: users.accessExpiresAt,
       hasPassword: raw<boolean>`${users.passwordHash} is not null`,
       minutes: raw<number>`coalesce((
         select sum(t.minutes) from time_entries t
@@ -721,4 +723,23 @@ export async function coversFor(contentIds: string[]) {
     if (!covers.has(r.contentId)) covers.set(r.contentId, { id: r.id, mimeType: r.mimeType });
   }
   return covers;
+}
+
+/* ------------------------------------------------ pièces jointes client -- */
+
+export async function listClientFiles(clientId: string) {
+  return db
+    .select({
+      id: clientFiles.id,
+      filename: clientFiles.filename,
+      label: clientFiles.label,
+      mimeType: clientFiles.mimeType,
+      sizeBytes: clientFiles.sizeBytes,
+      createdAt: clientFiles.createdAt,
+      uploadedByName: users.name,
+    })
+    .from(clientFiles)
+    .leftJoin(users, eq(users.id, clientFiles.uploadedById))
+    .where(eq(clientFiles.clientId, clientId))
+    .orderBy(desc(clientFiles.createdAt));
 }

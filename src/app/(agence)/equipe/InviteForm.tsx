@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ACCESS_DURATIONS, ACCESS_DURATION_KEYS } from "@/data/team";
 import { inviteTeammate, type TeamFormState } from "./actions";
 
 export function InviteForm() {
@@ -26,6 +27,17 @@ export function InviteForm() {
         <select name="role" defaultValue="equipe" className={field}>
           <option value="equipe">Équipe</option>
           <option value="direction">Direction</option>
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-[6px]">
+        <span className="eyebrow text-ink-3">Durée d&apos;accès</span>
+        <select name="duration" defaultValue="permanent" className={field}>
+          {ACCESS_DURATION_KEYS.map((k) => (
+            <option key={k} value={k}>
+              {ACCESS_DURATIONS[k].label}
+            </option>
+          ))}
         </select>
       </label>
 

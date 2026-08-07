@@ -8,7 +8,8 @@ import { listTeam } from "@/db/queries";
 import { formatDuration } from "@/lib/duration";
 import { monthLabel } from "@/lib/pacing";
 import { InviteForm } from "./InviteForm";
-import { changeRole, renewInvite, restoreTeammate, revokeTeammate } from "./actions";
+import { ACCESS_DURATIONS, ACCESS_DURATION_KEYS } from "@/data/team";
+import { changeRole, renewInvite, restoreTeammate, revokeTeammate, setAccessDuration } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,40 @@ export default async function EquipePage() {
                     <span className="w-[62px] flex-none" />
                   )}
 
+                  {t.accessExpiresAt ? (
+                    <div className="flex w-full flex-wrap items-center gap-2 pl-[38px]">
+                      <span
+                        className={`text-small ${
+                          t.accessExpiresAt <= new Date() ? "text-alert" : "text-warn"
+                        }`}
+                      >
+                        {t.accessExpiresAt <= new Date()
+                          ? `Accès expiré le ${t.accessExpiresAt.toLocaleDateString("fr-FR")} — le compte ne peut plus se connecter.`
+                          : `Renfort ponctuel · accès jusqu'au ${t.accessExpiresAt.toLocaleDateString("fr-FR")}`}
+                      </span>
+                      <form action={setAccessDuration} className="flex items-center gap-1">
+                        <input type="hidden" name="id" value={t.id} />
+                        <select
+                          name="duration"
+                          defaultValue="semaine"
+                          className="rounded-control border border-line bg-paper px-2 py-[2px] text-micro outline-none focus:border-gold"
+                        >
+                          {ACCESS_DURATION_KEYS.map((k) => (
+                            <option key={k} value={k}>
+                              {ACCESS_DURATIONS[k].label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          className="cursor-pointer rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+                        >
+                          Prolonger
+                        </button>
+                      </form>
+                    </div>
+                  ) : null}
+
                   {!t.hasPassword ? (
                     <div className="flex w-full items-center gap-2 pl-[38px]">
                       {t.inviteToken ? (
@@ -151,7 +186,9 @@ export default async function EquipePage() {
             <p className="px-[14px] py-3 text-small text-ink-3">
               La colonne du milieu montre les heures saisies ce mois. Un rôle « Équipe » donne
               accès à tout le travail — clients, production, tournages, campagnes, rapports — mais
-              à aucun montant : ni forfaits, ni coûts, ni marges.
+              à aucun montant : ni forfaits, ni coûts, ni marges. Une durée d&apos;accès limitée
+              convient aux renforts ponctuels : elle s&apos;éteint d&apos;elle-même, sans que
+              personne ait à y penser.
             </p>
           </Card>
 

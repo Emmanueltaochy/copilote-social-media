@@ -13,6 +13,7 @@ type Values = {
   network?: string;
   scheduledAt?: string;
   caption?: string;
+  instructions?: string;
 };
 
 const field =
@@ -105,8 +106,26 @@ export function ContentForm({
       </div>
 
       <label className="flex flex-col gap-[6px]">
+        <span className="eyebrow text-ink-3">Consignes de production</span>
+        <textarea
+          name="instructions"
+          rows={4}
+          defaultValue={values.instructions ?? ""}
+          placeholder="Plan large du catamaran au coucher du soleil, logo en bas à droite, ambiance chaude. Ne pas montrer le ponton en travaux."
+          className={field}
+        />
+        <span className="text-small text-ink-3">
+          Ce qu&apos;on attend du post, pour celui qui le fabrique. Reste interne : le client ne le
+          voit pas.
+        </span>
+      </label>
+
+      <label className="flex flex-col gap-[6px]">
         <span className="eyebrow text-ink-3">Légende</span>
         <textarea name="caption" rows={4} defaultValue={values.caption ?? ""} className={field} />
+        <span className="text-small text-ink-3">
+          Le texte publié avec le visuel. Celui-là part en ligne.
+        </span>
       </label>
 
       {state.error ? (

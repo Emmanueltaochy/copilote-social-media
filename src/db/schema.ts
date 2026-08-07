@@ -48,6 +48,13 @@ export const users = pgTable(
     /** Jeton d'invitation à usage unique, tant que le mot de passe n'est pas défini. */
     inviteToken: text("invite_token"),
     inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
+    /**
+     * Fin d'accès, pour les renforts ponctuels : un freelance engagé pour une
+     * journée ne doit pas garder la clé six mois. Vide = accès permanent.
+     * C'est une date, pas une case à décocher : personne ne pense à retirer
+     * un accès dont on n'a plus besoin.
+     */
+    accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -192,6 +199,12 @@ export const contents = pgTable(
     network: network("network").notNull().default("instagram"),
     status: contentStatus("status").notNull().default("idee"),
     caption: text("caption"),
+    /**
+     * Ce qu'on attend du post, pour celui qui le fabrique. Séparé de la
+     * légende : l'une part en ligne, l'autre reste interne. Les confondre
+     * finit toujours par publier une consigne de tournage.
+     */
+    instructions: text("instructions"),
     hashtags: jsonb("hashtags").$type<string[]>().notNull().default([]),
 
     /** Date et heure de publication prévues. Alimente le calendrier. */
@@ -428,6 +441,13 @@ export const assetUsages = pgTable(
     contentId: uuid("content_id")
       .notNull()
       .references(() => contents.id, { onDelete: "cascade" }),
+    /**
+     * Rang de la vue dans un carrousel. L'ordre est porteur de sens — la
+     * première image arrête le défilement, la dernière appelle à l'action —
+     * et se classer par date d'ajout donnerait l'ordre de l'import, pas
+     * celui du post.
+     */
+    position: integer("position").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.assetId, t.contentId] })],
 );
@@ -577,3 +597,74 @@ export type Content = typeof contents.$inferSelect;
 export type Shoot = typeof shoots.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
 export type Campaign = typeof campaigns.$inferSelect;
+
+/* --------------------------------------------------- pièces jointes client -- */
+
+/**
+ * Documents rattachés à un client : contrat, charte de marque, brief annuel,
+ * devis. Séparés des médias — un contrat n'est pas un visuel, il ne se
+ * recompresse pas, ne s'affiche pas en grille et n'a rien à faire dans la
+ * bibliothèque où l'on cherche une photo à publier.
+ */
+export const clientFiles = pgTable(
+  "client_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    storagePath: text("storage_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    label: text("label"),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("client_files_client_idx").on(t.clientId)],
+);
+
+/* --------------------------------------------------------- notifications -- */
+
+export const notificationKind = pgEnum("notification_kind", [
+  "assignation",
+  "validation_attendue",
+  "valide",
+  "modification_demandee",
+  "publie",
+  "tournage",
+  "message",
+]);
+
+/**
+ * Une notification par destinataire.
+ *
+ * Dupliquer la ligne pour chaque personne concernée plutôt que de tenir une
+ * liste de lecteurs : c'est ce qui permet de savoir qui a lu quoi, et
+ * l'agence compte quelques personnes, pas des milliers.
+ *
+ * Le courriel est envoyé dans la foulée, et son sort est inscrit ici :
+ * `emailedAt` s'il est parti, `emailError` sinon. Un envoi perdu en silence
+ * est pire que pas d'envoi du tout — on croit avoir prévenu.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: notificationKind("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Où aller pour agir. Une notification sans destination est un constat. */
+    href: text("href"),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+    contentId: uuid("content_id").references(() => contents.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    emailedAt: timestamp("emailed_at", { withTimezone: true }),
+    emailError: text("email_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notifications_user_idx").on(t.userId, t.readAt)],
+);
