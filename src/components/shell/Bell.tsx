@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { markAllRead, markRead } from "@/app/(agence)/notifications/actions";
 
@@ -41,6 +42,12 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
   const [anchor, setAnchor] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  // Le panneau est monté à la racine du document, hors de la barre latérale :
+  // celle-ci masque ce qui dépasse d'elle, et sur mobile elle se translate, ce
+  // qui suffirait à faire peindre le panneau sous le contenu principal. Il ne
+  // fait donc plus partie de l'arbre de la cloche, et le clic extérieur doit le
+  // reconnaître explicitement.
+  const panneauRef = useRef<HTMLDivElement>(null);
 
   // Le panneau est positionné par rapport à la fenêtre, et non à la cloche :
   // la barre latérale masque ce qui déborde d'elle, et un panneau plus large
@@ -55,7 +62,10 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const cible = e.target as Node;
+      const dedans =
+        ref.current?.contains(cible) || panneauRef.current?.contains(cible);
+      if (!dedans) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onClick);
@@ -93,11 +103,13 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
         ) : null}
       </button>
 
-      {open ? (
-        <div
-          style={{ top: anchor.top, left: anchor.left }}
-          className="fixed z-50 flex w-[340px] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-        >
+      {open
+        ? createPortal(
+            <div
+              ref={panneauRef}
+              style={{ top: anchor.top, left: anchor.left }}
+              className="fixed z-[60] flex w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+            >
           <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
             <span className="eyebrow text-ink-3">Notifications</span>
             {unreadCount > 0 ? (
@@ -159,9 +171,11 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
                 </div>
               ))
             )}
-          </div>
-        </div>
-      ) : null}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

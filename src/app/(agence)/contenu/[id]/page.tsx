@@ -15,7 +15,7 @@ import {
   listStaff,
   listVersions,
 } from "@/db/queries";
-import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS, NETWORK_LABEL } from "@/data/content";
+import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS, networksLabel } from "@/data/content";
 import { ContentForm } from "../ContentForm";
 import { AssignPicker } from "../../production/AssignPicker";
 import { MediaCard } from "./MediaCard";
@@ -66,7 +66,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     <>
       <PageHeader
         title={content.title}
-        sub={`${client.shortName} · ${CONTENT_KIND[content.kind] ?? content.kind} · ${NETWORK_LABEL[content.network]} · ${
+        sub={`${client.shortName} · ${CONTENT_KIND[content.kind] ?? content.kind} · ${networksLabel(content)} · ${
           content.scheduledAt
             ? content.scheduledAt.toLocaleString("fr-FR", {
                 day: "numeric",
@@ -256,6 +256,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 title: content.title,
                 kind: content.kind,
                 network: content.network,
+                networks: content.networks,
                 scheduledAt: toLocalInput(content.scheduledAt),
                 caption: content.caption ?? "",
                 instructions: content.instructions ?? "",

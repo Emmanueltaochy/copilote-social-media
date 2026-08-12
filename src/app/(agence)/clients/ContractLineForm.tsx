@@ -46,15 +46,24 @@ export function ContractLineForm({ clientId }: { clientId: string }) {
         </select>
       </label>
 
+      {/* Plusieurs réseaux pour une même ligne : un post feed part souvent sur
+          Instagram et Facebook, et le mois généré doit le savoir. */}
       <label className="flex flex-col gap-1">
-        <span className="eyebrow text-ink-3">Réseau</span>
-        <select name="network" defaultValue="instagram" className={champ}>
+        <span className="eyebrow text-ink-3">Réseaux</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-line bg-paper px-2 py-[6px]">
           {Object.entries(NETWORK_LABEL).map(([v, l]) => (
-            <option key={v} value={v}>
+            <label key={v} className="flex cursor-pointer items-center gap-[5px] text-small">
+              <input
+                type="checkbox"
+                name="networks"
+                value={v}
+                defaultChecked={v === "instagram"}
+                className="h-[14px] w-[14px] accent-ink"
+              />
               {l}
-            </option>
+            </label>
           ))}
-        </select>
+        </span>
       </label>
 
       <label className="flex w-[90px] flex-col gap-1">

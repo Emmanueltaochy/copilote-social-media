@@ -31,6 +31,24 @@ export const CONTENT_STATUS: Record<
   manque: { label: "Non publié", tone: "alert", solidDot: true },
 };
 
+/**
+ * Les réseaux visés par un contenu.
+ *
+ * Un même post part souvent sur Instagram et Facebook : c'est une production,
+ * pas deux. La liste fait foi, et le réseau seul sert de repli pour tout ce qui
+ * a été saisi avant qu'on puisse en cocher plusieurs.
+ */
+export function networksOf(x: { network: string; networks?: string[] | null }): string[] {
+  return x.networks && x.networks.length > 0 ? x.networks : [x.network];
+}
+
+/** « Instagram · Facebook » — l'ordre est celui qui a été coché. */
+export function networksLabel(x: { network: string; networks?: string[] | null }): string {
+  return networksOf(x)
+    .map((n) => NETWORK_LABEL[n] ?? n)
+    .join(" · ");
+}
+
 export const NETWORK_LABEL: Record<string, string> = {
   instagram: "Instagram",
   facebook: "Facebook",

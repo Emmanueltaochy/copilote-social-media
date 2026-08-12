@@ -15,7 +15,6 @@ const contentSchema = z.object({
   clientId: z.string().uuid("Choisis un client."),
   title: z.string().trim().min(1, "Le titre est obligatoire."),
   kind: z.enum(["feed", "story", "reel", "carrousel", "autre"]),
-  network: z.enum(["instagram", "facebook", "linkedin", "tiktok", "google"]),
   scheduledAt: z.string().optional(),
   caption: z.string().optional(),
   instructions: z.string().optional(),
@@ -23,6 +22,25 @@ const contentSchema = z.object({
 });
 
 export type ContentFormState = { error?: string };
+
+const RESEAUX = ["instagram", "facebook", "linkedin", "tiktok", "google"] as const;
+type Reseau = (typeof RESEAUX)[number];
+
+/**
+ * Les réseaux cochés, dans l'ordre du formulaire.
+ *
+ * Lus à part du reste : « Object.fromEntries » ne garde qu'une valeur par
+ * champ, et un contenu coché sur Instagram *et* Facebook n'en garderait qu'un
+ * sans qu'on s'en aperçoive. Aucun coché retombe sur Instagram : un contenu
+ * sans réseau n'a nulle part où partir.
+ */
+function reseauxDe(formData: FormData): Reseau[] {
+  const cochés = formData
+    .getAll("networks")
+    .map(String)
+    .filter((n): n is Reseau => (RESEAUX as readonly string[]).includes(n));
+  return cochés.length > 0 ? cochés : ["instagram"];
+}
 
 /** Rafraîchit tous les écrans qui comptent les contenus. */
 function revalidateAll(id?: string) {
@@ -43,6 +61,7 @@ export async function createContent(
     return { error: parsed.error.issues[0]?.message ?? "Formulaire incomplet." };
   }
   const v = parsed.data;
+  const reseaux = reseauxDe(formData);
 
   const [content] = await db
     .insert(contents)
@@ -50,7 +69,8 @@ export async function createContent(
       clientId: v.clientId,
       title: v.title,
       kind: v.kind,
-      network: v.network,
+      network: reseaux[0],
+      networks: reseaux,
       status: "idee",
       caption: v.caption || null,
       instructions: v.instructions || null,
@@ -97,13 +117,15 @@ export async function updateContent(
     return { error: parsed.error.issues[0]?.message ?? "Formulaire incomplet." };
   }
   const v = parsed.data;
+  const reseaux = reseauxDe(formData);
 
   await db
     .update(contents)
     .set({
       title: v.title,
       kind: v.kind,
-      network: v.network,
+      network: reseaux[0],
+      networks: reseaux,
       caption: v.caption || null,
       instructions: v.instructions || null,
       scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,

@@ -65,8 +65,12 @@ export function Sidebar({
           // partager : 232 px pris sur 390 laisseraient au contenu une colonne
           // où plus rien n'est lisible.
           "fixed inset-y-0 left-0 z-50 flex w-[232px] flex-none flex-col gap-3 overflow-hidden bg-night p-[10px] pt-3 transition-transform duration-200",
-          "lg:static lg:z-auto lg:translate-x-0",
-          navOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:static lg:z-auto",
+          // Le glissement n'existe que sous « lg ». Une translation, même nulle,
+          // fait de la barre un contexte d'empilement : tout ce qu'elle contient
+          // se retrouve alors peint sous le contenu principal, panneau de la
+          // cloche compris. Sur grand écran, il n'y a donc aucune translation.
+          navOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
         )}
       >
         <div className="flex items-center justify-between px-[6px] py-1">

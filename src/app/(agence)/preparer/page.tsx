@@ -42,7 +42,7 @@ export default async function PreparerPage({
     lignes: p.lignes.map((l) => ({
       label: l.label,
       kind: l.kind,
-      network: l.network,
+      reseaux: l.reseaux,
       cible: l.cible,
       existants: l.existants,
       manquants: l.manquants,

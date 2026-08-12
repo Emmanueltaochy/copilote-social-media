@@ -1,23 +1,29 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
-import { Card, CardHead } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Dot, Eyebrow, StatusPill } from "@/components/ui/primitives";
+import { Dot, Eyebrow } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { listClientOptions, listShoots } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
-import { readiness, SHOOT_STATUS, slotLabel } from "@/data/shoot";
+import { readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel, type ShootStatus } from "@/data/shoot";
+import { updateShoot } from "./actions";
 import { ShootForm } from "./ShootForm";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Le planning terrain.
+ * Le planning terrain, en tableau d'étapes.
  *
- * Un tournage se lit par ce qui manque avant le départ, pas par sa fiche :
- * une équipe se déplace une fois, et un matériel non réservé ou une
- * autorisation non signée coûte la journée entière. La liste dit donc d'abord
- * ce qui bloque, et seulement ensuite ce qui est prévu.
+ * Un tournage ne se lit pas par sa date mais par son état d'avancement : ce
+ * qu'on veut voir en arrivant, c'est la pile de ce qui n'est pas encore
+ * sécurisé, pas un agenda où le travail restant se devine ligne par ligne. Le
+ * pipeline de production est lu comme ça tous les jours ; les tournages
+ * répondent maintenant à la même lecture.
+ *
+ * Chaque carte porte ce qui bloque le départ, parce qu'une équipe se déplace
+ * une fois : un matériel non réservé ou une autorisation non signée coûte la
+ * journée entière.
  */
 export default async function TournagesPage() {
   await requireStaff();
@@ -37,128 +43,153 @@ export default async function TournagesPage() {
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const upcoming = rows.filter((r) => r.shoot.startsAt >= today && r.shoot.status !== "annule");
-  const past = rows.filter((r) => r.shoot.startsAt < today || r.shoot.status === "annule");
 
-  const blocked = upcoming.filter(
-    (r) => !readiness({ ...r, gearTotal: r.gearTotal, gearReserved: r.gearReserved }).ready,
-  ).length;
-
-  // Regroupé par jour : c'est l'unité de travail d'une équipe qui se déplace.
-  const days = new Map<string, typeof upcoming>();
-  for (const r of upcoming) {
-    const key = r.shoot.startsAt.toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-    days.set(key, [...(days.get(key) ?? []), r]);
-  }
+  const actifs = rows.filter((r) => r.shoot.status !== "annule" && r.shoot.status !== "realise");
+  const bloqués = actifs.filter((r) => !readiness(r).ready).length;
 
   return (
     <>
       <PageHeader
         title="Planning tournages"
         sub={
-          upcoming.length === 0
-            ? `${monthLabel()} · aucun tournage à venir`
-            : `${upcoming.length} tournage${upcoming.length > 1 ? "s" : ""} à venir · ${
-                blocked === 0
+          actifs.length === 0
+            ? `${monthLabel()} · aucun tournage en cours`
+            : `${actifs.length} tournage${actifs.length > 1 ? "s" : ""} en cours · ${
+                bloqués === 0
                   ? "tout est prêt"
-                  : `${blocked} demande${blocked > 1 ? "nt" : ""} une action avant le départ`
+                  : `${bloqués} demande${bloqués > 1 ? "nt" : ""} une action avant le départ`
               }`
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
-          <Card className="flex flex-col gap-4 p-4">
-            <Eyebrow>Planifier un tournage</Eyebrow>
-            <ShootForm clients={clients} />
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
+        <Card className="mb-4 flex flex-col gap-4 p-4">
+          <Eyebrow>Planifier un tournage</Eyebrow>
+          <ShootForm clients={clients} />
+        </Card>
+
+        {rows.length === 0 ? (
+          <Card className="p-5">
+            <p className="text-base text-ink-2">
+              Aucun tournage. Une fiche rassemble le lieu, le créneau, l&apos;équipe, le matériel,
+              la shotlist cochable sur le terrain et les autorisations de droit à l&apos;image.
+            </p>
           </Card>
+        ) : (
+          <div className="flex min-w-max items-start gap-3">
+            {SHOOT_STATUSES.map((étape) => {
+              const cartes = rows.filter((r) => r.shoot.status === étape);
+              const suivante = étapeSuivante(étape);
 
-          {upcoming.length === 0 ? (
-            <Card className="p-5">
-              <p className="text-base text-ink-2">
-                Aucun tournage à venir. Une fiche rassemble le lieu, le créneau, l&apos;équipe, le
-                matériel, la shotlist cochable sur le terrain et les autorisations de droit à
-                l&apos;image.
-              </p>
-            </Card>
-          ) : (
-            [...days].map(([day, items]) => (
-              <Card key={day}>
-                <CardHead title={day} meta={`${items.length}`} />
-                {items.map((r) => {
-                  const state = readiness(r);
-                  const status = SHOOT_STATUS[r.shoot.status];
-                  return (
-                    <Link
-                      key={r.shoot.id}
-                      href={`/tournages/${r.shoot.id}`}
-                      className="flex items-center gap-4 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
-                    >
-                      <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
-                        <span className="clip text-micro text-ink-3">{r.clientName}</span>
-                        <span className="clip text-lead font-medium text-ink">{r.shoot.title}</span>
-                        <span className="clip text-small text-ink-2">
-                          {slotLabel(r.shoot.startsAt, r.shoot.endsAt)}
-                          {r.shoot.place ? ` · ${r.shoot.place}` : ""}
-                        </span>
-                      </span>
-
-                      <span className="flex w-[150px] flex-none flex-col gap-[2px] text-small tabular-nums text-ink-2">
-                        <span>
-                          {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""}
-                        </span>
-                        <span>
-                          {r.crew} personne{r.crew > 1 ? "s" : ""} · {r.gearReserved}/{r.gearTotal}{" "}
-                          matériel
-                        </span>
-                      </span>
-
-                      <span className="flex w-[260px] flex-none items-center gap-[6px]">
-                        <Dot tone={state.ready ? "ok" : "warn"} solid size={5} />
-                        <span
-                          className={`clip text-small ${state.ready ? "text-ok" : "text-warn"}`}
-                        >
-                          {state.ready ? "Tout est prêt" : state.blocking.join(" · ")}
-                        </span>
-                      </span>
-
-                      <StatusPill tone={status.tone}>{status.label}</StatusPill>
-                    </Link>
-                  );
-                })}
-              </Card>
-            ))
-          )}
-
-          {past.length > 0 ? (
-            <Card>
-              <CardHead title="Passés et annulés" meta={`${past.length}`} />
-              {past.slice(0, 20).map((r) => (
-                <Link
-                  key={r.shoot.id}
-                  href={`/tournages/${r.shoot.id}`}
-                  className="flex items-center gap-4 border-b border-line px-[14px] py-[10px] no-underline hover:bg-canvas hover:no-underline"
+              return (
+                <div
+                  key={étape}
+                  className="flex w-[280px] flex-none flex-col rounded-card border border-line bg-paper"
                 >
-                  <span className="w-[170px] flex-none text-small tabular-nums text-ink-3">
-                    {slotLabel(r.shoot.startsAt, r.shoot.endsAt)}
-                  </span>
-                  <span className="clip flex-1 text-base text-ink-2">{r.shoot.title}</span>
-                  <span className="clip w-[120px] flex-none text-small text-ink-3">
-                    {r.clientName}
-                  </span>
-                  <StatusPill tone={SHOOT_STATUS[r.shoot.status].tone}>
-                    {SHOOT_STATUS[r.shoot.status].label}
-                  </StatusPill>
-                </Link>
-              ))}
-            </Card>
-          ) : null}
-        </div>
+                  <div className="flex flex-none items-center justify-between gap-2 border-b border-line px-3 py-[10px]">
+                    <Eyebrow tone="ink">{SHOOT_STATUS[étape].label}</Eyebrow>
+                    <span className="text-small text-ink-3 tabular-nums">{cartes.length}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-2 p-2">
+                    {cartes.map((r) => {
+                      const état = readiness(r);
+                      const passé = r.shoot.startsAt < today;
+                      return (
+                        <div
+                          key={r.shoot.id}
+                          className="flex flex-col gap-[7px] rounded-card border border-line bg-paper p-[10px]"
+                        >
+                          <Link
+                            href={`/tournages/${r.shoot.id}`}
+                            className="flex flex-col gap-[2px] no-underline hover:no-underline"
+                          >
+                            <span className="clip text-micro text-ink-3">{r.clientName}</span>
+                            <span className="clip text-base font-medium text-ink">
+                              {r.shoot.title}
+                            </span>
+                            <span
+                              className={`clip text-small tabular-nums ${
+                                passé && étape !== "realise" ? "text-alert" : "text-ink-2"
+                              }`}
+                            >
+                              {slotLabel(r.shoot.startsAt, r.shoot.endsAt)}
+                            </span>
+                            {r.shoot.place ? (
+                              <span className="clip text-small text-ink-3">{r.shoot.place}</span>
+                            ) : null}
+                          </Link>
+
+                          <span className="flex items-start gap-[6px]">
+                            <Dot
+                              tone={état.ready ? "ok" : "warn"}
+                              solid
+                              size={5}
+                              className="mt-[5px]"
+                            />
+                            <span
+                              className={`text-small leading-snug ${
+                                état.ready ? "text-ok" : "text-warn"
+                              }`}
+                            >
+                              {état.ready ? "Tout est prêt" : état.blocking.join(" · ")}
+                            </span>
+                          </span>
+
+                          <span className="text-micro text-ink-3 tabular-nums">
+                            {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""} ·{" "}
+                            {r.crew} personne{r.crew > 1 ? "s" : ""} · {r.gearReserved}/
+                            {r.gearTotal} matériel
+                          </span>
+
+                          {suivante ? (
+                            <form action={updateShoot}>
+                              <input type="hidden" name="id" value={r.shoot.id} />
+                              <input type="hidden" name="status" value={suivante} />
+                              {/* Le lieu et la note sont réécrits par l'action :
+                                  sans eux dans le formulaire, avancer d'une
+                                  étape depuis le tableau les effacerait. */}
+                              <input type="hidden" name="place" value={r.shoot.place ?? ""} />
+                              <input type="hidden" name="note" value={r.shoot.note ?? ""} />
+                              <button
+                                type="submit"
+                                className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                              >
+                                → {SHOOT_STATUS[suivante].label}
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+
+                    {cartes.length === 0 ? (
+                      <p className="rounded-card border border-dashed border-line p-3 text-small leading-snug text-ink-3">
+                        {étape === "annule"
+                          ? "Aucun tournage annulé."
+                          : "Aucun tournage à cette étape."}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
+}
+
+/**
+ * L'étape d'après, dans l'ordre naturel.
+ *
+ * « Annulé » n'a pas de suite et ne suit rien : une annulation se décide depuis
+ * la fiche, pas en avançant d'un cran par mégarde depuis le tableau.
+ */
+function étapeSuivante(étape: ShootStatus): ShootStatus | null {
+  const ordre: ShootStatus[] = ["preparation", "a_securiser", "confirme", "realise"];
+  const i = ordre.indexOf(étape);
+  if (i === -1 || i === ordre.length - 1) return null;
+  return ordre[i + 1];
 }

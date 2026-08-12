@@ -43,6 +43,13 @@
       "when": 1786130406257,
       "tag": "0005_cultured_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786525391267,
+      "tag": "0006_clumsy_william_stryker",
+      "breakpoints": true
     }
   ]
 }

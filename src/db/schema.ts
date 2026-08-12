@@ -154,6 +154,8 @@ export const contractLines = pgTable(
      */
     kind: contentKind("kind").notNull().default("feed"),
     network: network("network").notNull().default("instagram"),
+    /** Réseaux visés par cette ligne. Vide = seulement `network`. */
+    networks: jsonb("networks").$type<string[]>().notNull().default([]),
     position: integer("position").notNull().default(0),
   },
   (t) => [index("contract_lines_client_idx").on(t.clientId)],
@@ -221,7 +223,17 @@ export const contents = pgTable(
       .references(() => clients.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     kind: contentKind("kind").notNull().default("feed"),
+    /**
+     * Le réseau principal, gardé pour les tris et les regroupements.
+     *
+     * Un même post part souvent sur Instagram *et* Facebook : c'est une seule
+     * production, avec un seul visuel et une seule légende, pas deux contenus à
+     * suivre en double. La liste complète vit donc dans `networks`, et cette
+     * colonne en garde la tête pour qu'un tri par réseau reste possible.
+     */
     network: network("network").notNull().default("instagram"),
+    /** Tous les réseaux visés. Vide = seulement `network`. */
+    networks: jsonb("networks").$type<string[]>().notNull().default([]),
     status: contentStatus("status").notNull().default("idee"),
     caption: text("caption"),
     /**

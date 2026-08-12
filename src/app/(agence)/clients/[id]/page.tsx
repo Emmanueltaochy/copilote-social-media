@@ -7,7 +7,7 @@ import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
-import { CONTENT_KIND, NETWORK_LABEL } from "@/data/content";
+import { CONTENT_KIND, networksLabel } from "@/data/content";
 import { ContractLineForm } from "../ContractLineForm";
 import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
@@ -130,7 +130,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 >
                   <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
                   <span className="flex-none text-small text-ink-3">
-                    {CONTENT_KIND[l.kind] ?? l.kind} · {NETWORK_LABEL[l.network] ?? l.network}
+                    {CONTENT_KIND[l.kind] ?? l.kind} · {networksLabel(l)}
                   </span>
                   <span className="flex-none text-base tabular-nums">{l.monthlyTarget} / mois</span>
                   <form action={removeContractLine} className="flex-none">

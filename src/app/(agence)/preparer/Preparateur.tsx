@@ -5,13 +5,14 @@ import { useState } from "react";
 import { useActionState } from "react";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Dot } from "@/components/ui/primitives";
-import { CONTENT_KIND, NETWORK_LABEL } from "@/data/content";
+import { CONTENT_KIND } from "@/data/content";
 import { preparerTout, preparerUnClient, type PreparerState } from "./actions";
 
 export type LigneVue = {
   label: string;
   kind: string;
-  network: string;
+  /** « Instagram · Facebook », déjà mis en forme côté serveur. */
+  reseaux: string;
   cible: number;
   existants: number;
   manquants: number;
@@ -217,7 +218,7 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
                   <Dot tone={l.manquants > 0 ? "warn" : "ok"} solid={l.manquants > 0} />
                   <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
                   <span className="flex-none text-small text-ink-3">
-                    {CONTENT_KIND[l.kind] ?? l.kind} · {NETWORK_LABEL[l.network] ?? l.network}
+                    {CONTENT_KIND[l.kind] ?? l.kind} · {l.reseaux}
                   </span>
                   <span className="w-[110px] flex-none text-right text-base tabular-nums text-ink-2">
                     {l.existants} / {l.cible}

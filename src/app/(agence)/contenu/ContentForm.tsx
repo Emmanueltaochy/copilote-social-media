@@ -11,6 +11,7 @@ type Values = {
   title?: string;
   kind?: string;
   network?: string;
+  networks?: string[];
   scheduledAt?: string;
   caption?: string;
   instructions?: string;
@@ -48,6 +49,14 @@ export function ContentForm({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
+  // Ce qui est coché au départ : la liste si elle existe, sinon le réseau seul,
+  // sinon Instagram. Un formulaire qui s'ouvre sans rien coché ferait perdre le
+  // réseau d'un contenu qu'on venait seulement renommer.
+  const reseauxCoches =
+    values.networks && values.networks.length > 0
+      ? values.networks
+      : [values.network ?? "instagram"];
+
   return (
     <form action={formAction} className="flex flex-col gap-4">
       {values.id ? <input type="hidden" name="id" value={values.id} /> : null}
@@ -83,15 +92,25 @@ export function ContentForm({
             ))}
           </select>
         </label>
+        {/* Plusieurs réseaux pour un seul contenu : un même post part souvent
+            sur Instagram et Facebook. C'est une production, un visuel et une
+            légende — pas deux fiches à tenir à jour en parallèle. */}
         <label className="flex flex-col gap-[6px]">
-          <span className="eyebrow text-ink-3">Réseau</span>
-          <select name="network" defaultValue={values.network ?? "instagram"} className={field}>
+          <span className="eyebrow text-ink-3">Réseaux</span>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-line bg-paper px-3 py-2">
             {NETWORKS.map(([v, l]) => (
-              <option key={v} value={v}>
+              <label key={v} className="flex cursor-pointer items-center gap-[6px] text-base">
+                <input
+                  type="checkbox"
+                  name="networks"
+                  value={v}
+                  defaultChecked={reseauxCoches.includes(v)}
+                  className="h-[15px] w-[15px] accent-ink"
+                />
                 {l}
-              </option>
+              </label>
             ))}
-          </select>
+          </span>
         </label>
         <label className="flex flex-col gap-[6px]">
           <span className="eyebrow text-ink-3">Publication prévue</span>

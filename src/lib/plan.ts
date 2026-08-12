@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { activity, clients, contents, contractLines } from "@/db/schema";
+import { networksLabel, networksOf } from "@/data/content";
 import { monthRange } from "./pacing";
 
 /**
@@ -29,6 +30,9 @@ export type LigneDuMois = {
   label: string;
   kind: string;
   network: string;
+  networks: string[];
+  /** « Instagram · Facebook », prêt à afficher. */
+  reseaux: string;
   cible: number;
   /** Contenus de ce format déjà présents sur le mois, quel qu'en soit l'auteur. */
   existants: number;
@@ -113,6 +117,8 @@ export async function planDuMois(clientId: string, mois: Date): Promise<PlanDuMo
       label: l.label,
       kind: l.kind,
       network: l.network,
+      networks: networksOf(l),
+      reseaux: networksLabel(l),
       cible: l.monthlyTarget,
       existants: imputés,
       manquants: Math.max(0, l.monthlyTarget - imputés),
@@ -219,6 +225,7 @@ export async function genererLeMois(
         title: `${ligne.label} ${ligne.existants + i + 1}/${ligne.cible}`,
         kind: ligne.kind as typeof contents.$inferInsert.kind,
         network: ligne.network as typeof contents.$inferInsert.network,
+        networks: ligne.networks,
         status: "idee",
         scheduledAt: date,
       });

@@ -163,6 +163,60 @@ export async function listTodayQueue(now: Date = new Date()) {
 }
 
 /**
+ * Tout ce qui est prêt à partir, quelle qu'en soit la date.
+ *
+ * « À publier » doit dire la même chose que la colonne du pipeline qui porte ce
+ * nom : un contenu validé et prêt depuis trois jours attend toujours, et le
+ * filtrer sur la seule journée en cours le faisait disparaître de l'écran censé
+ * le rattraper. L'ordre met devant ce qui aurait déjà dû sortir.
+ */
+export async function listReadyToPublish(clientId?: string) {
+  return db
+    .select({ content: contents, clientName: clients.shortName })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .where(
+      and(
+        eq(contents.status, "pret"),
+        isNull(contents.publishedAt),
+        clientId ? eq(contents.clientId, clientId) : undefined,
+      ),
+    )
+    .orderBy(raw`${contents.scheduledAt} asc nulls last`);
+}
+
+/** Ce qui est programmé aujourd'hui sans être encore prêt : le rappel du jour. */
+export async function listScheduledTodayNotReady(now: Date = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start.getTime() + 86_400_000);
+  return db
+    .select({ content: contents, clientName: clients.shortName })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .where(
+      and(
+        gte(contents.scheduledAt, start),
+        lt(contents.scheduledAt, end),
+        isNull(contents.publishedAt),
+        raw`${contents.status} <> 'pret'`,
+      ),
+    )
+    .orderBy(asc(contents.scheduledAt));
+}
+
+/** Publiés aujourd'hui : la preuve que la journée a été faite. */
+export async function listPublishedToday(now: Date = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start.getTime() + 86_400_000);
+  return db
+    .select({ content: contents, clientName: clients.shortName })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .where(and(gte(contents.publishedAt, start), lt(contents.publishedAt, end)))
+    .orderBy(desc(contents.publishedAt));
+}
+
+/**
  * En attente de validation, interne ou client.
  *
  * Le délai d'attente est calculé par la base : l'heure du serveur fait

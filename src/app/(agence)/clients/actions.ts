@@ -143,9 +143,12 @@ export async function addContractLine(formData: FormData): Promise<void> {
   const label = String(formData.get("label") ?? "").trim();
   const target = Number(formData.get("monthlyTarget") ?? 0);
   const kind = String(formData.get("kind") ?? "feed");
-  const network = String(formData.get("network") ?? "instagram");
+  // Plusieurs réseaux possibles : « Object.fromEntries » n'en garderait qu'un,
+  // on lit donc la liste telle quelle. Aucun coché retombe sur Instagram.
+  const cochés = formData.getAll("networks").map(String).filter((n) => NETWORKS.includes(n));
+  const networks = cochés.length > 0 ? cochés : ["instagram"];
   if (!clientId || !label) return;
-  if (!CONTENT_KINDS.includes(kind) || !NETWORKS.includes(network)) return;
+  if (!CONTENT_KINDS.includes(kind)) return;
 
   const existing = await db
     .select({ id: contractLines.id })
@@ -157,7 +160,8 @@ export async function addContractLine(formData: FormData): Promise<void> {
     label,
     monthlyTarget: Number.isFinite(target) && target > 0 ? Math.floor(target) : 0,
     kind: kind as "feed",
-    network: network as "instagram",
+    network: networks[0] as "instagram",
+    networks,
     position: existing.length,
   });
   revalidatePath(`/clients/${clientId}`);
