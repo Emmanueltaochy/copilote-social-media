@@ -61,6 +61,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const charte = charteRows[0];
   const { pace } = client;
 
+  // Le web se facture au forfait — le cas courant — ou en régie. Les deux ne se
+  // jugent pas avec les mêmes chiffres : au forfait le prix est acquis et c'est
+  // le taux horaire réellement obtenu qui dit si l'affaire était bonne ; en
+  // régie, c'est le temps passé qui fait la facture.
+  const enRegie = client.webBilling === "heure";
+  const heuresWeb = web.minutes / 60;
+  const aFacturerCents = Math.round(heuresWeb * client.webHourlyRateCents);
+  const tauxEffectifCents =
+    web.venduCents > 0 && heuresWeb > 0 ? Math.round(web.venduCents / heuresWeb) : null;
+
   // Adresse publique du site, telle que le navigateur l'a demandée. Derrière
   // nginx, c'est l'en-tête transmis qui porte le vrai domaine : sans lui, le
   // lien d'invitation pointerait vers l'adresse interne du conteneur.
@@ -216,11 +226,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 meta={web.total === 0 ? "aucun projet ouvert" : "en cours sur le total"}
               />
               {canSeeMoney(user) ? (
-                <Kpi
-                  label="Vendu en projets"
-                  value={web.venduCents > 0 ? euroFromCents(web.venduCents) : "—"}
-                  meta="somme des montants chiffrés"
-                />
+                enRegie ? (
+                  <Kpi
+                    label="À facturer"
+                    value={aFacturerCents > 0 ? euroFromCents(aFacturerCents) : "—"}
+                    meta={
+                      client.webHourlyRateCents > 0
+                        ? `${fr(heuresWeb, 1)} h × ${euroFromCents(client.webHourlyRateCents)}`
+                        : "tarif horaire à renseigner"
+                    }
+                  />
+                ) : (
+                  <Kpi
+                    label="Vendu en projets"
+                    value={web.venduCents > 0 ? euroFromCents(web.venduCents) : "—"}
+                    meta="somme des forfaits chiffrés"
+                  />
+                )
               ) : null}
               {canSeeMoney(user) ? (
                 <Kpi
@@ -237,17 +259,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 <Kpi
                   label="Heures passées"
                   value={
-                    client.webHoursSold > 0
-                      ? `${fr(web.minutes / 60, 1)} / ${client.webHoursSold} h`
-                      : `${fr(web.minutes / 60, 1)} h`
+                    enRegie && client.webHoursSold > 0
+                      ? `${fr(heuresWeb, 1)} / ${client.webHoursSold} h`
+                      : `${fr(heuresWeb, 1)} h`
                   }
                   valueTone={
-                    client.webHoursSold > 0 && web.minutes / 60 > client.webHoursSold
+                    enRegie && client.webHoursSold > 0 && heuresWeb > client.webHoursSold
                       ? "alert"
                       : undefined
                   }
                   meta={
-                    client.webHoursSold > 0 ? "sur les heures vendues" : "aucun volume vendu saisi"
+                    enRegie
+                      ? client.webHoursSold > 0
+                        ? "sur l'enveloppe vendue"
+                        : "facturées au temps passé"
+                      : tauxEffectifCents !== null
+                        ? `soit ${euroFromCents(tauxEffectifCents)} / h vendus`
+                        : "au forfait, temps passé"
                   }
                 />
               ) : null}
@@ -338,7 +366,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 shootsIncluded: client.shootsIncluded,
                 hoursSold: client.hoursSold,
                 adsBudgetLabel: client.adsBudgetLabel ?? "",
+                webBilling: client.webBilling,
                 webMaintenance: Math.round(client.webMaintenanceCents / 100),
+                webHourlyRate: Math.round(client.webHourlyRateCents / 100),
                 webHoursSold: client.webHoursSold,
               }}
             />

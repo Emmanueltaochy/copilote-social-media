@@ -57,16 +57,37 @@ export async function recapWeb(clientId: string) {
  * n'apparaissent tout simplement pas dans la carte.
  */
 export async function recapWebParClient() {
-  const rows = await db
-    .select({
-      clientId: webProjects.clientId,
-      total: raw<number>`count(*)::int`,
-      enCours: raw<number>`count(*) filter (where ${webProjects.phase} not in ('en_ligne','maintenance'))::int`,
-      venduCents: raw<number>`coalesce(sum(${webProjects.priceCents}), 0)::int`,
-    })
-    .from(webProjects)
-    .groupBy(webProjects.clientId);
-  return new Map(rows.map((r) => [r.clientId, r]));
+  const [projets, heures] = await Promise.all([
+    db
+      .select({
+        clientId: webProjects.clientId,
+        total: raw<number>`count(*)::int`,
+        enCours: raw<number>`count(*) filter (where ${webProjects.phase} not in ('en_ligne','maintenance'))::int`,
+        venduCents: raw<number>`coalesce(sum(${webProjects.priceCents}), 0)::int`,
+      })
+      .from(webProjects)
+      .groupBy(webProjects.clientId),
+    db
+      .select({
+        clientId: timeEntries.clientId,
+        minutes: raw<number>`coalesce(sum(${timeEntries.minutes}), 0)::int`,
+      })
+      .from(timeEntries)
+      .where(eq(timeEntries.pole, "web"))
+      .groupBy(timeEntries.clientId),
+  ]);
+
+  const parClient = new Map(
+    projets.map((r) => [r.clientId, { ...r, minutes: 0 }]),
+  );
+  // Un client facturé en régie peut n'avoir aucun projet ouvert et déjà des
+  // heures à facturer : la ligne doit exister quand même.
+  for (const h of heures) {
+    const existant = parClient.get(h.clientId);
+    if (existant) existant.minutes = h.minutes;
+    else parClient.set(h.clientId, { clientId: h.clientId, total: 0, enCours: 0, venduCents: 0, minutes: h.minutes });
+  }
+  return parClient;
 }
 
 /* ------------------------------------------------------------- projets -- */

@@ -27,7 +27,9 @@ const clientSchema = z.object({
   shootsIncluded: z.coerce.number().int().min(0).default(0),
   hoursSold: z.coerce.number().int().min(0).default(0),
   adsBudgetLabel: z.string().trim().optional(),
+  webBilling: z.enum(["forfait", "heure"]).default("forfait"),
   webMaintenance: z.coerce.number().min(0).default(0),
+  webHourlyRate: z.coerce.number().min(0).default(0),
   webHoursSold: z.coerce.number().int().min(0).default(0),
 });
 
@@ -80,8 +82,14 @@ export async function createClient(
       shootsIncluded: v.shootsIncluded,
       hoursSold: canSeeMoney(user) ? v.hoursSold : 0,
       adsBudgetLabel: v.adsBudgetLabel || null,
+      webBilling: canSeeMoney(user) ? v.webBilling : "forfait",
       webMaintenanceCents: canSeeMoney(user) ? Math.round(v.webMaintenance * 100) : 0,
-      webHoursSold: canSeeMoney(user) ? v.webHoursSold : 0,
+      // Un taux horaire n'a de sens qu'en régie, une enveloppe non plus :
+      // les garder au forfait ferait apparaître un montant à facturer que
+      // personne n'a vendu.
+      webHourlyRateCents:
+        canSeeMoney(user) && v.webBilling === "heure" ? Math.round(v.webHourlyRate * 100) : 0,
+      webHoursSold: canSeeMoney(user) && v.webBilling === "heure" ? v.webHoursSold : 0,
       departments: polesDe(formData),
     })
     .returning();
@@ -126,8 +134,20 @@ export async function updateClient(
       ...(formData.has("contentTarget") ? { contentTarget: v.contentTarget } : {}),
       ...(formData.has("shootsIncluded") ? { shootsIncluded: v.shootsIncluded } : {}),
       ...(formData.has("adsBudgetLabel") ? { adsBudgetLabel: v.adsBudgetLabel || null } : {}),
+      ...(canSeeMoney(user) && formData.has("webBilling")
+        ? {
+            webBilling: v.webBilling,
+            // Passer au forfait remet les chiffres de la régie à zéro : ils ne
+            // sont plus à l'écran, les laisser vivre en base ferait réapparaître
+            // un « à facturer » fantôme dans les récapitulatifs.
+            ...(v.webBilling === "forfait" ? { webHourlyRateCents: 0, webHoursSold: 0 } : {}),
+          }
+        : {}),
       ...(canSeeMoney(user) && formData.has("webMaintenance")
         ? { webMaintenanceCents: Math.round(v.webMaintenance * 100) }
+        : {}),
+      ...(canSeeMoney(user) && formData.has("webHourlyRate")
+        ? { webHourlyRateCents: Math.round(v.webHourlyRate * 100) }
         : {}),
       ...(canSeeMoney(user) && formData.has("webHoursSold")
         ? { webHoursSold: v.webHoursSold }

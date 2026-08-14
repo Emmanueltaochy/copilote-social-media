@@ -135,9 +135,21 @@ export const clients = pgTable(
      * qu'on facture tous les mois pour garder le site en vie, et le volume
      * d'heures vendu sur l'ensemble de la relation.
      */
+    /**
+     * Comment le web est facturé : « forfait » ou « heure ».
+     *
+     * Le forfait est le cas courant — un site se vend à un prix convenu
+     * d'avance, et les heures passées ne servent qu'à savoir si on l'a bien
+     * vendu. La régie existe quand même (TMA, retouches au fil de l'eau), et
+     * elle change les chiffres à afficher : un taux horaire et une enveloppe
+     * plutôt qu'un montant arrêté.
+     */
+    webBilling: text("web_billing").notNull().default("forfait"),
     /** Maintenance, hébergement, TMA : ce qui revient chaque mois. */
     webMaintenanceCents: integer("web_maintenance_cents").notNull().default(0),
-    /** Heures vendues côté web, base de la rentabilité du pôle. */
+    /** En régie : le tarif appliqué à chaque heure passée. */
+    webHourlyRateCents: integer("web_hourly_rate_cents").notNull().default(0),
+    /** En régie : l'enveloppe d'heures vendue. Zéro = sans plafond. */
     webHoursSold: integer("web_hours_sold").notNull().default(0),
 
     /**

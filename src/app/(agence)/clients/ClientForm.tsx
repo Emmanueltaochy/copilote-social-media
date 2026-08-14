@@ -14,7 +14,9 @@ type Values = {
   shootsIncluded?: number;
   hoursSold?: number;
   adsBudgetLabel?: string;
+  webBilling?: string;
   webMaintenance?: number;
+  webHourlyRate?: number;
   webHoursSold?: number;
 };
 
@@ -72,6 +74,7 @@ export function ClientForm({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const [poles, setPoles] = useState<string[]>(values.departments ?? ["social"]);
+  const [facturation, setFacturation] = useState(values.webBilling ?? "forfait");
 
   // Aucun pôle coché retombe sur le social côté serveur : l'écran doit montrer
   // la même chose, sinon on enregistre des champs qu'on n'a pas vus.
@@ -215,36 +218,80 @@ export function ClientForm({
           seul={seul}
         >
           {showMoney ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <>
+              {/* Le mode de facturation décide de ce qu'il reste à saisir. Au
+                  forfait, le prix est celui du projet et une enveloppe
+                  d'heures n'aurait aucun sens ; en régie, c'est le taux
+                  horaire qui fait le montant. */}
               <label className="flex flex-col gap-[6px]">
-                <span className="eyebrow text-ink-3">Maintenance mensuelle (€ HT)</span>
-                <input
-                  name="webMaintenance"
-                  type="number"
-                  min={0}
-                  step="1"
-                  defaultValue={values.webMaintenance ?? 0}
+                <span className="eyebrow text-ink-3">Facturation</span>
+                <select
+                  name="webBilling"
+                  value={facturation}
+                  onChange={(e) => setFacturation(e.target.value)}
                   className={field}
-                />
+                >
+                  <option value="forfait">Au forfait — un prix par projet</option>
+                  <option value="heure">À l&apos;heure — en régie, sur temps passé</option>
+                </select>
                 <span className="text-small text-ink-3">
-                  Hébergement, mises à jour, petites retouches. Zéro = pas d&apos;abonnement.
+                  {facturation === "forfait"
+                    ? "Le montant se saisit sur chaque projet. Les heures passées servent alors à vérifier que le forfait était bien vendu."
+                    : "Chaque heure saisie sous le pôle web est facturable au tarif ci-dessous."}
                 </span>
               </label>
-              <label className="flex flex-col gap-[6px]">
-                <span className="eyebrow text-ink-3">Heures vendues sur le web</span>
-                <input
-                  name="webHoursSold"
-                  type="number"
-                  min={0}
-                  defaultValue={values.webHoursSold ?? 0}
-                  className={field}
-                />
-                <span className="text-small text-ink-3">
-                  Toutes prestations web confondues. Les heures saisies sous le pôle web se
-                  comparent à ce chiffre, sans toucher au forfait social.
-                </span>
-              </label>
-            </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-[6px]">
+                  <span className="eyebrow text-ink-3">Maintenance mensuelle (€ HT)</span>
+                  <input
+                    name="webMaintenance"
+                    type="number"
+                    min={0}
+                    step="1"
+                    defaultValue={values.webMaintenance ?? 0}
+                    className={field}
+                  />
+                  <span className="text-small text-ink-3">
+                    Hébergement, mises à jour, petites retouches. Zéro = pas d&apos;abonnement.
+                  </span>
+                </label>
+
+                {facturation === "heure" ? (
+                  <label className="flex flex-col gap-[6px]">
+                    <span className="eyebrow text-ink-3">Tarif horaire (€ HT)</span>
+                    <input
+                      name="webHourlyRate"
+                      type="number"
+                      min={0}
+                      step="1"
+                      defaultValue={values.webHourlyRate ?? 0}
+                      className={field}
+                    />
+                    <span className="text-small text-ink-3">
+                      Ce qui est facturé au client pour une heure de travail web.
+                    </span>
+                  </label>
+                ) : null}
+
+                {facturation === "heure" ? (
+                  <label className="flex flex-col gap-[6px]">
+                    <span className="eyebrow text-ink-3">Enveloppe d&apos;heures vendue</span>
+                    <input
+                      name="webHoursSold"
+                      type="number"
+                      min={0}
+                      defaultValue={values.webHoursSold ?? 0}
+                      className={field}
+                    />
+                    <span className="text-small text-ink-3">
+                      Le volume acheté d&apos;avance, s&apos;il y en a un. Zéro = sans plafond, on
+                      facture ce qui est passé.
+                    </span>
+                  </label>
+                ) : null}
+              </div>
+            </>
           ) : (
             <p className="text-base text-ink-2">
               Les montants du contrat web ne sont visibles que par la direction. Le suivi du

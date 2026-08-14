@@ -68,6 +68,12 @@ export default async function ClientsPage() {
                       const r = web.get(c.id);
                       const enCours = r?.enCours ?? 0;
                       const total = r?.total ?? 0;
+                      // En régie, le montant n'est pas arrêté d'avance : c'est
+                      // le temps passé, au tarif du client, qui le fait.
+                      const enRegie = c.webBilling === "heure";
+                      const montantCents = enRegie
+                        ? Math.round(((r?.minutes ?? 0) / 60) * c.webHourlyRateCents)
+                        : (r?.venduCents ?? 0);
                       return (
                         <TableRow key={c.id} cols={cols}>
                           <span className="flex min-w-0 items-center gap-2">
@@ -82,7 +88,8 @@ export default async function ClientsPage() {
                           <Num className="text-ink-2">{total > 0 ? `${enCours} / ${total}` : "—"}</Num>
                           {money ? (
                             <Num>
-                              {r && r.venduCents > 0 ? euroFromCents(r.venduCents) : "—"}
+                              {montantCents > 0 ? euroFromCents(montantCents) : "—"}
+                              {enRegie ? <span className="text-ink-3"> *</span> : null}
                             </Num>
                           ) : null}
                           {money ? (
@@ -146,6 +153,14 @@ export default async function ClientsPage() {
                   </>
                 )}
               </TableScroll>
+              {/* L'astérisque ne sert à rien si personne n'est en régie : la
+                  note n'apparaît qu'au moment où elle explique quelque chose. */}
+              {web && money && clients.some((c) => c.webBilling === "heure") ? (
+                <p className="px-[14px] py-[10px] text-small text-ink-3">
+                  * Facturé au temps passé : le montant est le cumul des heures saisies sous le
+                  pôle web, au tarif horaire du client. Il bouge à chaque saisie.
+                </p>
+              ) : null}
             </Card>
           ) : null}
 
