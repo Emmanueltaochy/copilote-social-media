@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function TerrainMediasPage() {
   await requireStaff();
-  const [clients, rows] = await Promise.all([listClientOptions(), listAssets()]);
+  const [clients, rows] = await Promise.all([listClientOptions("social"), listAssets()]);
 
   return (
     <div className="flex flex-col gap-4 p-4">

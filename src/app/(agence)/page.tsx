@@ -15,7 +15,7 @@ const COLS = "190px minmax(80px,1fr) 132px 96px 136px";
 
 export default async function CockpitPage() {
   await requireDepartment("social");
-  const clients = await listClientsWithPace();
+  const clients = await listClientsWithPace(new Date(), "social");
 
   if (clients.length === 0) {
     return (

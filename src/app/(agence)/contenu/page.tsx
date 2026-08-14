@@ -9,7 +9,7 @@ import { createContent } from "./actions";
 
 export default async function NouveauContenuPage() {
   await requireDepartment("social");
-  const clients = await listClientOptions();
+  const clients = await listClientOptions("social");
 
   if (clients.length === 0) {
     return (

@@ -5,6 +5,7 @@ import { PacingBar } from "@/components/ui/PacingBar";
 import { Dot, Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { canSeeMoney, requireStaff } from "@/lib/auth";
+import { polActif } from "@/lib/pole";
 import { listClientsWithPace } from "@/db/queries";
 import { euroFromCents, monthLabel } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
@@ -17,7 +18,8 @@ const COLS_PLAIN = "minmax(180px,1fr) minmax(120px,1fr) 120px 130px";
 
 export default async function ClientsPage() {
   const user = await requireStaff();
-  const clients = await listClientsWithPace();
+  const pole = await polActif(user);
+  const clients = await listClientsWithPace(new Date(), pole);
   // Les forfaits ne regardent que la direction : la colonne disparaît pour
   // l'équipe plutôt que d'afficher un tiret qui laisserait deviner un montant.
   const money = canSeeMoney(user);

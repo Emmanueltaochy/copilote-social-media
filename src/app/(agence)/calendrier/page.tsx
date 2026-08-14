@@ -13,7 +13,7 @@ const WEEK_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", 
 
 export default async function CalendrierPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientsWithPace(), listContentsForMonth()]);
+  const [clients, rows] = await Promise.all([listClientsWithPace(new Date(), "social"), listContentsForMonth()]);
   const covers = await coversFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0) {

@@ -128,6 +128,18 @@ export const clients = pgTable(
     hoursSold: integer("hours_sold").notNull().default(0),
     renewal: text("renewal"),
 
+    /**
+     * Les pôles qui travaillent pour ce client : « social », « web », ou les
+     * deux.
+     *
+     * Un client web n'a rien à faire dans les écrans du social — ni dans le
+     * cockpit, ni dans le sélecteur, ni dans les listes déroulantes. Chacun ne
+     * voit que son portefeuille, sans quoi les compteurs d'engagement mensuel
+     * afficheraient « 0 / 0 » pour des comptes qui n'ont jamais rien commandé
+     * au pôle social.
+     */
+    departments: jsonb("departments").$type<string[]>().notNull().default(["social"]),
+
     active: boolean("active").notNull().default(true),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

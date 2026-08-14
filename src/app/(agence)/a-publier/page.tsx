@@ -117,7 +117,7 @@ function Rangee({ ligne, now, retard }: { ligne: Ligne; now: Date; retard: boole
 export default async function APublierPage() {
   await requireDepartment("social");
   const [clients, prets, pasPrets, publiés] = await Promise.all([
-    listClientsWithPace(),
+    listClientsWithPace(new Date(), "social"),
     listReadyToPublish(),
     listScheduledTodayNotReady(),
     listPublishedToday(),

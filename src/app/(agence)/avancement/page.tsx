@@ -14,7 +14,7 @@ const COLS = "minmax(180px,1fr) minmax(160px,1fr) 96px 96px 96px 120px";
 
 export default async function AvancementPage() {
   await requireDepartment("social");
-  const clients = byUrgency(await listClientsWithPace());
+  const clients = byUrgency(await listClientsWithPace(new Date(), "social"));
   const engaged = clients.filter((c) => c.contentTarget > 0);
 
   if (engaged.length === 0) {

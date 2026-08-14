@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { requireStaff, canSeeMoney } from "@/lib/auth";
+import { departmentsOf, requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
 import { CONTENT_KIND, networksLabel } from "@/data/content";
 import { BRIEF_STATUS, PROJECT_TYPE, WEB_PHASE } from "@/data/web";
@@ -37,6 +37,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
   const client = await getClientWithPace(id);
   if (!client) notFound();
+
+  // Un client d'un autre pôle n'existe pas pour cette personne : l'adresse se
+  // devine, et la fiche porte des chiffres qui ne la concernent pas.
+  const polesDuClient = client.departments?.length ? client.departments : ["social"];
+  if (!departmentsOf(user).some((d) => polesDuClient.includes(d))) notFound();
 
   const [lines, access, files, projetsWeb, briefsDuClient, charteRows] = await Promise.all([
     listContractLines(id),
@@ -173,6 +178,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               showMoney={canSeeMoney(user)}
               values={{
                 id: client.id,
+                departments: polesDuClient,
                 name: client.name,
                 shortName: client.shortName,
                 sector: client.sector ?? "",

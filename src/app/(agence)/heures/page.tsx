@@ -3,6 +3,7 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
+import { polActif } from "@/lib/pole";
 import { listClientOptions, listTimeEntries } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
 import { formatDuration } from "@/lib/duration";
@@ -22,7 +23,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function HeuresPage() {
   const user = await requireStaff();
-  const [clients, entries] = await Promise.all([listClientOptions(), listTimeEntries(user.id)]);
+  const pole = await polActif(user);
+  const [clients, entries] = await Promise.all([listClientOptions(pole), listTimeEntries(user.id)]);
 
   if (clients.length === 0) {
     return (

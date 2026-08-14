@@ -31,6 +31,20 @@ const clientSchema = z.object({
 
 export type ClientFormState = { error?: string };
 
+/**
+ * Les pôles cochés pour un client.
+ *
+ * Aucun coché retombe sur le social : c'est le métier historique, et un client
+ * sans pôle n'apparaîtrait nulle part — on l'aurait créé pour rien.
+ */
+function polesDe(formData: FormData): string[] {
+  const cochés = formData
+    .getAll("departments")
+    .map(String)
+    .filter((d) => d === "social" || d === "web");
+  return cochés.length > 0 ? cochés : ["social"];
+}
+
 export async function createClient(
   _prev: ClientFormState,
   formData: FormData,
@@ -64,6 +78,7 @@ export async function createClient(
       shootsIncluded: v.shootsIncluded,
       hoursSold: canSeeMoney(user) ? v.hoursSold : 0,
       adsBudgetLabel: v.adsBudgetLabel || null,
+      departments: polesDe(formData),
     })
     .returning();
 
@@ -103,6 +118,9 @@ export async function updateClient(
       contentTarget: v.contentTarget,
       shootsIncluded: v.shootsIncluded,
       adsBudgetLabel: v.adsBudgetLabel || null,
+      // Les cases ne sont dans le formulaire que si l'écran les a montrées :
+      // les écrire sans les avoir demandées ramènerait tout le monde au social.
+      ...(formData.has("departments") ? { departments: polesDe(formData) } : {}),
     })
     .where(eq(clients.id, id));
 

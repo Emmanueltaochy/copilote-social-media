@@ -51,7 +51,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     listComments(id),
     listVersions(id),
     listActivity(id),
-    listClientOptions(),
+    listClientOptions("social"),
     listStaff(),
     listContentMedia(id),
     listAssets(content.clientId),

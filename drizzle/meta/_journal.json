@@ -64,6 +64,13 @@
       "when": 1786692460239,
       "tag": "0008_modern_aaron_stack",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786693659612,
+      "tag": "0009_spicy_black_crow",
+      "breakpoints": true
     }
   ]
 }

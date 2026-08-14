@@ -18,7 +18,7 @@ export default async function AgenceLayout({ children }: { children: React.React
   const user = await requireStaff();
   const pole = await polActif(user);
   const [clients, notices, unreadCount, chatUnread] = await Promise.all([
-    listClientsWithPace(),
+    listClientsWithPace(new Date(), pole),
     recent(user.id, 20),
     countUnread(user.id),
     unreadTotal(user.id),

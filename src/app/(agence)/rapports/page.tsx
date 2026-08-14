@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function RapportsPage() {
   await requireDepartment("social");
-  const clients = await listClientsWithPace();
+  const clients = await listClientsWithPace(new Date(), "social");
 
   if (clients.length === 0) {
     return (

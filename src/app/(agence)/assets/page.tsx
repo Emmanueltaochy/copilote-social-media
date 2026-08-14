@@ -53,7 +53,7 @@ export default async function AssetsPage({
   await requireDepartment("social");
   const [{ client: demandé }, clients, counts, footprint, disk] = await Promise.all([
     searchParams,
-    listClientOptions(),
+    listClientOptions("social"),
     assetCountsByClient(),
     assetsFootprint(),
     diskUsage(),

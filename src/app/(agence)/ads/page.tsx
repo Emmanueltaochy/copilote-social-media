@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdsPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientOptions(), listCampaignsWithTotals()]);
+  const [clients, rows] = await Promise.all([listClientOptions("social"), listCampaignsWithTotals()]);
 
   if (clients.length === 0) {
     return (

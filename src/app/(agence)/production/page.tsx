@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function ProductionPage() {
   await requireDepartment("social");
   const [clients, rows, staff] = await Promise.all([
-    listClientsWithPace(),
+    listClientsWithPace(new Date(), "social"),
     listPipeline(),
     listStaff(),
   ]);

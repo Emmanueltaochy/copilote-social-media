@@ -26,7 +26,7 @@ export default async function RentabilitePage() {
   await requireDirection();
 
   const [clients, costs, rates] = await Promise.all([
-    listClientsWithPace(),
+    listClientsWithPace(new Date(), "social"),
     costByClient(),
     listRates(),
   ]);

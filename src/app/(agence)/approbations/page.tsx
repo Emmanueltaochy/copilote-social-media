@@ -19,7 +19,7 @@ const STALE_DAYS = 5;
 
 export default async function ApprobationsPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientsWithPace(), listAwaitingApproval()]);
+  const [clients, rows] = await Promise.all([listClientsWithPace(new Date(), "social"), listAwaitingApproval()]);
   const covers = await coversFor(rows.map((r) => r.content.id));
   const slides = await slidesFor(rows.map((r) => r.content.id));
 

@@ -23,15 +23,17 @@ export const dynamic = "force-dynamic";
  */
 export default async function WebPage() {
   await requireDepartment("web");
-  const [clients, rows] = await Promise.all([listClientOptions(), listWebProjects()]);
+  const [clients, rows] = await Promise.all([listClientOptions("web"), listWebProjects()]);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Projets web" sub="Aucun client" />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader title="Projets web" sub="Aucun client web" />
+        <EmptyState title="Aucun client côté web" actionLabel="Voir les clients" actionHref="/clients">
           Un projet web se rattache à un client, comme le reste : c&apos;est ce qui permet de
-          retrouver son brief, ses fichiers et son portail.
+          retrouver son brief, ses fichiers et son portail. Ouvre la fiche du client concerné et
+          coche <strong>Web</strong> dans ses pôles — ou ajoute-le s&apos;il n&apos;existe pas
+          encore.
         </EmptyState>
       </>
     );

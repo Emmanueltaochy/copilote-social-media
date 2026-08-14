@@ -32,6 +32,17 @@ import { monthRange, pace, type Pace } from "@/lib/pacing";
 
 /* ---------------------------------------------------------------- clients -- */
 
+/**
+ * Le filtre de pôle appliqué aux clients.
+ *
+ * Un client web n'a rien à faire dans les écrans du social, et inversement : le
+ * cockpit compterait des engagements mensuels qui n'existent pas, et les listes
+ * déroulantes proposeraient des comptes qu'on ne sert pas. Sans pôle demandé,
+ * on ne filtre pas — c'est le cas des écrans partagés.
+ */
+const duPole = (pole?: "social" | "web") =>
+  pole ? raw`${clients.departments} ? ${pole}` : undefined;
+
 export type ClientWithPace = Client & {
   /** Contenus publiés dans le mois courant. */
   done: number;
@@ -45,7 +56,10 @@ export type ClientWithPace = Client & {
  * marqué publié sans date ne prouve rien, et c'est la date qui permet de
  * rattacher le contenu au bon mois.
  */
-export async function listClientsWithPace(now: Date = new Date()): Promise<ClientWithPace[]> {
+export async function listClientsWithPace(
+  now: Date = new Date(),
+  pole?: "social" | "web",
+): Promise<ClientWithPace[]> {
   const { start, end } = monthRange(now);
 
   const rows = await db
@@ -63,7 +77,7 @@ export async function listClientsWithPace(now: Date = new Date()): Promise<Clien
         lt(contents.publishedAt, end),
       ),
     )
-    .where(eq(clients.active, true))
+    .where(and(eq(clients.active, true), duPole(pole)))
     .groupBy(clients.id)
     .orderBy(asc(clients.shortName));
 
@@ -494,11 +508,11 @@ export async function listActivity(contentId: string) {
 }
 
 /** Clients actifs, pour les listes déroulantes des formulaires. */
-export async function listClientOptions() {
+export async function listClientOptions(pole?: "social" | "web") {
   return db
     .select({ id: clients.id, name: clients.shortName })
     .from(clients)
-    .where(eq(clients.active, true))
+    .where(and(eq(clients.active, true), duPole(pole)))
     .orderBy(asc(clients.shortName));
 }
 

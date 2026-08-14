@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import type { ClientFormState } from "./actions";
 
 type Values = {
+  departments?: string[];
   id?: string;
   name?: string;
   shortName?: string;
@@ -62,6 +63,32 @@ export function ClientForm({
       <label className="flex flex-col gap-[6px]">
         <span className="eyebrow text-ink-3">Secteur</span>
         <input name="sector" defaultValue={values.sector ?? ""} className={field} />
+      </label>
+
+      {/* Les pôles qui travaillent pour ce client. Un client web n'apparaît pas
+          dans les écrans du social, et inversement : le cockpit compterait
+          sinon un engagement mensuel que personne n'a vendu. */}
+      <label className="flex flex-col gap-[6px]">
+        <span className="eyebrow text-ink-3">Pôles</span>
+        <span className="flex flex-wrap items-center gap-4 rounded-control border border-line bg-paper px-3 py-2">
+          {(
+            [
+              ["social", "Réseaux sociaux"],
+              ["web", "Web"],
+            ] as const
+          ).map(([valeur, libellé]) => (
+            <label key={valeur} className="flex cursor-pointer items-center gap-[6px] text-base">
+              <input
+                type="checkbox"
+                name="departments"
+                value={valeur}
+                defaultChecked={(values.departments ?? ["social"]).includes(valeur)}
+                className="h-[15px] w-[15px] accent-ink"
+              />
+              {libellé}
+            </label>
+          ))}
+        </span>
       </label>
 
       <div className={showMoney ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "grid grid-cols-1 gap-3"}>

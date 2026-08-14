@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function TournagesPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientOptions(), listShoots()]);
+  const [clients, rows] = await Promise.all([listClientOptions("social"), listShoots()]);
 
   if (clients.length === 0) {
     return (
