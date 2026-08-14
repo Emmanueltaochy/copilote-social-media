@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db, timeEntries } from "@/db";
 import { requireStaff } from "@/lib/auth";
+import { polActif } from "@/lib/pole";
 import { mondayOf } from "@/lib/ads";
 import { parseDuration } from "@/lib/duration";
 
@@ -37,12 +38,18 @@ export async function saveHours(
   const weekStart = mondayOf(raw ? new Date(`${raw}T00:00:00`) : new Date());
   const activity = String(formData.get("activity") ?? "").trim();
 
+  // L'heure est rattachée au pôle sous lequel on l'a saisie. C'est ce qui
+  // permet à un client qui achète les deux prestations d'avoir deux marges
+  // séparées, au lieu d'une intégration de site qui plombe son forfait social.
+  const pole = await polActif(user);
+
   await db.insert(timeEntries).values({
     clientId,
     userId: user.id,
     weekStart,
     minutes,
     activity: activity || null,
+    pole,
   });
 
   refresh();

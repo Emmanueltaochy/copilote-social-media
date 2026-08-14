@@ -595,7 +595,7 @@ export async function listTimeEntries(userId: string, now: Date = new Date()) {
  * tarif actuel : une augmentation de salaire ne doit pas réécrire la marge
  * des mois déjà clos.
  */
-export async function costByClient(now: Date = new Date()) {
+export async function costByClient(now: Date = new Date(), pole?: "social" | "web") {
   const { start, end } = monthRange(now);
   const from = start.toISOString().slice(0, 10);
   const to = end.toISOString().slice(0, 10);
@@ -619,7 +619,16 @@ export async function costByClient(now: Date = new Date()) {
       ), 0)::int`,
     })
     .from(timeEntries)
-    .where(and(gte(timeEntries.weekStart, from), lt(timeEntries.weekStart, to)))
+    .where(
+      and(
+        gte(timeEntries.weekStart, from),
+        lt(timeEntries.weekStart, to),
+        // Un client qui achète les deux prestations a deux marges. Compter
+        // l'intégration de son site contre son forfait social donnerait une
+        // perte là où il n'y en a pas.
+        pole ? eq(timeEntries.pole, pole) : undefined,
+      ),
+    )
     .groupBy(timeEntries.clientId);
 }
 

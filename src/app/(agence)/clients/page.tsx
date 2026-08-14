@@ -7,6 +7,7 @@ import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table
 import { canSeeMoney, requireStaff } from "@/lib/auth";
 import { polActif } from "@/lib/pole";
 import { listClientsWithPace } from "@/db/queries";
+import { recapWebParClient } from "@/db/web-queries";
 import { euroFromCents, monthLabel } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
 import { cn } from "@/lib/cn";
@@ -15,6 +16,8 @@ import { createClient } from "./actions";
 
 const COLS_MONEY = "minmax(180px,1fr) minmax(120px,1fr) 120px 120px 130px";
 const COLS_PLAIN = "minmax(180px,1fr) minmax(120px,1fr) 120px 130px";
+const WEB_MONEY = "minmax(180px,1fr) 120px 120px 130px 130px";
+const WEB_PLAIN = "minmax(180px,1fr) 120px 130px";
 
 export default async function ClientsPage() {
   const user = await requireStaff();
@@ -23,6 +26,14 @@ export default async function ClientsPage() {
   // Les forfaits ne regardent que la direction : la colonne disparaît pour
   // l'équipe plutôt que d'afficher un tiret qui laisserait deviner un montant.
   const money = canSeeMoney(user);
+  // Le portefeuille ne se lit pas de la même façon des deux côtés. Le social se
+  // juge au rythme du mois — d'où la barre d'avancement et l'écart. Le web se
+  // juge à ses chantiers : combien sont ouverts, combien ils ont été vendus, ce
+  // qui rentre chaque mois ensuite. Afficher une barre de contenus à un client
+  // qui n'achète qu'un site montrerait un retard imaginaire.
+  const web = pole === "web" ? await recapWebParClient() : null;
+
+  const cols = web ? (money ? WEB_MONEY : WEB_PLAIN) : money ? COLS_MONEY : COLS_PLAIN;
 
   return (
     <>
@@ -35,42 +46,105 @@ export default async function ClientsPage() {
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           {clients.length > 0 ? (
             <Card>
-              <CardHead title="Portefeuille" meta="Le repère or marque le rythme attendu aujourd'hui" />
+              <CardHead
+                title="Portefeuille"
+                meta={
+                  web
+                    ? "Projets ouverts, montants vendus et abonnements en cours"
+                    : "Le repère or marque le rythme attendu aujourd'hui"
+                }
+              />
               <TableScroll min={money ? 760 : 640}>
-              <TableHead cols={money ? COLS_MONEY : COLS_PLAIN}>
-                <Th>Client</Th>
-                <Th>Avancement du mois</Th>
-                {money ? <Th align="right">Forfait</Th> : null}
-                <Th align="right">Écart</Th>
-                <Th align="right">État</Th>
-              </TableHead>
-              {clients.map((c) => (
-                <TableRow key={c.id} cols={money ? COLS_MONEY : COLS_PLAIN}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Dot tone={c.pace.tone} />
-                    <Link
-                      href={`/clients/${c.id}`}
-                      className="clip text-base font-medium text-ink no-underline hover:underline"
-                    >
-                      {c.shortName}
-                    </Link>
-                  </span>
-                  <PacingBar
-                    fillPct={c.pace.fillPct}
-                    projPct={c.pace.projPct}
-                    markerLeft={c.pace.markerLeft}
-                  />
-                  {money ? (
-                    <Num>{c.monthlyFeeCents > 0 ? euroFromCents(c.monthlyFeeCents) : "—"}</Num>
-                  ) : null}
-                  <Num className={cn("font-medium", toneText[c.pace.tone])}>
-                    {c.pace.deltaLabel}
-                  </Num>
-                  <span className="flex justify-end">
-                    <StatusPill tone={c.pace.tone}>{c.pace.label}</StatusPill>
-                  </span>
-                </TableRow>
-              ))}
+                {web ? (
+                  <>
+                    <TableHead cols={cols}>
+                      <Th>Client</Th>
+                      <Th align="right">Projets</Th>
+                      {money ? <Th align="right">Vendu</Th> : null}
+                      {money ? <Th align="right">Maintenance</Th> : null}
+                      <Th align="right">État</Th>
+                    </TableHead>
+                    {clients.map((c) => {
+                      const r = web.get(c.id);
+                      const enCours = r?.enCours ?? 0;
+                      const total = r?.total ?? 0;
+                      return (
+                        <TableRow key={c.id} cols={cols}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Dot tone={enCours > 0 ? "info" : total > 0 ? "ok" : "muted"} />
+                            <Link
+                              href={`/clients/${c.id}`}
+                              className="clip text-base font-medium text-ink no-underline hover:underline"
+                            >
+                              {c.shortName}
+                            </Link>
+                          </span>
+                          <Num className="text-ink-2">{total > 0 ? `${enCours} / ${total}` : "—"}</Num>
+                          {money ? (
+                            <Num>
+                              {r && r.venduCents > 0 ? euroFromCents(r.venduCents) : "—"}
+                            </Num>
+                          ) : null}
+                          {money ? (
+                            <Num className="text-ink-2">
+                              {c.webMaintenanceCents > 0
+                                ? euroFromCents(c.webMaintenanceCents)
+                                : "—"}
+                            </Num>
+                          ) : null}
+                          <span className="flex justify-end">
+                            {enCours > 0 ? (
+                              <StatusPill tone="info">En chantier</StatusPill>
+                            ) : total > 0 ? (
+                              <StatusPill tone="ok">En ligne</StatusPill>
+                            ) : (
+                              <StatusPill tone="neutral">À lancer</StatusPill>
+                            )}
+                          </span>
+                        </TableRow>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <>
+                    <TableHead cols={cols}>
+                      <Th>Client</Th>
+                      <Th>Avancement du mois</Th>
+                      {money ? <Th align="right">Forfait</Th> : null}
+                      <Th align="right">Écart</Th>
+                      <Th align="right">État</Th>
+                    </TableHead>
+                    {clients.map((c) => (
+                      <TableRow key={c.id} cols={cols}>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Dot tone={c.pace.tone} />
+                          <Link
+                            href={`/clients/${c.id}`}
+                            className="clip text-base font-medium text-ink no-underline hover:underline"
+                          >
+                            {c.shortName}
+                          </Link>
+                        </span>
+                        <PacingBar
+                          fillPct={c.pace.fillPct}
+                          projPct={c.pace.projPct}
+                          markerLeft={c.pace.markerLeft}
+                        />
+                        {money ? (
+                          <Num>
+                            {c.monthlyFeeCents > 0 ? euroFromCents(c.monthlyFeeCents) : "—"}
+                          </Num>
+                        ) : null}
+                        <Num className={cn("font-medium", toneText[c.pace.tone])}>
+                          {c.pace.deltaLabel}
+                        </Num>
+                        <span className="flex justify-end">
+                          <StatusPill tone={c.pace.tone}>{c.pace.label}</StatusPill>
+                        </span>
+                      </TableRow>
+                    ))}
+                  </>
+                )}
               </TableScroll>
             </Card>
           ) : null}
@@ -80,12 +154,21 @@ export default async function ClientsPage() {
               <Eyebrow>Nouveau client</Eyebrow>
               <h2 className="text-title font-semibold">Ajouter un compte</h2>
               <p className="text-base text-ink-2">
-                {money
-                  ? "Le forfait et le nombre de contenus définissent l'engagement du mois. Tout le pilotage en découle : sans eux, il n'y a pas de rythme à comparer."
-                  : "Le nombre de contenus par mois définit l'engagement, et tout le pilotage en découle. Le forfait est renseigné par la direction."}
+                {web
+                  ? "Coche les pôles qui travaillent pour ce compte : le contrat n'a pas la même forme d'un côté et de l'autre, et les champs suivent. Le montant d'un site se saisit ensuite sur son projet."
+                  : money
+                    ? "Le forfait et le nombre de contenus définissent l'engagement du mois. Tout le pilotage en découle : sans eux, il n'y a pas de rythme à comparer."
+                    : "Le nombre de contenus par mois définit l'engagement, et tout le pilotage en découle. Le forfait est renseigné par la direction."}
               </p>
             </div>
-            <ClientForm action={createClient} submitLabel="Créer le client" showMoney={money} />
+            {/* Le pôle actif est coché d'avance : on n'ouvre pas le tableau web
+                pour y créer un client réseaux sociaux. */}
+            <ClientForm
+              action={createClient}
+              submitLabel="Créer le client"
+              showMoney={money}
+              values={{ departments: [pole] }}
+            />
           </Card>
         </div>
       </div>

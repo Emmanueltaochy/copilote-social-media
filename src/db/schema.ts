@@ -118,7 +118,7 @@ export const clients = pgTable(
       onDelete: "set null",
     }),
 
-    /* Contrat — ce que l'agence s'est engagée à livrer chaque mois. */
+    /* Contrat social — ce que l'agence s'est engagée à livrer chaque mois. */
     monthlyFeeCents: integer("monthly_fee_cents").notNull().default(0),
     /** Nombre de contenus dus par mois. Zéro = pas d'engagement chiffré. */
     contentTarget: integer("content_target").notNull().default(0),
@@ -127,6 +127,18 @@ export const clients = pgTable(
     /** Heures vendues dans le forfait, base du calcul de rentabilité. */
     hoursSold: integer("hours_sold").notNull().default(0),
     renewal: text("renewal"),
+
+    /*
+     * Contrat web. Le web ne se vend pas au mois mais au projet : le montant
+     * vendu vit donc sur chaque projet, pas ici. Ne restent au niveau du
+     * client que les deux engagements qui courent au-delà d'un projet — ce
+     * qu'on facture tous les mois pour garder le site en vie, et le volume
+     * d'heures vendu sur l'ensemble de la relation.
+     */
+    /** Maintenance, hébergement, TMA : ce qui revient chaque mois. */
+    webMaintenanceCents: integer("web_maintenance_cents").notNull().default(0),
+    /** Heures vendues côté web, base de la rentabilité du pôle. */
+    webHoursSold: integer("web_hours_sold").notNull().default(0),
 
     /**
      * Les pôles qui travaillent pour ce client : « social », « web », ou les
@@ -607,6 +619,15 @@ export const timeEntries = pgTable(
     minutes: integer("minutes").notNull().default(0),
     /** « Création graphique », « Media buying »… */
     activity: text("activity"),
+    /**
+     * Le pôle sous lequel l'heure a été saisie.
+     *
+     * Sans lui, dix heures d'intégration passées sur un client qui achète les
+     * deux prestations viendraient manger la marge de son forfait social. Le
+     * pôle actif au moment de la saisie tranche, et « social » reste la valeur
+     * par défaut : c'est ce qu'étaient toutes les heures déjà enregistrées.
+     */
+    pole: text("pole").notNull().default("social"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

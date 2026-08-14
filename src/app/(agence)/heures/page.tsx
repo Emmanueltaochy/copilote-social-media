@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { departmentsOf, requireStaff } from "@/lib/auth";
 import { polActif } from "@/lib/pole";
 import { listClientOptions, listTimeEntries } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
@@ -25,6 +25,7 @@ export default async function HeuresPage() {
   const user = await requireStaff();
   const pole = await polActif(user);
   const [clients, entries] = await Promise.all([listClientOptions(pole), listTimeEntries(user.id)]);
+  const deuxPoles = departmentsOf(user).length > 1;
 
   if (clients.length === 0) {
     return (
@@ -94,6 +95,15 @@ export default async function HeuresPage() {
                       <span className="clip min-w-0 flex-1 text-base text-ink-2">
                         {entry.activity ?? "—"}
                       </span>
+                      {/* Le pôle n'est rappelé qu'à qui en a deux : il décide
+                          contre quel contrat l'heure sera comptée, et une
+                          saisie faite sous la mauvaise casquette se repère
+                          ici plutôt que dans la rentabilité du mois. */}
+                      {deuxPoles ? (
+                        <span className="flex-none rounded-control border border-line px-[6px] py-[1px] text-micro text-ink-3">
+                          {entry.pole === "web" ? "Web" : "Social"}
+                        </span>
+                      ) : null}
                       <span className="w-[90px] flex-none text-right text-base tabular-nums">
                         {formatDuration(entry.minutes)}
                       </span>

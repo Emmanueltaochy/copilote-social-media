@@ -8,11 +8,66 @@ import {
   clientFiles,
   clients,
   settings,
+  timeEntries,
   users,
   webDeliverables,
   webMilestones,
   webProjects,
 } from "./schema";
+
+/**
+ * Le contrat web d'un client, en quatre chiffres.
+ *
+ * Le web ne se pilote pas au mois comme un forfait social : ce qui compte est
+ * ce qu'on a vendu en projets, ce qui reste à mettre en ligne, ce qui rentre
+ * tous les mois une fois le site livré, et le temps déjà passé. Les heures
+ * sont comptées depuis le début et non sur le mois : un site se vend en bloc,
+ * et un dépassement se voit sur la durée du chantier, pas sur trente jours.
+ */
+export async function recapWeb(clientId: string) {
+  const [projets] = await db
+    .select({
+      total: raw<number>`count(*)::int`,
+      enCours: raw<number>`count(*) filter (where ${webProjects.phase} not in ('en_ligne','maintenance'))::int`,
+      enLigne: raw<number>`count(*) filter (where ${webProjects.phase} in ('en_ligne','maintenance'))::int`,
+      venduCents: raw<number>`coalesce(sum(${webProjects.priceCents}), 0)::int`,
+    })
+    .from(webProjects)
+    .where(eq(webProjects.clientId, clientId));
+
+  const [heures] = await db
+    .select({ minutes: raw<number>`coalesce(sum(${timeEntries.minutes}), 0)::int` })
+    .from(timeEntries)
+    .where(and(eq(timeEntries.clientId, clientId), eq(timeEntries.pole, "web")));
+
+  return {
+    total: projets?.total ?? 0,
+    enCours: projets?.enCours ?? 0,
+    enLigne: projets?.enLigne ?? 0,
+    venduCents: projets?.venduCents ?? 0,
+    minutes: heures?.minutes ?? 0,
+  };
+}
+
+/**
+ * Le même récapitulatif, pour tout le portefeuille d'un coup.
+ *
+ * Une requête par client ferait autant d'allers-retours qu'il y a de lignes
+ * dans le tableau : ici, un seul regroupement, et les clients sans projet
+ * n'apparaissent tout simplement pas dans la carte.
+ */
+export async function recapWebParClient() {
+  const rows = await db
+    .select({
+      clientId: webProjects.clientId,
+      total: raw<number>`count(*)::int`,
+      enCours: raw<number>`count(*) filter (where ${webProjects.phase} not in ('en_ligne','maintenance'))::int`,
+      venduCents: raw<number>`coalesce(sum(${webProjects.priceCents}), 0)::int`,
+    })
+    .from(webProjects)
+    .groupBy(webProjects.clientId);
+  return new Map(rows.map((r) => [r.clientId, r]));
+}
 
 /* ------------------------------------------------------------- projets -- */
 

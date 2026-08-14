@@ -27,6 +27,8 @@ const clientSchema = z.object({
   shootsIncluded: z.coerce.number().int().min(0).default(0),
   hoursSold: z.coerce.number().int().min(0).default(0),
   adsBudgetLabel: z.string().trim().optional(),
+  webMaintenance: z.coerce.number().min(0).default(0),
+  webHoursSold: z.coerce.number().int().min(0).default(0),
 });
 
 export type ClientFormState = { error?: string };
@@ -78,6 +80,8 @@ export async function createClient(
       shootsIncluded: v.shootsIncluded,
       hoursSold: canSeeMoney(user) ? v.hoursSold : 0,
       adsBudgetLabel: v.adsBudgetLabel || null,
+      webMaintenanceCents: canSeeMoney(user) ? Math.round(v.webMaintenance * 100) : 0,
+      webHoursSold: canSeeMoney(user) ? v.webHoursSold : 0,
       departments: polesDe(formData),
     })
     .returning();
@@ -111,13 +115,23 @@ export async function updateClient(
       sector: v.sector || null,
       // Un membre de l'équipe modifie la fiche sans voir les montants : ceux
       // qu'il n'a pas vus ne doivent pas être écrasés par la valeur par
-      // défaut du formulaire, qui vaudrait zéro.
-      ...(canSeeMoney(user)
-        ? { monthlyFeeCents: Math.round(v.monthlyFee * 100), hoursSold: v.hoursSold }
+      // défaut du formulaire, qui vaudrait zéro. Même règle pour un bloc de
+      // contrat que l'écran n'a pas affiché parce que son pôle n'était pas
+      // coché : décocher « Web » le temps de corriger une faute de frappe ne
+      // doit pas effacer le montant de la maintenance.
+      ...(canSeeMoney(user) && formData.has("monthlyFee")
+        ? { monthlyFeeCents: Math.round(v.monthlyFee * 100) }
         : {}),
-      contentTarget: v.contentTarget,
-      shootsIncluded: v.shootsIncluded,
-      adsBudgetLabel: v.adsBudgetLabel || null,
+      ...(canSeeMoney(user) && formData.has("hoursSold") ? { hoursSold: v.hoursSold } : {}),
+      ...(formData.has("contentTarget") ? { contentTarget: v.contentTarget } : {}),
+      ...(formData.has("shootsIncluded") ? { shootsIncluded: v.shootsIncluded } : {}),
+      ...(formData.has("adsBudgetLabel") ? { adsBudgetLabel: v.adsBudgetLabel || null } : {}),
+      ...(canSeeMoney(user) && formData.has("webMaintenance")
+        ? { webMaintenanceCents: Math.round(v.webMaintenance * 100) }
+        : {}),
+      ...(canSeeMoney(user) && formData.has("webHoursSold")
+        ? { webHoursSold: v.webHoursSold }
+        : {}),
       // Les cases ne sont dans le formulaire que si l'écran les a montrées :
       // les écrire sans les avoir demandées ramènerait tout le monde au social.
       ...(formData.has("departments") ? { departments: polesDe(formData) } : {}),

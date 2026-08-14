@@ -27,7 +27,9 @@ export default async function RentabilitePage() {
 
   const [clients, costs, rates] = await Promise.all([
     listClientsWithPace(new Date(), "social"),
-    costByClient(),
+    // Seules les heures saisies sous le pôle social : cet écran compare au
+    // forfait mensuel, qui ne paie pas la fabrication d'un site.
+    costByClient(new Date(), "social"),
     listRates(),
   ]);
   const byClient = new Map(costs.map((c) => [c.clientId, c]));

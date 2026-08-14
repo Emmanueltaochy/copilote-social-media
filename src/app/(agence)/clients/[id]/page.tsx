@@ -9,7 +9,7 @@ import { departmentsOf, requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
 import { CONTENT_KIND, networksLabel } from "@/data/content";
 import { BRIEF_STATUS, PROJECT_TYPE, WEB_PHASE } from "@/data/web";
-import { listBriefs, listWebProjects } from "@/db/web-queries";
+import { listBriefs, listWebProjects, recapWeb } from "@/db/web-queries";
 import { BriefLauncher } from "../../web/BriefLauncher";
 import { CharteClient } from "@/app/portail/EspaceWeb";
 import { brands } from "@/db/schema";
@@ -43,13 +43,20 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const polesDuClient = client.departments?.length ? client.departments : ["social"];
   if (!departmentsOf(user).some((d) => polesDuClient.includes(d))) notFound();
 
-  const [lines, access, files, projetsWeb, briefsDuClient, charteRows] = await Promise.all([
+  // Ce que le client achète décide de ce que sa fiche montre. Un client
+  // uniquement web n'a pas d'engagement mensuel en contenus : lui afficher un
+  // rythme à « 0 / 0 » ne dit rien, et cache ce qui compte vraiment pour lui.
+  const estSocial = polesDuClient.includes("social");
+  const estWeb = polesDuClient.includes("web");
+
+  const [lines, access, files, projetsWeb, briefsDuClient, charteRows, web] = await Promise.all([
     listContractLines(id),
     listClientAccess(id),
     listClientFiles(id),
     listWebProjects(id),
     listBriefs({ clientId: id }),
     db.select().from(brands).where(eq(brands.clientId, id)).limit(1),
+    recapWeb(id),
   ]);
   const charte = charteRows[0];
   const { pace } = client;
@@ -71,10 +78,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+          {estSocial ? (
           <Card className="flex flex-col gap-4 p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex flex-col gap-[2px]">
-                <Eyebrow>Engagement du mois</Eyebrow>
+                <Eyebrow>Engagement du mois · réseaux sociaux</Eyebrow>
                 <span className="text-display font-semibold tracking-[-0.01em]">
                   {client.name}
                 </span>
@@ -125,7 +133,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               </div>
             ) : null}
           </Card>
+          ) : null}
 
+          {estSocial ? (
           <Card>
             <CardHead
               title="Décomposition de l'engagement"
@@ -166,6 +176,147 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
             <ContractLineForm clientId={client.id} />
           </Card>
+          ) : null}
+
+          {/* Le pôle web depuis la fiche : c'est ici qu'on est quand on décide
+              de lancer un site pour un client, et non sur le tableau des
+              projets. Les chiffres n'ont rien à voir avec ceux du social — un
+              site se vend en bloc, pas au mois — d'où un bloc à part plutôt
+              qu'une colonne de plus dans l'engagement mensuel. */}
+          {estWeb ? (
+          <Card className="flex flex-col gap-4 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-[2px]">
+                <Eyebrow>Pôle web</Eyebrow>
+                {estSocial ? (
+                  <span className="text-title font-semibold">Sites et projets</span>
+                ) : (
+                  <span className="text-display font-semibold tracking-[-0.01em]">
+                    {client.name}
+                  </span>
+                )}
+              </div>
+              {web.enCours > 0 ? (
+                <StatusPill tone="info">
+                  {web.enCours} en cours
+                </StatusPill>
+              ) : web.enLigne > 0 ? (
+                <StatusPill tone="ok">En ligne</StatusPill>
+              ) : (
+                <StatusPill tone="neutral">Aucun projet</StatusPill>
+              )}
+            </div>
+
+            {/* Sans les montants, il ne reste qu'un compteur de projets : une
+                grille de quatre colonnes laisserait trois trous. */}
+            <KpiGrid columns={canSeeMoney(user) ? 4 : 1}>
+              <Kpi
+                label="Projets"
+                value={`${web.enCours} / ${web.total}`}
+                meta={web.total === 0 ? "aucun projet ouvert" : "en cours sur le total"}
+              />
+              {canSeeMoney(user) ? (
+                <Kpi
+                  label="Vendu en projets"
+                  value={web.venduCents > 0 ? euroFromCents(web.venduCents) : "—"}
+                  meta="somme des montants chiffrés"
+                />
+              ) : null}
+              {canSeeMoney(user) ? (
+                <Kpi
+                  label="Maintenance"
+                  value={
+                    client.webMaintenanceCents > 0
+                      ? `${euroFromCents(client.webMaintenanceCents)} / mois`
+                      : "—"
+                  }
+                  meta="hébergement et mises à jour"
+                />
+              ) : null}
+              {canSeeMoney(user) ? (
+                <Kpi
+                  label="Heures passées"
+                  value={
+                    client.webHoursSold > 0
+                      ? `${fr(web.minutes / 60, 1)} / ${client.webHoursSold} h`
+                      : `${fr(web.minutes / 60, 1)} h`
+                  }
+                  valueTone={
+                    client.webHoursSold > 0 && web.minutes / 60 > client.webHoursSold
+                      ? "alert"
+                      : undefined
+                  }
+                  meta={
+                    client.webHoursSold > 0 ? "sur les heures vendues" : "aucun volume vendu saisi"
+                  }
+                />
+              ) : null}
+            </KpiGrid>
+
+            {projetsWeb.length > 0 ? (
+              <div className="overflow-hidden rounded-card border border-line">
+                {projetsWeb.map(({ project }) => (
+                  <Link
+                    key={project.id}
+                    href={`/web/${project.id}`}
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3 no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
+                  >
+                    <span className="clip min-w-0 flex-1 text-base font-medium text-ink">
+                      {project.name}
+                    </span>
+                    {canSeeMoney(user) && project.priceCents > 0 ? (
+                      <span className="flex-none text-small tabular-nums text-ink-2">
+                        {euroFromCents(project.priceCents)}
+                      </span>
+                    ) : null}
+                    <span className="flex-none text-small text-ink-3">
+                      {PROJECT_TYPE[project.type]?.short ?? project.type} ·{" "}
+                      {WEB_PHASE[project.phase]?.label}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-base text-ink-2">
+                Aucun projet web pour ce client. Le montant d&apos;un site se saisit sur son
+                projet — <Link href="/web">ouvre le tableau web</Link> pour en créer un.
+              </p>
+            )}
+
+            {briefsDuClient.length > 0 ? (
+              <div className="overflow-hidden rounded-card border border-line">
+                {briefsDuClient.map(({ brief, total, remplis }) => (
+                  <Link
+                    key={brief.id}
+                    href={`/web/briefs/${brief.id}`}
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px] no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
+                  >
+                    <span className="clip min-w-0 flex-1 text-base text-ink-2">{brief.title}</span>
+                    <span className="flex-none text-small tabular-nums text-ink-3">
+                      {remplis}/{total} réponses
+                    </span>
+                    <StatusPill tone={BRIEF_STATUS[brief.status].tone}>
+                      {BRIEF_STATUS[brief.status].label}
+                    </StatusPill>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+
+            <div>
+              <BriefLauncher
+                clientId={client.id}
+                type="vitrine"
+                defaultTitle={`Brief web — ${client.shortName}`}
+              />
+              <p className="mt-2 text-small text-ink-3">
+                Un brief créé ici n&apos;est rattaché à aucun projet : utile pour cadrer une
+                demande avant de savoir ce qu&apos;on vend. Depuis un projet, les questions
+                s&apos;adaptent à son type.
+              </p>
+            </div>
+          </Card>
+          ) : null}
 
           <Card className="p-5">
             <div className="mb-4">
@@ -187,6 +338,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 shootsIncluded: client.shootsIncluded,
                 hoursSold: client.hoursSold,
                 adsBudgetLabel: client.adsBudgetLabel ?? "",
+                webMaintenance: Math.round(client.webMaintenanceCents / 100),
+                webHoursSold: client.webHoursSold,
               }}
             />
           </Card>
@@ -253,60 +406,6 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               ton={charte?.voice ?? null}
               accent="#121212"
             />
-          </Card>
-
-          {/* Le pôle web depuis la fiche : c'est ici qu'on est quand on décide
-              de lancer un site pour un client, et non sur le tableau des
-              projets. */}
-          <Card>
-            <CardHead title="Web" meta={projetsWeb.length ? `${projetsWeb.length} projet${projetsWeb.length > 1 ? "s" : ""}` : undefined} />
-            {projetsWeb.map(({ project }) => (
-              <Link
-                key={project.id}
-                href={`/web/${project.id}`}
-                className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
-              >
-                <span className="clip min-w-0 flex-1 text-base font-medium text-ink">
-                  {project.name}
-                </span>
-                <span className="flex-none text-small text-ink-3">
-                  {PROJECT_TYPE[project.type]?.short ?? project.type} · {WEB_PHASE[project.phase]?.label}
-                </span>
-              </Link>
-            ))}
-
-            {briefsDuClient.length > 0 ? (
-              <div className="flex flex-col">
-                {briefsDuClient.map(({ brief, total, remplis }) => (
-                  <Link
-                    key={brief.id}
-                    href={`/web/briefs/${brief.id}`}
-                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px] no-underline hover:bg-canvas hover:no-underline"
-                  >
-                    <span className="clip min-w-0 flex-1 text-base text-ink-2">{brief.title}</span>
-                    <span className="flex-none text-small tabular-nums text-ink-3">
-                      {remplis}/{total} réponses
-                    </span>
-                    <StatusPill tone={BRIEF_STATUS[brief.status].tone}>
-                      {BRIEF_STATUS[brief.status].label}
-                    </StatusPill>
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="px-[14px] py-3">
-              <BriefLauncher
-                clientId={client.id}
-                type="vitrine"
-                defaultTitle={`Brief web — ${client.shortName}`}
-              />
-              <p className="mt-2 text-small text-ink-3">
-                Un brief créé ici n&apos;est rattaché à aucun projet : utile pour cadrer une
-                demande avant de savoir ce qu&apos;on vend. Depuis un projet, les questions
-                s&apos;adaptent à son type.
-              </p>
-            </div>
           </Card>
 
           <Card className="flex items-center justify-between gap-4 p-5">

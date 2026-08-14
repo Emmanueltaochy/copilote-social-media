@@ -71,6 +71,13 @@
       "when": 1786693659612,
       "tag": "0009_spicy_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786694720926,
+      "tag": "0010_awesome_sandman",
+      "breakpoints": true
     }
   ]
 }
