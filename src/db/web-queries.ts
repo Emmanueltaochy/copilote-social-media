@@ -9,6 +9,7 @@ import {
   clients,
   settings,
   users,
+  webDeliverables,
   webMilestones,
   webProjects,
 } from "./schema";
@@ -58,6 +59,36 @@ export async function listMilestones(projectId: string) {
     .from(webMilestones)
     .where(eq(webMilestones.projectId, projectId))
     .orderBy(asc(webMilestones.position));
+}
+
+/** Les livrables d'un projet, avec le fichier quand il y en a un. */
+export async function listDeliverables(projectId: string) {
+  return db
+    .select({
+      livrable: webDeliverables,
+      filename: clientFiles.filename,
+      mimeType: clientFiles.mimeType,
+    })
+    .from(webDeliverables)
+    .leftJoin(clientFiles, eq(clientFiles.id, webDeliverables.fileId))
+    .where(eq(webDeliverables.projectId, projectId))
+    .orderBy(asc(webDeliverables.position));
+}
+
+/** Les livrables d'un client qui attendent encore sa réponse. */
+export async function livrablesDuClient(clientId: string) {
+  return db
+    .select({
+      livrable: webDeliverables,
+      projet: webProjects.name,
+      projetId: webProjects.id,
+      filename: clientFiles.filename,
+    })
+    .from(webDeliverables)
+    .innerJoin(webProjects, eq(webProjects.id, webDeliverables.projectId))
+    .leftJoin(clientFiles, eq(clientFiles.id, webDeliverables.fileId))
+    .where(eq(webProjects.clientId, clientId))
+    .orderBy(desc(webDeliverables.createdAt));
 }
 
 /* --------------------------------------------------------------- briefs -- */
@@ -181,6 +212,25 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
   ]);
 
   const actions: ActionClient[] = [];
+
+  // Un livrable passe devant tout le reste : c'est la chose qui bloque
+  // réellement la suite du projet, là où un jalon n'est qu'un rappel.
+  const livrables = await db
+    .select({ id: webDeliverables.id, label: webDeliverables.label, projet: webProjects.name })
+    .from(webDeliverables)
+    .innerJoin(webProjects, eq(webProjects.id, webDeliverables.projectId))
+    .where(and(eq(webProjects.clientId, clientId), eq(webDeliverables.status, "en_attente")))
+    .orderBy(desc(webDeliverables.createdAt));
+
+  for (const l of livrables) {
+    actions.push({
+      id: `livrable-${l.id}`,
+      titre: l.label,
+      detail: `Projet ${l.projet} — à regarder et valider`,
+      href: `/portail#livrable-${l.id}`,
+      urgent: true,
+    });
+  }
 
   for (const b of briefsOuverts) {
     actions.push({

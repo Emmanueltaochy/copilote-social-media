@@ -17,13 +17,14 @@ import {
   actionsDuClient,
   fichiersDuClient,
   jalonsVisibles,
+  livrablesDuClient,
   projetsDuClient,
   reglages,
 } from "@/db/web-queries";
 import { WEB_PHASE, PROJECT_TYPE } from "@/data/web";
 import { brands } from "@/db/schema";
 import { formatBytes } from "@/lib/storage";
-import { BoutonRetirer, CharteClient, DepotFichiers } from "./EspaceWeb";
+import { BoutonRetirer, CharteClient, DepotFichiers, LivrableClient } from "./EspaceWeb";
 
 export const dynamic = "force-dynamic";
 
@@ -99,12 +100,13 @@ export default async function PortailPage() {
   // charte. Tout est chargé même s'il n'a pas de projet — les sections vides ne
   // s'affichent pas, mais le dépôt de fichiers et la charte servent aux deux
   // métiers.
-  const [config, actions, projets, fichiers, charteRows] = await Promise.all([
+  const [config, actions, projets, fichiers, charteRows, livrables] = await Promise.all([
     reglages(),
     actionsDuClient(client.id),
     projetsDuClient(client.id),
     fichiersDuClient(client.id),
     db.select().from(brands).where(eq(brands.clientId, client.id)).limit(1),
+    livrablesDuClient(client.id),
   ]);
   const charte = charteRows[0];
   const jalonsParProjet = new Map<string, Awaited<ReturnType<typeof jalonsVisibles>>>();
@@ -379,6 +381,21 @@ export default async function PortailPage() {
                       </span>
                     </span>
                   ) : null}
+
+                  {livrables
+                    .filter((l) => l.projetId === project.id)
+                    .map(({ livrable }) => (
+                      <LivrableClient
+                        key={livrable.id}
+                        id={livrable.id}
+                        label={livrable.label}
+                        note={livrable.note}
+                        href={livrable.url ?? `/api/client-files/${livrable.fileId}`}
+                        statut={livrable.status}
+                        remarque={livrable.clientNote}
+                        accent={config.primaryColor}
+                      />
+                    ))}
 
                   {liste.length > 0 ? (
                     <div className="flex flex-col gap-[3px]">

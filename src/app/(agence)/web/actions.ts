@@ -4,7 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { and, eq, sql as raw } from "drizzle-orm";
-import { db, briefFields, briefs, users, webMilestones, webProjects } from "@/db";
+import {
+  db,
+  briefFields,
+  briefs,
+  users,
+  webDeliverables,
+  webMilestones,
+  webProjects,
+} from "@/db";
 import { requireDepartment } from "@/lib/auth";
 import { sendMail } from "@/lib/mail";
 import { notify } from "@/lib/notify";
@@ -233,44 +241,33 @@ export async function answerField(formData: FormData): Promise<void> {
 }
 
 /**
- * Recalcule l'état d'un brief après chaque réponse.
+ * Suit l'avancement d'un brief après chaque réponse.
  *
- * Le statut est déduit, jamais saisi : un brief marqué « complet » à la main
- * pendant qu'il manque trois réponses obligatoires ferait démarrer la maquette
- * sur du vide.
+ * L'avancement se déduit — combien de réponses, combien d'obligatoires
+ * manquantes — mais « complet » ne se déduit pas : c'est le client qui le
+ * déclare, en bas de son questionnaire. Sans ce geste, personne ne sait si un
+ * champ vide est une question oubliée ou une question à laquelle il n'y a rien
+ * à répondre, et l'agence attendrait une suite qui ne viendra jamais.
+ *
+ * Un brief déjà déclaré terminé ne redescend pas : le client peut encore
+ * préciser une réponse sans annuler ce qu'il a dit.
  */
 export async function majStatutBrief(briefId: string): Promise<void> {
   if (!briefId) return;
+
+  const [brief] = await db.select().from(briefs).where(eq(briefs.id, briefId)).limit(1);
+  if (!brief || brief.status === "brouillon" || brief.status === "complete") return;
+
   const [état] = await db
     .select({
       remplis: raw<number>`count(*) filter (where coalesce(${briefFields.answer}, '') <> '')::int`,
-      manquants: raw<number>`count(*) filter (where ${briefFields.required} and coalesce(${briefFields.answer}, '') = '')::int`,
     })
     .from(briefFields)
     .where(eq(briefFields.briefId, briefId));
 
-  const [brief] = await db.select().from(briefs).where(eq(briefs.id, briefId)).limit(1);
-  if (!brief || brief.status === "brouillon") return;
-
-  const complet = Number(état?.manquants ?? 1) === 0 && Number(état?.remplis ?? 0) > 0;
-  const nouveau = complet ? "complete" : Number(état?.remplis ?? 0) > 0 ? "en_cours" : "envoye";
-
+  const nouveau = Number(état?.remplis ?? 0) > 0 ? "en_cours" : "envoye";
   if (nouveau !== brief.status) {
-    await db
-      .update(briefs)
-      .set({ status: nouveau, completedAt: complet ? new Date() : null })
-      .where(eq(briefs.id, briefId));
-
-    if (complet) {
-      await notify({
-        kind: "message",
-        title: `Brief complété : ${brief.title}`,
-        body: "Toutes les questions obligatoires ont une réponse.",
-        href: `/web/briefs/${brief.id}`,
-        clientId: brief.clientId,
-        audience: "equipe",
-      });
-    }
+    await db.update(briefs).set({ status: nouveau }).where(eq(briefs.id, briefId));
   }
 }
 
@@ -375,4 +372,113 @@ export async function deleteBrief(formData: FormData): Promise<void> {
   await db.delete(briefs).where(eq(briefs.id, id));
   refresh();
   redirect("/web/briefs");
+}
+
+/* ----------------------------------------------------------- livrables -- */
+
+/**
+ * Soumet une maquette au client.
+ *
+ * Deux formes et pas une : un lien — Figma, préproduction, Drive — ou un
+ * fichier déjà déposé dans le dossier du client. Obliger l'un ou l'autre ferait
+ * bricoler l'équipe, qui collerait l'adresse d'un PDF dans un champ prévu pour
+ * autre chose.
+ */
+export async function addDeliverable(formData: FormData): Promise<void> {
+  const user = await requireDepartment("web");
+  const projectId = String(formData.get("projectId") ?? "");
+  const label = String(formData.get("label") ?? "").trim();
+  const url = String(formData.get("url") ?? "").trim();
+  const fileId = String(formData.get("fileId") ?? "").trim();
+  if (!projectId || !label) return;
+  if (!url && !fileId) return;
+
+  const [{ n }] = await db
+    .select({ n: raw<number>`count(*)::int` })
+    .from(webDeliverables)
+    .where(eq(webDeliverables.projectId, projectId));
+
+  const [projet] = await db
+    .select({ clientId: webProjects.clientId, name: webProjects.name })
+    .from(webProjects)
+    .where(eq(webProjects.id, projectId))
+    .limit(1);
+
+  await db.insert(webDeliverables).values({
+    projectId,
+    label,
+    note: String(formData.get("note") ?? "").trim() || null,
+    url: url || null,
+    fileId: fileId || null,
+    position: Number(n ?? 0),
+    createdById: user.id,
+  });
+
+  if (projet) {
+    await notify({
+      kind: "validation_attendue",
+      title: `À valider : ${label}`,
+      body: `Un livrable du projet ${projet.name} attend votre retour dans votre espace.`,
+      href: "/portail#projets",
+      clientId: projet.clientId,
+      audience: "client",
+    });
+  }
+
+  refresh(projectId);
+}
+
+export async function removeDeliverable(formData: FormData): Promise<void> {
+  await requireDepartment("web");
+  const id = String(formData.get("id") ?? "");
+  const projectId = String(formData.get("projectId") ?? "");
+  if (!id) return;
+  await db.delete(webDeliverables).where(eq(webDeliverables.id, id));
+  refresh(projectId);
+}
+
+/** Remet un livrable en attente après correction : on resoumet la même chose. */
+export async function resubmitDeliverable(formData: FormData): Promise<void> {
+  await requireDepartment("web");
+  const id = String(formData.get("id") ?? "");
+  const projectId = String(formData.get("projectId") ?? "");
+  if (!id) return;
+
+  const [livrable] = await db
+    .select()
+    .from(webDeliverables)
+    .where(eq(webDeliverables.id, id))
+    .limit(1);
+  if (!livrable) return;
+
+  await db
+    .update(webDeliverables)
+    .set({
+      status: "en_attente",
+      // La remarque du client est effacée en même temps que la reprise : la
+      // garder ferait croire qu'un reproche traité est toujours en cours.
+      clientNote: null,
+      respondedAt: null,
+      url: String(formData.get("url") ?? "").trim() || livrable.url,
+    })
+    .where(eq(webDeliverables.id, id));
+
+  const [projet] = await db
+    .select({ clientId: webProjects.clientId, name: webProjects.name })
+    .from(webProjects)
+    .where(eq(webProjects.id, livrable.projectId))
+    .limit(1);
+
+  if (projet) {
+    await notify({
+      kind: "validation_attendue",
+      title: `Corrigé, à revoir : ${livrable.label}`,
+      body: `Le livrable a été repris et attend de nouveau votre retour.`,
+      href: "/portail#projets",
+      clientId: projet.clientId,
+      audience: "client",
+    });
+  }
+
+  refresh(projectId);
 }

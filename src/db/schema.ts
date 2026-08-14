@@ -960,6 +960,14 @@ export const briefs = pgTable(
     projectId: uuid("project_id").references(() => webProjects.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     intro: text("intro"),
+    /**
+     * L'avancement se déduit des réponses, mais « complet » se déclare.
+     *
+     * Le brief s'enregistre au fil de l'eau — l'agence lit les réponses sans
+     * attendre — et le client dit lui-même quand il a terminé. Sans ce geste,
+     * personne ne sait si un champ vide est une question oubliée ou une
+     * question à laquelle il n'y a rien à répondre.
+     */
     status: briefStatus("status").notNull().default("brouillon"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -1014,3 +1022,47 @@ export const settings = pgTable("settings", {
   portalWelcome: text("portal_welcome"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------ livrables -- */
+
+export const deliverableStatus = pgEnum("deliverable_status", [
+  "en_attente",
+  "valide",
+  "modifications",
+]);
+
+/**
+ * Ce qu'on soumet au client : une maquette, une page de démo, un document.
+ *
+ * Un livrable vit sous deux formes et pas une : un lien — maquette Figma, site
+ * de préproduction — ou un fichier déposé, PDF ou image. Obliger l'un ou
+ * l'autre ferait bricoler l'équipe, qui collerait l'adresse d'un PDF dans un
+ * champ prévu pour une capture d'écran.
+ *
+ * La réponse du client vit ici aussi : sans le motif d'un refus, la reprise
+ * repart à l'aveugle et le même aller-retour se reproduit.
+ */
+export const webDeliverables = pgTable(
+  "web_deliverables",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => webProjects.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    /** Une phrase de contexte : ce qu'on demande de regarder. */
+    note: text("note"),
+    /** Lien externe — Figma, préproduction, Drive. */
+    url: text("url"),
+    /** Fichier déposé dans le dossier du client. */
+    fileId: uuid("file_id").references(() => clientFiles.id, { onDelete: "set null" }),
+    status: deliverableStatus("status").notNull().default("en_attente"),
+    /** Ce que le client a répondu quand il demande une reprise. */
+    clientNote: text("client_note"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    position: integer("position").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("web_deliverables_project_idx").on(t.projectId)],
+);

@@ -8,6 +8,7 @@ import { reglages } from "@/db/web-queries";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Eyebrow } from "@/components/ui/primitives";
 import { ChampPortail } from "./ChampPortail";
+import { Terminer } from "./Terminer";
 
 export const dynamic = "force-dynamic";
 
@@ -67,8 +68,9 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
             {manquants > 0
               ? ` · ${manquants} question${manquants > 1 ? "s" : ""} obligatoire${manquants > 1 ? "s" : ""} à remplir`
               : " · tout est rempli, merci"}
-            . Chaque réponse est enregistrée dès que vous passez au champ suivant : vous pouvez
-            fermer cette page et revenir plus tard.
+. Chaque réponse est enregistrée dès que vous passez au champ suivant, et nous
+            arrive aussitôt : vous pouvez fermer cette page et revenir plus tard. Un bouton en bas
+            nous dira que vous avez terminé.
           </p>
         </Card>
 
@@ -96,6 +98,15 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
               ))}
           </Card>
         ))}
+
+        <Card className="flex flex-col gap-3 p-4">
+          <Terminer
+            id={brief.id}
+            manquants={manquants}
+            dejaTermine={brief.status === "complete"}
+            accent={config.primaryColor}
+          />
+        </Card>
 
         <p className="pb-6 text-base text-ink-3">
           Une question sur le questionnaire ? Répondez simplement au courriel que vous avez reçu.

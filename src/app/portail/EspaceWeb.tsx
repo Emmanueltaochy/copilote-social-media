@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { majCharte, retirerFichier } from "./actions-web";
+import { useActionState } from "react";
+import { majCharte, repondreAuLivrable, retirerFichier, type PortailWebState } from "./actions-web";
 
 const champ =
   "w-full rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold";
@@ -190,3 +191,113 @@ export function BoutonRetirer({ id }: { id: string }) {
   );
 }
 
+
+/**
+ * Un livrable soumis au client : une maquette, une préproduction, un document.
+ *
+ * Deux gestes, comme pour un post : valider, ou dire ce qui doit changer. Le
+ * motif est exigé sur un refus — sans lui, la reprise repart à l'aveugle et le
+ * même aller-retour se reproduit.
+ */
+export function LivrableClient({
+  id,
+  label,
+  note,
+  href,
+  statut,
+  remarque,
+  accent,
+}: {
+  id: string;
+  label: string;
+  note: string | null;
+  href: string;
+  statut: "en_attente" | "valide" | "modifications";
+  remarque: string | null;
+  accent: string;
+}) {
+  const [state, action, pending] = useActionState<PortailWebState, FormData>(
+    repondreAuLivrable,
+    {},
+  );
+
+  return (
+    <div
+      // L'ancre sert au lien « ce qu'on attend de vous » : il mène droit à la
+      // maquette concernée plutôt qu'en haut d'une page à parcourir.
+      id={`livrable-${id}`}
+      data-livrable={id}
+      className="flex flex-col gap-3 border-t border-line px-4 py-4 sm:px-6"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-lead font-medium"
+          style={{ color: accent }}
+        >
+          {label} ↗
+        </a>
+        <span className="text-small text-ink-3">
+          {statut === "valide"
+            ? "Validé par vous"
+            : statut === "modifications"
+              ? "Reprise demandée"
+              : "À regarder"}
+        </span>
+      </div>
+
+      {note ? <span className="text-base text-ink-2">{note}</span> : null}
+
+      {statut === "valide" || state.ok ? (
+        <span className="rounded-control border border-ok bg-ok-bg px-3 py-2 text-base text-ok">
+          {state.ok ?? "Validé, merci."}
+        </span>
+      ) : statut === "modifications" ? (
+        <span className="rounded-control border border-line bg-canvas px-3 py-2 text-base text-ink-2">
+          Vous avez demandé : « {remarque} ». Nous reprenons et vous revenons dessus.
+        </span>
+      ) : (
+        <form action={action} className="flex flex-wrap items-end gap-2">
+          <input type="hidden" name="id" value={id} />
+          <button
+            type="submit"
+            name="decision"
+            value="valide"
+            disabled={pending}
+            style={{ background: accent, borderColor: accent }}
+            className="flex-none cursor-pointer rounded-control border px-3 py-2 text-base font-medium text-paper disabled:opacity-60"
+          >
+            {pending ? "Un instant…" : "Valider"}
+          </button>
+
+          <label className="flex min-w-[240px] flex-1 flex-col gap-[6px]">
+            <span className="eyebrow text-ink-3">Ou dites ce qui doit changer</span>
+            <input
+              name="note"
+              placeholder="Le bleu du bandeau est trop foncé, et il manque le numéro de téléphone."
+              className={champ}
+            />
+          </label>
+
+          <button
+            type="submit"
+            name="decision"
+            value="modifications"
+            disabled={pending}
+            className="flex-none cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-base font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-60"
+          >
+            Envoyer
+          </button>
+
+          {state.error ? (
+            <p className="w-full rounded-control border border-alert-line bg-alert-bg px-3 py-2 text-base text-alert">
+              {state.error}
+            </p>
+          ) : null}
+        </form>
+      )}
+    </div>
+  );
+}

@@ -5,11 +5,19 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { CheckBox, Dot, StatusPill } from "@/components/ui/primitives";
 import { requireDepartment } from "@/lib/auth";
 import { listTeam } from "@/db/queries";
-import { getWebProject, listBriefs, listMilestones } from "@/db/web-queries";
+import { getWebProject, listBriefs, listDeliverables, listMilestones } from "@/db/web-queries";
 import { BRIEF_STATUS, PROJECT_TYPE, WEB_PHASE, WEB_PHASES } from "@/data/web";
 import { toneText } from "@/lib/tone";
-import { addMilestone, removeMilestone, toggleMilestone, updateProject } from "../actions";
+import {
+  addMilestone,
+  removeDeliverable,
+  removeMilestone,
+  resubmitDeliverable,
+  toggleMilestone,
+  updateProject,
+} from "../actions";
 import { BriefLauncher } from "../BriefLauncher";
+import { AjoutLivrable } from "./Livrables";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +31,11 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
   const row = await getWebProject(id);
   if (!row) notFound();
 
-  const [jalons, staff, briefsDuProjet] = await Promise.all([
+  const [jalons, staff, briefsDuProjet, livrables] = await Promise.all([
     listMilestones(id),
     listTeam(),
     listBriefs({ projectId: id }),
+    listDeliverables(id),
   ]);
 
   const p = row.project;
@@ -246,6 +255,95 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
               </Card>
             </div>
           </div>
+
+          <Card>
+            <CardHead
+              title="Livrables soumis au client"
+              meta={
+                livrables.length
+                  ? `${livrables.filter((l) => l.livrable.status === "valide").length}/${livrables.length} validés`
+                  : undefined
+              }
+            />
+
+            {livrables.length === 0 ? (
+              <p className="px-[14px] py-4 text-base text-ink-2">
+                Rien de soumis pour l&apos;instant. Une maquette se montre au client sous la forme
+                qui existe déjà : un lien Figma, une préproduction, ou un PDF déposé ici. Il la
+                valide ou dit ce qui doit changer, depuis son espace.
+              </p>
+            ) : (
+              livrables.map(({ livrable, filename }) => (
+                <div key={livrable.id} className="flex flex-col gap-1 border-b border-line px-[14px] py-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex min-w-[180px] flex-1 flex-col">
+                      <a
+                        href={livrable.url ?? `/api/client-files/${livrable.fileId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="clip text-base font-medium"
+                      >
+                        {livrable.label} ↗
+                      </a>
+                      <span className="clip text-small text-ink-3">
+                        {livrable.url ? livrable.url : (filename ?? "fichier supprimé")}
+                        {livrable.note ? ` · ${livrable.note}` : ""}
+                      </span>
+                    </span>
+
+                    <StatusPill
+                      tone={
+                        livrable.status === "valide"
+                          ? "ok"
+                          : livrable.status === "modifications"
+                            ? "alert"
+                            : "warn"
+                      }
+                    >
+                      {livrable.status === "valide"
+                        ? "Validé"
+                        : livrable.status === "modifications"
+                          ? "À reprendre"
+                          : "En attente"}
+                    </StatusPill>
+
+                    {livrable.status === "modifications" ? (
+                      <form action={resubmitDeliverable} className="flex-none">
+                        <input type="hidden" name="id" value={livrable.id} />
+                        <input type="hidden" name="projectId" value={p.id} />
+                        <button
+                          type="submit"
+                          className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                        >
+                          Resoumettre
+                        </button>
+                      </form>
+                    ) : null}
+
+                    <form action={removeDeliverable} className="flex-none">
+                      <input type="hidden" name="id" value={livrable.id} />
+                      <input type="hidden" name="projectId" value={p.id} />
+                      <button
+                        type="submit"
+                        title="Retirer"
+                        className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  </div>
+
+                  {livrable.clientNote ? (
+                    <span className="rounded-control border border-alert-line bg-alert-bg px-3 py-2 text-base text-alert">
+                      Le client demande : « {livrable.clientNote} »
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            )}
+
+            <AjoutLivrable projectId={p.id} clientId={p.clientId} />
+          </Card>
 
           <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
             <span className="text-small text-ink-2">

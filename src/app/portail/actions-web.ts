@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
-import { db, brands, briefFields, briefs, clientFiles } from "@/db";
+import { and, eq, sql as raw } from "drizzle-orm";
+import { db, brands, briefFields, briefs, clientFiles, webDeliverables, webProjects } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { majStatutBrief } from "@/app/(agence)/web/actions";
 import { removeStored } from "@/lib/storage";
+import { notify } from "@/lib/notify";
 
 /**
  * Ce que le client peut écrire lui-même.
@@ -104,4 +105,120 @@ export async function retirerFichier(formData: FormData): Promise<void> {
   await db.delete(clientFiles).where(eq(clientFiles.id, id));
   await removeStored(fichier.storagePath).catch(() => {});
   revalidatePath("/portail");
+}
+
+/**
+ * Le client déclare son brief terminé.
+ *
+ * L'agence lit les réponses au fil de l'eau — rien n'attend ce bouton pour
+ * arriver. Ce que le bouton ajoute, c'est la seule chose qu'on ne peut pas
+ * deviner : la différence entre une question oubliée et une question à laquelle
+ * il n'y avait rien à répondre. Sans lui, on attend une suite qui ne viendra
+ * jamais.
+ */
+export async function terminerBrief(_prev: PortailWebState, formData: FormData): Promise<PortailWebState> {
+  const user = await requireUser();
+  if (user.role !== "client" || !user.clientId) return { error: "Non autorisé." };
+
+  const briefId = String(formData.get("id") ?? "");
+  const [brief] = await db.select().from(briefs).where(eq(briefs.id, briefId)).limit(1);
+  if (!brief || brief.clientId !== user.clientId) return { error: "Brief introuvable." };
+  if (brief.status === "brouillon") return { error: "Brief introuvable." };
+
+  const [état] = await db
+    .select({
+      manquants: raw<number>`count(*) filter (where ${briefFields.required} and coalesce(${briefFields.answer}, '') = '')::int`,
+    })
+    .from(briefFields)
+    .where(eq(briefFields.briefId, briefId));
+
+  if (Number(état?.manquants ?? 0) > 0) {
+    return {
+      error: `Il reste ${état.manquants} question${Number(état.manquants) > 1 ? "s" : ""} obligatoire${Number(état.manquants) > 1 ? "s" : ""} sans réponse. Elles sont marquées d'une étoile.`,
+    };
+  }
+
+  await db
+    .update(briefs)
+    .set({ status: "complete", completedAt: new Date() })
+    .where(eq(briefs.id, briefId));
+
+  await notify({
+    kind: "message",
+    title: `Brief terminé : ${brief.title}`,
+    body: `${user.name} a déclaré le brief complet. Vous pouvez enchaîner.`,
+    href: `/web/briefs/${brief.id}`,
+    clientId: brief.clientId,
+    audience: "equipe",
+  });
+
+  revalidatePath(`/portail/brief/${briefId}`);
+  revalidatePath("/portail");
+  revalidatePath("/web/briefs");
+  return { ok: "Merci, c'est noté. Nous prenons la suite." };
+}
+
+/**
+ * La réponse du client sur un livrable : valider, ou dire ce qui doit changer.
+ *
+ * Le motif est exigé sur un refus. Sans lui, la reprise repart à l'aveugle et
+ * le même aller-retour se reproduit — c'est vrai d'un post comme d'une
+ * maquette.
+ */
+export async function repondreAuLivrable(
+  _prev: PortailWebState,
+  formData: FormData,
+): Promise<PortailWebState> {
+  const user = await requireUser();
+  if (user.role !== "client" || !user.clientId) return { error: "Non autorisé." };
+
+  const id = String(formData.get("id") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+
+  const rows = await db
+    .select({ livrable: webDeliverables, clientId: webProjects.clientId, projet: webProjects.name })
+    .from(webDeliverables)
+    .innerJoin(webProjects, eq(webProjects.id, webDeliverables.projectId))
+    .where(eq(webDeliverables.id, id))
+    .limit(1);
+  const row = rows[0];
+  if (!row || row.clientId !== user.clientId) return { error: "Livrable introuvable." };
+
+  if (decision === "modifications" && !note) {
+    return { error: "Dites en un mot ce qui doit changer : sans motif, la reprise repart à l'aveugle." };
+  }
+
+  await db
+    .update(webDeliverables)
+    .set({
+      status: decision === "valide" ? "valide" : "modifications",
+      clientNote: decision === "modifications" ? note : null,
+      respondedAt: new Date(),
+    })
+    .where(eq(webDeliverables.id, id));
+
+  await notify({
+    kind: decision === "valide" ? "valide" : "modification_demandee",
+    title:
+      decision === "valide"
+        ? `Validé par le client : ${row.livrable.label}`
+        : `Modification demandée : ${row.livrable.label}`,
+    body:
+      decision === "valide"
+        ? `Projet ${row.projet}.`
+        : `Projet ${row.projet} — « ${note} »`,
+    href: `/web/${row.livrable.projectId}`,
+    clientId: row.clientId,
+    audience: "equipe",
+  });
+
+  revalidatePath("/portail");
+  revalidatePath(`/web/${row.livrable.projectId}`);
+  return {
+    ok:
+      decision === "valide"
+        ? "Validé, merci. Nous enchaînons."
+        : "C'est noté, nous reprenons et vous revenons dessus.",
+  };
 }
