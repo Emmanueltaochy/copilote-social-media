@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Dot, StatusPill } from "@/components/ui/primitives";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { byUrgency, countMissedPublications, listAwaitingApproval, listClientsWithPace, listTodayQueue, listUpcomingShoots } from "@/db/queries";
 import { cn } from "@/lib/cn";
 import { monthLabel, monthProgressLabel } from "@/lib/pacing";
@@ -14,7 +14,7 @@ import { toneText } from "@/lib/tone";
 const COLS = "190px minmax(80px,1fr) 132px 96px 136px";
 
 export default async function CockpitPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const clients = await listClientsWithPace();
 
   if (clients.length === 0) {

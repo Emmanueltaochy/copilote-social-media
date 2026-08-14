@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import {
   listClientsWithPace,
   listPublishedToday,
@@ -115,7 +115,7 @@ function Rangee({ ligne, now, retard }: { ligne: Ligne; now: Date; retard: boole
  * rattraper. Le retard vient donc en premier, puis le reste, par date.
  */
 export default async function APublierPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, prets, pasPrets, publiés] = await Promise.all([
     listClientsWithPace(),
     listReadyToPublish(),

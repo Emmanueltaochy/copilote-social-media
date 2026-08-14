@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { listClientOptions, listShoots } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
 import { readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel, type ShootStatus } from "@/data/shoot";
@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
  * journée entière.
  */
 export default async function TournagesPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, rows] = await Promise.all([listClientOptions(), listShoots()]);
 
   if (clients.length === 0) {

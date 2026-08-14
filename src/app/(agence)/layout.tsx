@@ -6,6 +6,8 @@ import { TopBar } from "@/components/shell/TopBar";
 import { requireStaff } from "@/lib/auth";
 import { listClientsWithPace } from "@/db/queries";
 import { unreadTotal } from "@/lib/chat";
+import { departmentsOf } from "@/lib/auth";
+import { polActif } from "@/lib/pole";
 import { countUnread, recent } from "@/lib/notify";
 
 /**
@@ -14,6 +16,7 @@ import { countUnread, recent } from "@/lib/notify";
  */
 export default async function AgenceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
+  const pole = await polActif(user);
   const [clients, notices, unreadCount, chatUnread] = await Promise.all([
     listClientsWithPace(),
     recent(user.id, 20),
@@ -37,6 +40,8 @@ export default async function AgenceLayout({ children }: { children: React.React
         role: user.role,
         initials: user.initials,
         avatar: user.avatarPath ? `/api/avatar/${user.id}` : null,
+        departments: departmentsOf(user),
+        pole,
       }}
       clients={clients.map((c) => ({
         id: c.id,

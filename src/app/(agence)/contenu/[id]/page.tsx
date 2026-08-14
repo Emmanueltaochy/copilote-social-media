@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Avatar, Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import {
   getContent,
   listActivity,
@@ -40,7 +40,7 @@ function toLocalInput(d: Date | null): string | undefined {
 }
 
 export default async function ContenuPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  await requireDepartment("social");
   const { id } = await params;
 
   const row = await getContent(id);

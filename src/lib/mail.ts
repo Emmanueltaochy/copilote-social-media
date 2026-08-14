@@ -14,27 +14,68 @@ import nodemailer from "nodemailer";
  * un service d'envoi tiers évite un abonnement de plus, et les messages
  * partent de l'adresse que le client connaît déjà.
  */
-const HOST = process.env.SMTP_HOST ?? "";
-const PORT = Number(process.env.SMTP_PORT ?? 465);
-const USER = process.env.SMTP_USER ?? "";
-const PASSWORD = process.env.SMTP_PASSWORD ?? "";
-const FROM = process.env.SMTP_FROM || USER;
+type Boite = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: string;
+};
 
-export const mailConfigured = () => Boolean(HOST && USER && PASSWORD);
+const SOCIAL: Boite = {
+  host: process.env.SMTP_HOST ?? "",
+  port: Number(process.env.SMTP_PORT ?? 465),
+  user: process.env.SMTP_USER ?? "",
+  password: process.env.SMTP_PASSWORD ?? "",
+  from: process.env.SMTP_FROM || (process.env.SMTP_USER ?? ""),
+};
 
-let cached: nodemailer.Transporter | null = null;
+/**
+ * La boîte du pôle web.
+ *
+ * Une adresse d'expédition par métier : un client qui reçoit son brief de
+ * « marketing@ » se demande s'il s'est trompé d'interlocuteur, et sa réponse
+ * atterrit dans la mauvaise boîte. Tout ce qui n'est pas renseigné retombe sur
+ * la boîte principale — configurer une seconde adresse reste facultatif.
+ */
+const WEB: Boite = {
+  host: process.env.SMTP_WEB_HOST || SOCIAL.host,
+  port: Number(process.env.SMTP_WEB_PORT ?? process.env.SMTP_PORT ?? 465),
+  user: process.env.SMTP_WEB_USER || SOCIAL.user,
+  password: process.env.SMTP_WEB_PASSWORD || SOCIAL.password,
+  from:
+    process.env.SMTP_WEB_FROM ||
+    (process.env.SMTP_WEB_USER ? process.env.SMTP_WEB_USER : SOCIAL.from),
+};
 
-function transporter(): nodemailer.Transporter {
-  cached ??= nodemailer.createTransport({
-    host: HOST,
-    port: PORT,
+export type Pole = "social" | "web";
+
+const boite = (pole: Pole): Boite => (pole === "web" ? WEB : SOCIAL);
+
+export const mailConfigured = (pole: Pole = "social") => {
+  const b = boite(pole);
+  return Boolean(b.host && b.user && b.password);
+};
+
+/** Deux boîtes, donc deux connexions gardées en cache. */
+const cached = new Map<Pole, nodemailer.Transporter>();
+
+function transporter(pole: Pole): nodemailer.Transporter {
+  const existant = cached.get(pole);
+  if (existant) return existant;
+
+  const b = boite(pole);
+  const t = nodemailer.createTransport({
+    host: b.host,
+    port: b.port,
     // 465 est un port en TLS direct ; les autres commencent en clair puis
     // basculent. Se tromper des deux côtés donne une connexion qui reste
     // ouverte sans jamais répondre.
-    secure: PORT === 465,
-    auth: { user: USER, pass: PASSWORD },
+    secure: b.port === 465,
+    auth: { user: b.user, pass: b.password },
   });
-  return cached;
+  cached.set(pole, t);
+  return t;
 }
 
 export type MailInput = {
@@ -45,6 +86,8 @@ export type MailInput = {
   /** Lien d'action, ajouté au bas du message et repris en HTML. */
   actionUrl?: string;
   actionLabel?: string;
+  /** La boîte qui expédie. « web » pour les briefs et le suivi de projet. */
+  pole?: Pole;
 };
 
 /**
@@ -56,7 +99,8 @@ export type MailInput = {
  * être inscrit à côté de la notification plutôt que perdu.
  */
 export async function sendMail(input: MailInput): Promise<{ error?: string }> {
-  if (!mailConfigured()) {
+  const pole = input.pole ?? "social";
+  if (!mailConfigured(pole)) {
     return { error: "Messagerie non configurée sur le serveur." };
   }
 
@@ -65,8 +109,8 @@ export async function sendMail(input: MailInput): Promise<{ error?: string }> {
     : "";
 
   try {
-    await transporter().sendMail({
-      from: FROM,
+    await transporter(pole).sendMail({
+      from: boite(pole).from,
       to: input.to,
       subject: input.subject,
       text: `${input.text}${lien}\n\n— Taochy Consulting`,

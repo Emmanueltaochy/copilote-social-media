@@ -113,10 +113,21 @@ const DOCUMENT_TYPES = new Set([
 
 export const isDocument = (mime: string) => DOCUMENT_TYPES.has(mime);
 
-/** Documents et images : une charte de marque arrive aussi bien en PDF qu'en PNG. */
-export const isAttachment = (mime: string) => isDocument(mime) || IMAGE_TYPES.has(mime);
+/**
+ * Ce qu'on accepte en pièce jointe : documents, images et vidéos.
+ *
+ * Un client dépose ce qu'il a — un devis en PDF, un logo en PNG, une vidéo
+ * tournée au téléphone. Refuser la vidéo l'obligerait à passer par un envoi
+ * externe, c'est-à-dire à sortir du portail et à ne plus y revenir.
+ */
+export const isAttachment = (mime: string) =>
+  isDocument(mime) || IMAGE_TYPES.has(mime) || VIDEO_TYPES.has(mime);
 
+/** Une vidéo de téléphone dépasse vite 100 Mo : la limite suit le format. */
 export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024; // 100 Mo
+export const MAX_ATTACHMENT_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 Go
+export const maxAttachmentBytes = (mime: string) =>
+  VIDEO_TYPES.has(mime) ? MAX_ATTACHMENT_VIDEO_BYTES : MAX_DOCUMENT_BYTES;
 
 export const isImage = (mime: string) => IMAGE_TYPES.has(mime);
 export const isVideo = (mime: string) => VIDEO_TYPES.has(mime);
@@ -443,9 +454,10 @@ export async function storeDocument(
       "Format non accepté. PDF, Word, Excel, PowerPoint, OpenDocument, texte, CSV, ZIP ou image.",
     );
   }
-  if (file.declaredBytes !== null && file.declaredBytes > MAX_DOCUMENT_BYTES) {
+  const plafond = maxAttachmentBytes(file.mimeType);
+  if (file.declaredBytes !== null && file.declaredBytes > plafond) {
     throw new UploadError(
-      `Fichier trop lourd (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_DOCUMENT_BYTES)}.`,
+      `Fichier trop lourd (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(plafond)}.`,
     );
   }
 
@@ -472,8 +484,8 @@ export async function storeDocument(
       async function* (chunks: AsyncIterable<Buffer>) {
         for await (const chunk of chunks) {
           received += chunk.length;
-          if (received > MAX_DOCUMENT_BYTES) {
-            throw new UploadError(`Fichier trop lourd (plus de ${formatBytes(MAX_DOCUMENT_BYTES)}).`);
+          if (received > plafond) {
+            throw new UploadError(`Fichier trop lourd (plus de ${formatBytes(plafond)}).`);
           }
           yield chunk;
         }

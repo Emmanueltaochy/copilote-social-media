@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Avatar, Eyebrow } from "@/components/ui/primitives";
+import { Poles } from "./Poles";
 import { InviteLink } from "@/components/ui/InviteLink";
 import { SendByEmail } from "@/components/ui/SendByEmail";
 import { requireDirection } from "@/lib/auth";
@@ -95,6 +96,15 @@ export default async function EquipePage() {
                   <span className="w-[110px] flex-none text-right text-small tabular-nums text-ink-2">
                     {t.minutes > 0 ? formatDuration(t.minutes) : "—"}
                   </span>
+
+                  {/* Le pôle décide de l'outil qu'on ouvre en arrivant ; le rôle
+                      décide de ce qu'on y voit. Deux réglages distincts, côte à
+                      côte, parce qu'on les règle au même moment. */}
+                  <Poles
+                    userId={t.id}
+                    departments={t.departments ?? []}
+                    direction={t.role === "direction"}
+                  />
 
                   <form action={changeRole} className="flex flex-none items-center gap-1">
                     <input type="hidden" name="id" value={t.id} />

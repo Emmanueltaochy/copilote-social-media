@@ -66,6 +66,9 @@ export async function createFirstUser(
       email,
       initials: initialsFrom(name),
       role: "direction",
+      // La direction exerce les deux métiers de l'agence. L'écrire plutôt que
+      // de le déduire : une donnée qui se devine finit par se deviner mal.
+      departments: ["social", "web"],
       passwordHash: await hashPassword(password),
     })
     .returning();

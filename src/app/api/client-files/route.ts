@@ -1,6 +1,6 @@
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { db, clientFiles } from "@/db";
-import { requireStaff } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { storeDocument, UploadError } from "@/lib/storage";
 
 /**
@@ -12,11 +12,17 @@ import { storeDocument, UploadError } from "@/lib/storage";
  * route vérifie donc elle-même la session.
  */
 export async function POST(request: Request) {
-  const user = await requireStaff();
+  const user = await requireUser();
 
   const url = new URL(request.url);
   const clientId = url.searchParams.get("clientId") ?? "";
   if (!clientId) return Response.json({ error: "Client manquant." }, { status: 400 });
+
+  // Le portail dépose ici, lui aussi : un client peut envoyer ses fichiers,
+  // mais uniquement dans son propre dossier.
+  if (user.role === "client" && user.clientId !== clientId) {
+    return Response.json({ error: "Non autorisé." }, { status: 403 });
+  }
 
   const rawName = request.headers.get("x-filename") ?? "";
   let filename = "sans-nom";

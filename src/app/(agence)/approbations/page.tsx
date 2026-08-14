@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { coversFor, listAwaitingApproval, listClientsWithPace, slidesFor } from "@/db/queries";
 import { Carousel } from "@/components/ui/Carousel";
 import { Cover } from "@/components/ui/Cover";
@@ -18,7 +18,7 @@ const REASONS = ["Cadrage", "Texte", "Colorimétrie", "Hors marque"];
 const STALE_DAYS = 5;
 
 export default async function ApprobationsPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, rows] = await Promise.all([listClientsWithPace(), listAwaitingApproval()]);
   const covers = await coversFor(rows.map((r) => r.content.id));
   const slides = await slidesFor(rows.map((r) => r.content.id));

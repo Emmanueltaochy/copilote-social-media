@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { listClientsWithPace, listContentsForMonth, coversFor } from "@/db/queries";
 import { monthLabel, monthPosition } from "@/lib/pacing";
 import { cn } from "@/lib/cn";
@@ -12,7 +12,7 @@ import { CONTENT_KIND, CONTENT_STATUS } from "@/data/content";
 const WEEK_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 export default async function CalendrierPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, rows] = await Promise.all([listClientsWithPace(), listContentsForMonth()]);
   const covers = await coversFor(rows.map((r) => r.content.id));
 

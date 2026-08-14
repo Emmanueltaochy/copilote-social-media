@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusPill } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { listClientsWithPace } from "@/db/queries";
 import { fr, monthLabel } from "@/lib/pacing";
 
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * pas un écran de pilotage.
  */
 export default async function RapportsPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const clients = await listClientsWithPace();
 
   if (clients.length === 0) {

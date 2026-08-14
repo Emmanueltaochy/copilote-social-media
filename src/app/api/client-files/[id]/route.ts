@@ -9,21 +9,22 @@ import { absolutePath } from "@/lib/storage";
 /**
  * Sert une pièce jointe après contrôle d'accès.
  *
- * Ces fichiers sont contractuels : contrats, devis, chartes. Ils ne sont donc
- * accessibles qu'aux comptes internes — un contact client n'a pas à lire le
- * contrat d'une autre marque, ni le sien depuis son portail, où rien ne les
- * affiche.
+ * Le dossier d'un client est partagé avec lui : depuis son portail il y dépose
+ * ses fichiers et relit ceux qu'on lui a laissés. Il n'accède qu'au sien —
+ * l'appartenance est vérifiée sur le fichier, jamais sur un paramètre.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || user.role === "client") {
-    return new Response("Non autorisé", { status: 403 });
-  }
+  if (!user) return new Response("Non autorisé", { status: 401 });
 
   const { id } = await params;
   const rows = await db.select().from(clientFiles).where(eq(clientFiles.id, id)).limit(1);
   const file = rows[0];
   if (!file) return new Response("Introuvable", { status: 404 });
+
+  if (user.role === "client" && user.clientId !== file.clientId) {
+    return new Response("Non autorisé", { status: 403 });
+  }
 
   let size: number;
   let absolute: string;

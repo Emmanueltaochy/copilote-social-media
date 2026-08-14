@@ -2,13 +2,13 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { listClientOptions } from "@/db/queries";
 import { ContentForm } from "./ContentForm";
 import { createContent } from "./actions";
 
 export default async function NouveauContenuPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const clients = await listClientOptions();
 
   if (clients.length === 0) {

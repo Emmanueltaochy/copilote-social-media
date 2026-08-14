@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { assetCountsByClient, assetsFootprint, listAssets, listClientOptions } from "@/db/queries";
 import {
   diskUsage,
@@ -50,7 +50,7 @@ export default async function AssetsPage({
 }: {
   searchParams: Promise<{ client?: string }>;
 }) {
-  await requireStaff();
+  await requireDepartment("social");
   const [{ client: demandé }, clients, counts, footprint, disk] = await Promise.all([
     searchParams,
     listClientOptions(),

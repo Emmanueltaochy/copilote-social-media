@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { Avatar, Eyebrow, StatusPill } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { getShoot, listGearPresets, listStaff } from "@/db/queries";
 import { durationHours, readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel } from "@/data/shoot";
 import { isVideo } from "@/lib/storage";
@@ -33,7 +33,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ShootPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireStaff();
+  const user = await requireDepartment("social");
   const { id } = await params;
 
   const [data, staff, presets] = await Promise.all([

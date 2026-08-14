@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 
 /**
  * La version terrain.
@@ -21,7 +21,7 @@ const ONGLETS = [
 ];
 
 export default async function TerrainLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireStaff();
+  const user = await requireDepartment("social");
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">

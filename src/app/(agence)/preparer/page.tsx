@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/Screen";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { db, clients } from "@/db";
 import { moisDepuis, moisEnCode, moisEnTexte, planDuMois } from "@/lib/plan";
 import { Preparateur, type PlanVue } from "./Preparateur";
@@ -20,7 +20,7 @@ export default async function PreparerPage({
 }: {
   searchParams: Promise<{ mois?: string }>;
 }) {
-  await requireStaff();
+  await requireDepartment("social");
   const { mois: demandé } = await searchParams;
   const mois = moisDepuis(demandé);
 

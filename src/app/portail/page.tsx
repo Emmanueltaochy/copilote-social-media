@@ -13,6 +13,17 @@ import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { isVideo } from "@/lib/storage";
 import { ValidationCard } from "./ValidationCard";
 import { toneText } from "@/lib/tone";
+import {
+  actionsDuClient,
+  fichiersDuClient,
+  jalonsVisibles,
+  projetsDuClient,
+  reglages,
+} from "@/db/web-queries";
+import { WEB_PHASE, PROJECT_TYPE } from "@/data/web";
+import { brands } from "@/db/schema";
+import { formatBytes } from "@/lib/storage";
+import { BoutonRetirer, CharteClient, DepotFichiers } from "./EspaceWeb";
 
 export const dynamic = "force-dynamic";
 
@@ -84,14 +95,35 @@ export default async function PortailPage() {
   // validation à l'aveugle.
   const links = await linksFor(waiting.map((w) => w.content.id));
 
+  // Le pôle web : ce qu'on attend du client, ses projets, ses fichiers, sa
+  // charte. Tout est chargé même s'il n'a pas de projet — les sections vides ne
+  // s'affichent pas, mais le dépôt de fichiers et la charte servent aux deux
+  // métiers.
+  const [config, actions, projets, fichiers, charteRows] = await Promise.all([
+    reglages(),
+    actionsDuClient(client.id),
+    projetsDuClient(client.id),
+    fichiersDuClient(client.id),
+    db.select().from(brands).where(eq(brands.clientId, client.id)).limit(1),
+  ]);
+  const charte = charteRows[0];
+  const jalonsParProjet = new Map<string, Awaited<ReturnType<typeof jalonsVisibles>>>();
+  for (const p of projets) jalonsParProjet.set(p.project.id, await jalonsVisibles(p.project.id));
+
   const p = pace(published.length, client.contentTarget);
 
   return (
     <main className="min-h-screen bg-canvas">
-      <div className="flex items-center justify-between gap-4 bg-night px-6 py-3">
+      {/* Le bandeau prend les couleurs réglées par l'agence : le portail est un
+          prolongement de sa marque, pas un outil générique où le client se
+          demande chez qui il est. */}
+      <div
+        className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6"
+        style={{ background: config.darkColor }}
+      >
         <span className="flex items-center gap-[10px]">
-          <span className="h-2 w-2 rounded-[2px] bg-gold" />
-          <Eyebrow className="text-paper">Taochy Consulting</Eyebrow>
+          <span className="h-2 w-2 rounded-[2px]" style={{ background: config.primaryColor }} />
+          <Eyebrow className="text-paper">{config.agencyName}</Eyebrow>
         </span>
         <form action={logout}>
           <button
@@ -274,8 +306,159 @@ export default async function PortailPage() {
           </Card>
         ) : null}
 
+        {actions.length > 0 ? (
+          <Card>
+            <div className="border-b border-line px-4 py-5 sm:px-6">
+              <span className="text-title font-semibold">Ce que nous attendons de vous</span>
+              <p className="mt-1 text-base text-ink-2">
+                Tant que ces points ne sont pas réglés, le projet reste en attente de votre côté.
+              </p>
+            </div>
+            {actions.map((a) => (
+              <a
+                key={a.id}
+                href={a.href}
+                className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 no-underline hover:bg-canvas hover:no-underline sm:px-6"
+              >
+                <span
+                  className="h-2 w-2 flex-none rounded-full"
+                  style={{ background: a.urgent ? config.primaryColor : "#C9C6BF" }}
+                />
+                <span className="flex min-w-[180px] flex-1 flex-col">
+                  <span className="clip text-lead font-medium text-ink">{a.titre}</span>
+                  <span className="clip text-small text-ink-3">{a.detail}</span>
+                </span>
+                <span className="flex-none text-base" style={{ color: config.primaryColor }}>
+                  Ouvrir →
+                </span>
+              </a>
+            ))}
+          </Card>
+        ) : null}
+
+        {projets.length > 0 ? (
+          // L'ancre sert aux liens « ce qu'on attend de vous » : ils mènent au
+          // projet concerné plutôt qu'en haut d'une page qu'il faut parcourir.
+          <div id="projets">
+          <Card>
+            <div className="border-b border-line px-4 py-5 sm:px-6">
+              <span className="text-title font-semibold">Vos projets web</span>
+            </div>
+            {projets.map(({ project, jalons, jalonsFaits }) => {
+              const liste = jalonsParProjet.get(project.id) ?? [];
+              return (
+                <div key={project.id} className="flex flex-col gap-3 border-b border-line px-4 py-5 sm:px-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="eyebrow text-ink-3">
+                        {PROJECT_TYPE[project.type]?.label ?? project.type}
+                      </span>
+                      <span className="text-lead font-medium">{project.name}</span>
+                    </span>
+                    <span className="text-base text-ink-3">
+                      {WEB_PHASE[project.phase]?.label}
+                      {project.dueAt
+                        ? ` · mise en ligne prévue le ${project.dueAt.toLocaleDateString("fr-FR")}`
+                        : ""}
+                    </span>
+                  </div>
+
+                  {Number(jalons) > 0 ? (
+                    <span className="flex items-center gap-3">
+                      <span className="h-[6px] flex-1 overflow-hidden rounded-full bg-slot">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${Math.round((Number(jalonsFaits) / Number(jalons)) * 100)}%`,
+                            background: config.primaryColor,
+                          }}
+                        />
+                      </span>
+                      <span className="flex-none text-small tabular-nums text-ink-2">
+                        {jalonsFaits}/{jalons}
+                      </span>
+                    </span>
+                  ) : null}
+
+                  {liste.length > 0 ? (
+                    <div className="flex flex-col gap-[3px]">
+                      {liste.map((j) => (
+                        <span key={j.id} className="flex items-center gap-2 text-base">
+                          <span className={j.done ? "text-ok" : "text-ink-3"}>
+                            {j.done ? "✓" : "○"}
+                          </span>
+                          <span className={j.done ? "text-ink-3 line-through" : "text-ink-2"}>
+                            {j.label}
+                          </span>
+                          {!j.done && j.waitingClient ? (
+                            <span className="text-small text-warn">— nous attendons votre retour</span>
+                          ) : null}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </Card>
+          </div>
+        ) : null}
+
+        <Card>
+          <div className="border-b border-line px-4 py-5 sm:px-6">
+            <span className="text-title font-semibold">Vos fichiers</span>
+            <p className="mt-1 text-base text-ink-2">
+              Déposez ici tout ce dont nous avons besoin : logo, photos, textes, documents.
+            </p>
+          </div>
+          <DepotFichiers clientId={client.id} accent={config.primaryColor} />
+          {fichiers.length > 0 ? (
+            <div className="flex flex-col">
+              {fichiers.map(({ file, auteur }) => {
+                const àMoi = file.uploadedById === user.id;
+                return (
+                <div
+                  key={file.id}
+                  className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 sm:px-6"
+                >
+                  <a
+                    href={`/api/client-files/${file.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="clip min-w-[160px] flex-1 text-base"
+                  >
+                    {file.filename}
+                  </a>
+                  <span className="flex-none text-small text-ink-3">
+                    {formatBytes(file.sizeBytes)} ·{" "}
+                    {àMoi ? "déposé par vous" : auteur ? `déposé par ${auteur}` : "déposé par l'agence"}
+                  </span>
+                  {àMoi ? <BoutonRetirer id={file.id} /> : null}
+                </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </Card>
+
+        <Card>
+          <div className="border-b border-line px-4 py-5 sm:px-6">
+            <span className="text-title font-semibold">Votre charte graphique</span>
+            <p className="mt-1 text-base text-ink-2">
+              Remplissez ce que vous savez — nous complétons le reste. C&apos;est le même document
+              des deux côtés.
+            </p>
+          </div>
+          <CharteClient
+            couleurs={charte?.palette ?? []}
+            polices={charte?.fonts ?? null}
+            ton={charte?.voice ?? null}
+            accent={config.primaryColor}
+          />
+        </Card>
+
         <p className="pb-6 text-base text-ink-3">
-          Une question sur le planning ? Écrivez à votre cheffe de projet.
+          {config.portalWelcome ?? "Une question ? Écrivez à votre interlocuteur habituel."}
         </p>
       </div>
     </main>

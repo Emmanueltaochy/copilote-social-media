@@ -21,6 +21,10 @@ export type SessionUser = {
   initials: string;
   /** Adresse de sa photo de profil, ou null : les initiales prennent le relais. */
   avatar: string | null;
+  /** Les pôles auxquels la personne a accès : « social », « web », ou les deux. */
+  departments: ("social" | "web")[];
+  /** Le pôle affiché en ce moment. */
+  pole: "social" | "web";
 };
 
 type AppState = {

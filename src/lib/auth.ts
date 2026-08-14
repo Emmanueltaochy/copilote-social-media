@@ -115,6 +115,44 @@ export async function requireStaff(): Promise<User> {
   return user;
 }
 
+/* ------------------------------------------------------------------ pôles -- */
+
+export type Department = "social" | "web";
+
+/**
+ * Les pôles auxquels quelqu'un a accès.
+ *
+ * La direction a les deux, toujours : c'est elle qui arbitre entre les deux
+ * métiers, et lui retirer un pôle reviendrait à lui cacher la moitié de
+ * l'agence. Un compte sans pôle renseigné retombe sur le social — c'est ce
+ * qu'avaient tous les comptes avant que le web n'existe.
+ */
+export function departmentsOf(user: Pick<User, "role" | "departments">): Department[] {
+  if (user.role === "direction") return ["social", "web"];
+  const liste = (user.departments ?? []).filter(
+    (d): d is Department => d === "social" || d === "web",
+  );
+  return liste.length > 0 ? liste : ["social"];
+}
+
+export const hasDepartment = (
+  user: Pick<User, "role" | "departments">,
+  pole: Department,
+): boolean => departmentsOf(user).includes(pole);
+
+/**
+ * Exige l'accès à un pôle.
+ *
+ * Renvoyer vers l'autre pôle plutôt que vers une page d'erreur : quelqu'un du
+ * web qui ouvre un lien social s'est trompé de lien, il n'a pas commis de
+ * faute.
+ */
+export async function requireDepartment(pole: Department): Promise<User> {
+  const user = await requireStaff();
+  if (!hasDepartment(user, pole)) redirect(pole === "web" ? "/" : "/web");
+  return user;
+}
+
 /** Réservé à la direction : coûts internes, marges, arbitrages. */
 export async function requireDirection(): Promise<User> {
   const user = await requireStaff();

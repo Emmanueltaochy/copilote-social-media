@@ -41,6 +41,22 @@ export function InviteForm() {
         </select>
       </label>
 
+      <label className="flex flex-col gap-[6px]">
+        <span className="eyebrow text-ink-3">Pôles</span>
+        {/* Le pôle décide de l'outil qu'on ouvre en arrivant. Le choisir à
+            l'invitation évite d'accueillir quelqu'un sur le mauvais métier. */}
+        <span className="flex items-center gap-3 rounded-control border border-line bg-paper px-3 py-2">
+          <label className="flex cursor-pointer items-center gap-[6px] text-base">
+            <input type="checkbox" name="departments" value="social" defaultChecked className="h-[15px] w-[15px] accent-ink" />
+            Social
+          </label>
+          <label className="flex cursor-pointer items-center gap-[6px] text-base">
+            <input type="checkbox" name="departments" value="web" className="h-[15px] w-[15px] accent-ink" />
+            Web
+          </label>
+        </span>
+      </label>
+
       <button
         type="submit"
         disabled={pending}

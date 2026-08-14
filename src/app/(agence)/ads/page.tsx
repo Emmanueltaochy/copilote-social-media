@@ -4,7 +4,7 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { PacingBar } from "@/components/ui/PacingBar";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { listCampaignsWithTotals, listClientOptions } from "@/db/queries";
 import { euroFromCents, monthLabel, monthProgressLabel } from "@/lib/pacing";
 import { budgetPace, CAMPAIGN_STATUS, derive, money, times } from "@/lib/ads";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * l'engagement en contenus — seule la lecture de l'écart change de sens.
  */
 export default async function AdsPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, rows] = await Promise.all([listClientOptions(), listCampaignsWithTotals()]);
 
   if (clients.length === 0) {

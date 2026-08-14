@@ -742,6 +742,7 @@ export async function listTeam(now: Date = new Date()) {
       initials: users.initials,
       avatarPath: users.avatarPath,
       role: users.role,
+      departments: users.departments,
       active: users.active,
       inviteToken: users.inviteToken,
       inviteExpiresAt: users.inviteExpiresAt,

@@ -61,6 +61,12 @@ export const users = pgTable(
      * un accès dont on n'a plus besoin.
      */
     accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }),
+    /**
+     * Les pôles auxquels la personne appartient : « social », « web », ou les
+     * deux. Vide = social, pour que les comptes créés avant l'arrivée du pôle
+     * web gardent exactement l'outil qu'ils avaient.
+     */
+    departments: jsonb("departments").$type<string[]>().notNull().default([]),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -818,3 +824,193 @@ export const messages = pgTable(
   },
   (t) => [index("messages_conversation_idx").on(t.conversationId, t.createdAt)],
 );
+
+/* ============================================================== pôle web == */
+
+/**
+ * Le pôle auquel une personne appartient.
+ *
+ * L'agence fait deux métiers qui n'ont ni le même rythme ni les mêmes écrans :
+ * le social se pilote au mois et se compte en contenus ; le web se pilote au
+ * projet et se compte en jalons. Mélanger les deux dans une seule navigation
+ * obligerait chacun à traverser le travail de l'autre pour trouver le sien.
+ *
+ * Ce n'est pas un niveau de droits — celui-là reste `users.role`. C'est le
+ * métier qu'on exerce, et on peut en exercer deux.
+ */
+export const DEPARTMENTS = ["social", "web"] as const;
+export type Department = (typeof DEPARTMENTS)[number];
+
+/**
+ * Ce que l'agence vend côté web.
+ *
+ * Le type n'est pas décoratif : il décide du brief proposé et des jalons
+ * attendus. Une boutique demande des fiches produits et un moyen de paiement,
+ * une landing page n'en demande aucun.
+ */
+export const webProjectType = pgEnum("web_project_type", [
+  "vitrine",
+  "ecommerce",
+  "landing",
+  "location",
+  "refonte",
+  "autre",
+]);
+
+/**
+ * Les étapes d'un projet web, dans l'ordre où elles arrivent.
+ *
+ * Elles suivent la réalité d'une agence : on ne maquette pas sans brief, on
+ * n'intègre pas sans maquette validée, et on ne met pas en ligne sans recette.
+ * « Contenus » existe à part parce que c'est l'étape où l'on attend le client —
+ * la confondre avec l'intégration fait croire que le retard vient de nous.
+ */
+export const webPhase = pgEnum("web_phase", [
+  "cadrage",
+  "brief",
+  "maquette",
+  "integration",
+  "contenus",
+  "recette",
+  "en_ligne",
+  "maintenance",
+]);
+
+export const webProjects = pgTable(
+  "web_projects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: webProjectType("type").notNull().default("vitrine"),
+    phase: webPhase("phase").notNull().default("cadrage"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    /** Montant vendu, en centimes. Zéro = pas encore chiffré. */
+    priceCents: integer("price_cents").notNull().default(0),
+    /** Mise en ligne visée. C'est la date que le client retient. */
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    launchedAt: timestamp("launched_at", { withTimezone: true }),
+    domain: text("domain"),
+    hosting: text("hosting"),
+    stack: text("stack"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("web_projects_client_idx").on(t.clientId), index("web_projects_phase_idx").on(t.phase)],
+);
+
+/**
+ * Les jalons d'un projet.
+ *
+ * Un projet web se tient par ses jalons, pas par un pourcentage : « maquette
+ * accueil validée » se vérifie, « 60 % » ne se vérifie pas. Ceux marqués
+ * `clientVisible` apparaissent dans le portail — le client voit où l'on en est
+ * sans avoir à le demander.
+ */
+export const webMilestones = pgTable(
+  "web_milestones",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => webProjects.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    done: boolean("done").notNull().default(false),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** Le jalon attend une réponse du client, pas de l'agence. */
+    waitingClient: boolean("waiting_client").notNull().default(false),
+    clientVisible: boolean("client_visible").notNull().default(true),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("web_milestones_project_idx").on(t.projectId)],
+);
+
+/* ------------------------------------------------------------------ brief -- */
+
+export const briefStatus = pgEnum("brief_status", ["brouillon", "envoye", "en_cours", "complete"]);
+
+export const briefFieldKind = pgEnum("brief_field_kind", [
+  "texte",
+  "long",
+  "choix",
+  "oui_non",
+  "url",
+  "nombre",
+]);
+
+/**
+ * Un brief : les questions qu'on pose avant de commencer.
+ *
+ * Il vit à part du projet parce qu'il a sa propre vie : on l'écrit, on
+ * l'envoie, le client le remplit à son rythme, et l'agence complète ce qu'il a
+ * laissé de côté. Les deux écrivent au même endroit — un brief recopié d'un
+ * e-mail dans un document devient faux dès la première précision.
+ */
+export const briefs = pgTable(
+  "briefs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => webProjects.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    intro: text("intro"),
+    status: briefStatus("status").notNull().default("brouillon"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("briefs_client_idx").on(t.clientId)],
+);
+
+export const briefFields = pgTable(
+  "brief_fields",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    briefId: uuid("brief_id")
+      .notNull()
+      .references(() => briefs.id, { onDelete: "cascade" }),
+    section: text("section").notNull(),
+    label: text("label").notNull(),
+    /** Une phrase d'aide : c'est elle qui fait la différence entre une réponse utile et « oui ». */
+    help: text("help"),
+    kind: briefFieldKind("kind").notNull().default("texte"),
+    /** Pour les questions à choix : les options, dans l'ordre. */
+    options: jsonb("options").$type<string[]>().notNull().default([]),
+    required: boolean("required").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    /** La réponse. Vide tant que personne n'a répondu. */
+    answer: text("answer"),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    /** Qui a répondu : un compte interne, ou le client (vide). */
+    answeredById: uuid("answered_by_id").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("brief_fields_brief_idx").on(t.briefId)],
+);
+
+/* -------------------------------------------------- réglages de l'agence -- */
+
+/**
+ * Les réglages de l'agence, en une seule ligne.
+ *
+ * Une table à une ligne plutôt qu'un fichier de configuration : le portail
+ * client porte les couleurs de l'agence, et ces couleurs doivent pouvoir
+ * changer sans redéployer. La clé fixe garantit qu'il n'y en aura jamais deux.
+ */
+export const settings = pgTable("settings", {
+  id: text("id").primaryKey().default("agence"),
+  agencyName: text("agency_name").notNull().default("Taochy Consulting"),
+  /** Couleur d'accent du portail client, en hexadécimal. */
+  primaryColor: text("primary_color").notNull().default("#B08D3F"),
+  /** Fond des bandeaux du portail. */
+  darkColor: text("dark_color").notNull().default("#121212"),
+  logoPath: text("logo_path"),
+  portalWelcome: text("portal_welcome"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

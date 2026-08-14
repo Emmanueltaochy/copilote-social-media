@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { PacingBar } from "@/components/ui/PacingBar";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { getCampaign } from "@/db/queries";
 import { euroFromCents, fr, monthRange } from "@/lib/pacing";
 import {
@@ -26,7 +26,7 @@ import { addAdSet, deleteCampaign, removeAdSet, removeMetrics, updateCampaign } 
 export const dynamic = "force-dynamic";
 
 export default async function CampaignPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  await requireDepartment("social");
   const { id } = await params;
 
   const data = await getCampaign(id);

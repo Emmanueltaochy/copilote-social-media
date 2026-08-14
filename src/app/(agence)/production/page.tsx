@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
 import { Cover } from "@/components/ui/Cover";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { coversFor, listClientsWithPace, listPipeline, listStaff } from "@/db/queries";
 import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS } from "@/data/content";
 import { monthLabel } from "@/lib/pacing";
@@ -13,7 +13,7 @@ import { AssignPicker } from "./AssignPicker";
 export const dynamic = "force-dynamic";
 
 export default async function ProductionPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const [clients, rows, staff] = await Promise.all([
     listClientsWithPace(),
     listPipeline(),

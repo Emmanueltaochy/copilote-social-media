@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { byUrgency, listClientsWithPace } from "@/db/queries";
 import { fr, monthLabel, monthProgressLabel } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 const COLS = "minmax(180px,1fr) minmax(160px,1fr) 96px 96px 96px 120px";
 
 export default async function AvancementPage() {
-  await requireStaff();
+  await requireDepartment("social");
   const clients = byUrgency(await listClientsWithPace());
   const engaged = clients.filter((c) => c.contentTarget > 0);
 

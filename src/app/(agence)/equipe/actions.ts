@@ -62,6 +62,15 @@ export async function inviteTeammate(
     email,
     initials: initialsFrom(name),
     role: role as (typeof ROLES)[number],
+    // Les pôles cochés à l'invitation, le social par défaut : c'est le métier
+    // historique, et un compte sans pôle n'ouvrirait aucun outil.
+    departments: (() => {
+      const cochés = formData
+        .getAll("departments")
+        .map(String)
+        .filter((d) => d === "social" || d === "web");
+      return cochés.length > 0 ? cochés : ["social"];
+    })(),
     inviteToken: randomBytes(32).toString("base64url"),
     // Une invitation qui traîne est une porte ouverte : elle expire.
     inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
@@ -175,6 +184,35 @@ export async function setAccessDuration(formData: FormData): Promise<void> {
   await db
     .update(users)
     .set({ accessExpiresAt: expiryFrom(duration) })
+    .where(eq(users.id, id));
+
+  revalidatePath("/equipe");
+}
+
+/**
+ * Attribue les pôles d'une personne.
+ *
+ * C'est ce qui décide de l'outil qu'elle ouvre en arrivant : le pilotage
+ * social, le suivi des projets web, ou les deux avec une bascule. La direction
+ * n'est pas concernée — elle a les deux par construction, et lui retirer un
+ * pôle reviendrait à lui cacher la moitié de l'agence.
+ *
+ * Aucun pôle coché revient à retirer l'accès à l'outil : on retombe alors sur
+ * le social, qui est ce que tout le monde avait avant que le web n'existe.
+ */
+export async function setDepartments(formData: FormData): Promise<void> {
+  await requireDirection();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const cochés = formData
+    .getAll("departments")
+    .map(String)
+    .filter((d) => d === "social" || d === "web");
+
+  await db
+    .update(users)
+    .set({ departments: cochés.length > 0 ? cochés : ["social"] })
     .where(eq(users.id, id));
 
   revalidatePath("/equipe");

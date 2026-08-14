@@ -8,6 +8,13 @@ import { Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireStaff, canSeeMoney } from "@/lib/auth";
 import { getClientWithPace, listContractLines } from "@/db/queries";
 import { CONTENT_KIND, networksLabel } from "@/data/content";
+import { BRIEF_STATUS, PROJECT_TYPE, WEB_PHASE } from "@/data/web";
+import { listBriefs, listWebProjects } from "@/db/web-queries";
+import { BriefLauncher } from "../../web/BriefLauncher";
+import { CharteClient } from "@/app/portail/EspaceWeb";
+import { brands } from "@/db/schema";
+import { db } from "@/db";
+import { eq } from "drizzle-orm";
 import { ContractLineForm } from "../ContractLineForm";
 import { euroFromCents, fr, monthLabel } from "@/lib/pacing";
 import { ClientForm } from "../ClientForm";
@@ -31,11 +38,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const client = await getClientWithPace(id);
   if (!client) notFound();
 
-  const [lines, access, files] = await Promise.all([
+  const [lines, access, files, projetsWeb, briefsDuClient, charteRows] = await Promise.all([
     listContractLines(id),
     listClientAccess(id),
     listClientFiles(id),
+    listWebProjects(id),
+    listBriefs({ clientId: id }),
+    db.select().from(brands).where(eq(brands.clientId, id)).limit(1),
   ]);
+  const charte = charteRows[0];
   const { pace } = client;
 
   // Adresse publique du site, telle que le navigateur l'a demandée. Derrière
@@ -222,6 +233,74 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ) : null}
 
             <ClientAccessForm clientId={client.id} />
+          </Card>
+
+          {/* La charte graphique, écrite des deux côtés. Le client renseigne ce
+              qu'il sait depuis son portail, l'agence complète ici : c'est le
+              même document, pas deux versions à réconcilier ensuite. */}
+          <Card>
+            <CardHead title="Charte graphique" meta="partagée avec le client" />
+            <CharteClient
+              clientId={client.id}
+              couleurs={charte?.palette ?? []}
+              polices={charte?.fonts ?? null}
+              ton={charte?.voice ?? null}
+              accent="#121212"
+            />
+          </Card>
+
+          {/* Le pôle web depuis la fiche : c'est ici qu'on est quand on décide
+              de lancer un site pour un client, et non sur le tableau des
+              projets. */}
+          <Card>
+            <CardHead title="Web" meta={projetsWeb.length ? `${projetsWeb.length} projet${projetsWeb.length > 1 ? "s" : ""}` : undefined} />
+            {projetsWeb.map(({ project }) => (
+              <Link
+                key={project.id}
+                href={`/web/${project.id}`}
+                className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
+              >
+                <span className="clip min-w-0 flex-1 text-base font-medium text-ink">
+                  {project.name}
+                </span>
+                <span className="flex-none text-small text-ink-3">
+                  {PROJECT_TYPE[project.type]?.short ?? project.type} · {WEB_PHASE[project.phase]?.label}
+                </span>
+              </Link>
+            ))}
+
+            {briefsDuClient.length > 0 ? (
+              <div className="flex flex-col">
+                {briefsDuClient.map(({ brief, total, remplis }) => (
+                  <Link
+                    key={brief.id}
+                    href={`/web/briefs/${brief.id}`}
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px] no-underline hover:bg-canvas hover:no-underline"
+                  >
+                    <span className="clip min-w-0 flex-1 text-base text-ink-2">{brief.title}</span>
+                    <span className="flex-none text-small tabular-nums text-ink-3">
+                      {remplis}/{total} réponses
+                    </span>
+                    <StatusPill tone={BRIEF_STATUS[brief.status].tone}>
+                      {BRIEF_STATUS[brief.status].label}
+                    </StatusPill>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="px-[14px] py-3">
+              <BriefLauncher
+                clientId={client.id}
+                type="vitrine"
+                defaultTitle={`Brief web — ${client.shortName}`}
+              />
+              <p className="mt-2 text-small text-ink-3">
+                Un brief créé ici n&apos;est rattaché à aucun projet : utile pour cadrer une
+                demande avant de savoir ce qu&apos;on vend. Depuis un projet, les questions
+                s&apos;adaptent à son type.
+              </p>
+            </div>
           </Card>
 
           <Card className="flex items-center justify-between gap-4 p-5">

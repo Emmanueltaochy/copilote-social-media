@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { NAV } from "@/data/nav";
+import { NAV_WEB } from "@/data/nav-web";
+import { changerDePole } from "@/app/(agence)/pole-actions";
 import { ALL_CLIENTS, useApp } from "@/state/app";
 import { Avatar, Dot } from "@/components/ui/primitives";
 import { logout } from "@/app/connexion/actions";
@@ -29,7 +31,8 @@ export function Sidebar({
   const { scope, setScope, setPortalOpen, clients, user, navOpen, setNavOpen } = useApp();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
-  const nav = NAV.filter((item) => !item.directionOnly || user.role === "direction");
+  const menu = user.pole === "web" ? NAV_WEB : NAV;
+  const nav = menu.filter((item) => !item.directionOnly || user.role === "direction");
 
   // La bibliothèque filtre pour de vrai, côté serveur, et son filtre vit dans
   // l'URL. Sur cet écran c'est donc l'URL qui fait foi : sans ça le sélecteur
@@ -95,6 +98,31 @@ export function Sidebar({
             </button>
           </span>
         </div>
+
+        {/* La bascule entre les deux métiers de l'agence. Elle n'apparaît que
+            pour qui exerce les deux : un seul onglet à cliquer n'aide personne
+            et occupe la place d'autre chose. */}
+        {user.departments.length > 1 ? (
+          <form action={changerDePole} className="flex gap-1 rounded-control bg-night-2 p-[3px]">
+            {(["social", "web"] as const).map((p) => (
+              <button
+                key={p}
+                type="submit"
+                name="pole"
+                value={p}
+                aria-current={user.pole === p}
+                className={cn(
+                  "flex-1 cursor-pointer rounded-[5px] border-none px-2 py-[5px] text-small font-medium",
+                  user.pole === p
+                    ? "bg-paper text-ink"
+                    : "bg-transparent text-night-ink hover:text-paper",
+                )}
+              >
+                {p === "social" ? "Social" : "Web"}
+              </button>
+            ))}
+          </form>
+        ) : null}
 
       {/* Le filtre client suit l'utilisateur d'un écran à l'autre. */}
       <div className="relative">

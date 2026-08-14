@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/primitives";
 import { PacingBar } from "@/components/ui/PacingBar";
-import { requireStaff } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { getClientWithPace, monthlyReport } from "@/db/queries";
 import { euroFromCents, fr, monthLabel, monthProgressLabel } from "@/lib/pacing";
 import { derive, money, percent, sumTotals, times } from "@/lib/ads";
@@ -36,7 +36,7 @@ const NETWORK: Record<string, string> = {
  * relever.
  */
 export default async function RapportPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  await requireDepartment("social");
   const { id } = await params;
 
   const client = await getClientWithPace(id);
