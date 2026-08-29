@@ -592,3 +592,88 @@ export async function storeAvatar(file: IncomingFile, userId: string): Promise<s
     await unlink(tmpPath).catch(() => {});
   }
 }
+
+export const MAX_BRANDING_BYTES = 25 * 1024 * 1024; // 25 Mo
+
+/**
+ * Enregistre une image de marque : le logo, ou le visuel des pages de connexion.
+ *
+ * Les deux sont servis à des visiteurs non connectés, sur la page qu'ils voient
+ * avant tout le reste : ils doivent être légers. Le logo est réduit sans être
+ * recadré — un logo tronqué ne serait plus un logo — et gardé en WebP avec sa
+ * transparence. Le visuel, lui, remplit une colonne d'écran ou un fond de
+ * téléphone : il est recadré au format portrait, celui qui convient aux deux.
+ */
+export async function storeBranding(
+  file: IncomingFile,
+  kind: "logo" | "cover",
+): Promise<string> {
+  const mime = resolveMime(file.mimeType, file.filename);
+  if (!isImage(mime)) {
+    throw new UploadError("Une image : JPEG, PNG, HEIC ou WebP.");
+  }
+  if (file.declaredBytes !== null && file.declaredBytes > MAX_BRANDING_BYTES) {
+    throw new UploadError(
+      `Image trop lourde (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_BRANDING_BYTES)}.`,
+    );
+  }
+
+  const dir = "marque";
+  await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
+
+  const tmpPath = path.join(tmpDir, randomUUID());
+  let received = 0;
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
+
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          if (received > MAX_BRANDING_BYTES) {
+            throw new UploadError(`Image trop lourde (plus de ${formatBytes(MAX_BRANDING_BYTES)}).`);
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
+
+    if (received === 0) throw new UploadError("Fichier vide.");
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError("Envoi interrompu. Rien n'a été enregistré, relance l'image.");
+    }
+
+    // Le nom change à chaque envoi : sans cela, le navigateur continuerait
+    // d'afficher l'ancienne image, qu'on croirait n'avoir pas su remplacer.
+    const storagePath = path.join(dir, `${kind}-${randomUUID().slice(0, 8)}.webp`);
+    const image = sharp(tmpPath, { failOn: "none" }).rotate();
+
+    if (kind === "logo") {
+      await image
+        .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 90 })
+        .toFile(path.join(MEDIA_ROOT, storagePath));
+    } else {
+      await image
+        .resize({ width: 1200, height: 1600, fit: "cover", position: "attention" })
+        .webp({ quality: 78 })
+        .toFile(path.join(MEDIA_ROOT, storagePath));
+    }
+
+    return storagePath;
+  } catch (error) {
+    if (error instanceof Error && /premature end|truncat/i.test(error.message)) {
+      throw new UploadError("Envoi interrompu : l'image est arrivée incomplète. Relance-la.");
+    }
+    if (error instanceof Error && /unsupported image format|Input file/i.test(error.message)) {
+      throw new UploadError("Cette image n'a pas pu être lue. Essaie un JPEG ou un PNG.");
+    }
+    throw error;
+  } finally {
+    await unlink(tmpPath).catch(() => {});
+  }
+}

@@ -1112,6 +1112,13 @@ export const settings = pgTable("settings", {
   /** Fond des bandeaux du portail. */
   darkColor: text("dark_color").notNull().default("#121212"),
   logoPath: text("logo_path"),
+  /**
+   * Le visuel des pages de connexion : colonne de droite sur un écran, fond
+   * derrière le formulaire sur un téléphone. Vide = un dégradé construit à
+   * partir des deux couleurs ci-dessus, qui reste aux couleurs de l'agence
+   * sans rien demander à personne.
+   */
+  coverPath: text("cover_path"),
   portalWelcome: text("portal_welcome"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

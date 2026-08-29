@@ -17,6 +17,11 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/connexion") ||
     pathname.startsWith("/bienvenue") ||
     pathname.startsWith("/invitation") ||
+    // Le logo et le visuel de la page de connexion : ils sont servis à qui n'a
+    // pas encore de session, puisqu'ils sont cette page. La route ne lit jamais
+    // un chemin dans l'adresse — elle relit celui des réglages — et ne peut
+    // donc servir que ces deux images.
+    pathname.startsWith("/api/branding") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();
@@ -44,6 +49,6 @@ export const config = {
   // le corps traverse en flux, sans copie ni plafond. Le contrôle d'accès n'y
   // perd rien : la route vérifie elle-même la session, comme toutes les autres.
   matcher: [
-    "/((?!api/upload|api/client-files|api/avatar|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!api/upload|api/client-files|api/avatar|api/branding|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 };

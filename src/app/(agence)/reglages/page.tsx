@@ -4,6 +4,7 @@ import { requireDirection } from "@/lib/auth";
 import { reglages } from "@/db/web-queries";
 import { mailConfigured } from "@/lib/mail";
 import { FormulaireReglages } from "./Formulaire";
+import { ImagesDeMarque } from "./Images";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,13 @@ export default async function ReglagesPage() {
                 darkColor={config.darkColor}
                 portalWelcome={config.portalWelcome}
               />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead title="Logo et visuel" />
+            <div className="p-[14px]">
+              <ImagesDeMarque logo={Boolean(config.logoPath)} cover={Boolean(config.coverPath)} />
             </div>
           </Card>
 

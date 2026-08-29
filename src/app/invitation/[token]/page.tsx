@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { and, eq, gt } from "drizzle-orm";
 import { db, users } from "@/db";
+import { AuthShell } from "@/components/AuthShell";
 import { InviteForm } from "./InviteForm";
 
 export const dynamic = "force-dynamic";
@@ -27,37 +28,28 @@ export default async function InvitationPage({
 
   if (!user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas p-6">
-        <div className="w-full max-w-[420px] rounded-card border border-line bg-paper p-6">
-          <h1 className="text-title font-semibold">Lien expiré</h1>
-          <p className="mt-2 text-base text-ink-2">
-            Cette invitation n&apos;est plus valable. Demandez-en une nouvelle à votre contact chez
-            Taochy Consulting.
-          </p>
-        </div>
-      </main>
+      <AuthShell
+        titre="Lien expiré"
+        sous="Cette invitation n'est plus valable."
+        bas="Les liens d'invitation ont une durée de vie limitée : c'est ce qui empêche un courriel oublié de rester une porte ouverte."
+      >
+        <p className="text-base text-ink-2">
+          Demandez-en une nouvelle à votre contact chez Taochy Consulting — elle arrive en
+          quelques secondes.
+        </p>
+      </AuthShell>
     );
   }
 
   if (user.passwordHash) redirect("/connexion");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas p-6">
-      <div className="w-full max-w-[420px]">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-[2px] bg-gold" />
-          <span className="eyebrow text-ink">Taochy Consulting</span>
-        </div>
-        <h1 className="mb-1 text-display font-semibold tracking-[-0.01em]">
-          Bienvenue {user.name}
-        </h1>
-        <p className="mb-6 text-base text-ink-2">
-          Choisissez votre mot de passe pour accéder à votre espace.
-        </p>
-        <div className="rounded-card border border-line bg-paper p-5">
-          <InviteForm token={token} />
-        </div>
-      </div>
-    </main>
+    <AuthShell
+      titre={`Bienvenue ${user.name}`}
+      sous="Choisissez votre mot de passe pour accéder à votre espace."
+      bas="Vous seul le connaissez : nous n'en gardons qu'une empreinte, illisible."
+    >
+      <InviteForm token={token} />
+    </AuthShell>
   );
 }
