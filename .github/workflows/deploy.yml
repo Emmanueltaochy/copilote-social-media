@@ -148,13 +148,34 @@ jobs:
           if [ -z "$retenue" ]; then
             echo
             echo "Aucune adresse ne répond sur le port $VPS_PORT."
-            echo "Les paquets partent et personne ne répond : quelque chose les jette en"
-            echo "silence. Un service arrêté répondrait « connexion refusée » tout de suite,"
-            echo "et le site public tourne — c'est donc le port SSH seul qui est filtré."
+
+            # Un témoin : le port du site public. S'il répond depuis ce robot
+            # alors que le 22 se tait, la machine est jointe — c'est le port
+            # SSH seul qui est filtré, et pour cette adresse-ci seulement.
+            temoin="${v4:-$v6}"
+            if timeout 12 nc -z -w 8 "$temoin" 443 >/dev/null 2>&1; then
+              echo
+              echo "Mais le port 443 de la même machine répond depuis ce robot."
+              echo "La machine est donc bien joignable : c'est le port $VPS_PORT seul qui est"
+              echo "filtré, et seulement pour l'adresse d'où part ce déploiement."
+              echo
+              echo "C'est la signature d'un bannissement fail2ban : il bloque en jetant les"
+              echo "paquets, adresse par adresse. Les robots de GitHub changent d'adresse à"
+              echo "chaque exécution, d'où un déploiement sur deux qui passe."
+              echo
+              echo "Sur la machine :  fail2ban-client status sshd"
+              echo "Pour débloquer :  fail2ban-client unban --all"
+            else
+              echo
+              echo "Le port 443 ne répond pas non plus depuis ce robot : ce n'est pas le"
+              echo "port SSH en particulier, c'est toute la machine qui est injoignable"
+              echo "d'ici. Vérifier qu'elle est allumée, et qu'aucun filtrage réseau ne"
+              echo "s'applique en amont."
+            fi
+
             echo
-            echo "À vérifier sur la machine, dans cet ordre :"
+            echo "Le reste à vérifier, si la piste ci-dessus ne donne rien :"
             echo "  ufw status                     — un pare-feu local actif ;"
-            echo "  fail2ban-client status sshd    — une adresse bannie ;"
             echo "  ss -lntp | grep :$VPS_PORT     — sshd écoute-t-il vraiment là ;"
             echo "  iptables -L INPUT -n           — une règle DROP posée à la main."
             exit 1
