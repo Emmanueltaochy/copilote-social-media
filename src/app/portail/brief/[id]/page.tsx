@@ -37,25 +37,13 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
   const manquants = champs.filter((c) => c.field.required && !(c.field.answer ?? "").trim()).length;
   const sections = [...new Set(champs.map((c) => c.field.section))];
 
+  // L'en-tête de marque et la déconnexion viennent de la coquille du portail :
+  // les répéter ici donnerait deux bandeaux empilés.
   return (
-    <main className="min-h-screen bg-canvas">
-      <div
-        className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6"
-        style={{ background: config.darkColor }}
-      >
-        <span className="flex items-center gap-[10px]">
-          <span
-            className="h-2 w-2 rounded-[2px]"
-            style={{ background: config.primaryColor }}
-          />
-          <Eyebrow className="text-paper">{config.agencyName}</Eyebrow>
-        </span>
-        <Link href="/portail" className="text-small text-night-ink no-underline hover:text-paper">
+    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
+        <Link href="/portail" className="text-base text-ink-2 no-underline hover:underline">
           ← Mon espace
         </Link>
-      </div>
-
-      <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4 p-4 sm:p-6">
         <div className="flex flex-col gap-[2px]">
           <Eyebrow>Brief</Eyebrow>
           <h1 className="text-display font-semibold tracking-[-0.01em]">{brief.title}</h1>
@@ -108,10 +96,9 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
           />
         </Card>
 
-        <p className="pb-6 text-base text-ink-3">
+        <p className="pb-2 text-base text-ink-3">
           Une question sur le questionnaire ? Répondez simplement au courriel que vous avez reçu.
         </p>
-      </div>
-    </main>
+    </div>
   );
 }

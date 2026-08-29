@@ -7,6 +7,7 @@ import {
   briefs,
   clientFiles,
   clients,
+  contents,
   settings,
   timeEntries,
   users,
@@ -303,7 +304,7 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
       id: `livrable-${l.id}`,
       titre: l.label,
       detail: `Projet ${l.projet} — à regarder et valider`,
-      href: `/portail#livrable-${l.id}`,
+      href: `/portail/valider#livrable-${l.id}`,
       urgent: true,
     });
   }
@@ -336,7 +337,7 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
         id: `jalon-${j.id}`,
         titre: j.label,
         detail: `Projet ${projet} — nous attendons votre retour`,
-        href: "/portail#projets",
+        href: "/portail/projets",
         urgent: false,
       });
     }
@@ -345,7 +346,7 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
         id: `reste-${projet}`,
         titre: `${liste.length - 2} autre${liste.length - 2 > 1 ? "s" : ""} point${liste.length - 2 > 1 ? "s" : ""} à venir sur ${projet}`,
         detail: "Ils arriveront à leur tour, inutile de tout traiter aujourd'hui",
-        href: "/portail#projets",
+        href: "/portail/projets",
         urgent: false,
       });
     }
@@ -396,6 +397,38 @@ export async function fichiersDuClient(clientId: string, partagesSeulement = fal
       ),
     )
     .orderBy(desc(clientFiles.createdAt));
+}
+
+/**
+ * De quoi remplir les pastilles de la navigation du portail.
+ *
+ * Trois nombres, une requête chacun : le client doit voir depuis n'importe
+ * quel onglet ce qui l'attend ailleurs, sans quoi la navigation par sections
+ * cacherait ce que la page unique montrait d'un coup d'œil.
+ */
+export async function compteursPortail(clientId: string) {
+  const [contenus] = await db
+    .select({ n: raw<number>`count(*)::int` })
+    .from(contents)
+    .where(and(eq(contents.clientId, clientId), eq(contents.status, "validation")));
+
+  const [livrables] = await db
+    .select({ n: raw<number>`count(*)::int` })
+    .from(webDeliverables)
+    .innerJoin(webProjects, eq(webProjects.id, webDeliverables.projectId))
+    .where(and(eq(webProjects.clientId, clientId), eq(webDeliverables.status, "en_attente")));
+
+  const [projets] = await db
+    .select({ n: raw<number>`count(*)::int` })
+    .from(webProjects)
+    .where(eq(webProjects.clientId, clientId));
+
+  return {
+    aValider: (contenus?.n ?? 0) + (livrables?.n ?? 0),
+    contenus: contenus?.n ?? 0,
+    livrables: livrables?.n ?? 0,
+    projets: projets?.n ?? 0,
+  };
 }
 
 /** Briefs qu'on attend encore, tous clients confondus. */
