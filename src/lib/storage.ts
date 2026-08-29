@@ -596,6 +596,18 @@ export async function storeAvatar(file: IncomingFile, userId: string): Promise<s
 export const MAX_BRANDING_BYTES = 25 * 1024 * 1024; // 25 Mo
 
 /**
+ * Les images de marque : un logo par pôle, et le visuel des pages d'entrée.
+ *
+ * La liste est ici et nulle part ailleurs — les routes s'y réfèrent plutôt que
+ * de répéter trois chaînes, pour qu'un nom mal orthographié dans une adresse
+ * ne serve jamais un fichier.
+ */
+export const BRANDING_KINDS = ["logo", "logo-web", "cover"] as const;
+export type BrandingKind = (typeof BRANDING_KINDS)[number];
+export const isBrandingKind = (v: string): v is BrandingKind =>
+  (BRANDING_KINDS as readonly string[]).includes(v);
+
+/**
  * Enregistre une image de marque : le logo, ou le visuel des pages de connexion.
  *
  * Les deux sont servis à des visiteurs non connectés, sur la page qu'ils voient
@@ -606,7 +618,7 @@ export const MAX_BRANDING_BYTES = 25 * 1024 * 1024; // 25 Mo
  */
 export async function storeBranding(
   file: IncomingFile,
-  kind: "logo" | "cover",
+  kind: BrandingKind,
 ): Promise<string> {
   const mime = resolveMime(file.mimeType, file.filename);
   if (!isImage(mime)) {
@@ -652,7 +664,7 @@ export async function storeBranding(
     const storagePath = path.join(dir, `${kind}-${randomUUID().slice(0, 8)}.webp`);
     const image = sharp(tmpPath, { failOn: "none" }).rotate();
 
-    if (kind === "logo") {
+    if (kind !== "cover") {
       await image
         .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
         .webp({ quality: 90 })

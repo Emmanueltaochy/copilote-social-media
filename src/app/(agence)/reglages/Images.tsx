@@ -20,7 +20,7 @@ function Champ({
   present,
   apercu,
 }: {
-  kind: "logo" | "cover";
+  kind: "logo" | "logo-web" | "cover";
   titre: string;
   aide: string;
   present: boolean;
@@ -69,9 +69,12 @@ function Champ({
       <div className="flex flex-wrap items-start gap-3">
         <div
           className={
-            kind === "logo"
-              ? "flex h-[64px] w-[120px] flex-none items-center justify-center overflow-hidden rounded-card border border-line bg-canvas"
-              : "h-[96px] w-[72px] flex-none overflow-hidden rounded-card border border-line bg-canvas"
+            kind === "cover"
+              ? "h-[96px] w-[72px] flex-none overflow-hidden rounded-card border border-line bg-canvas"
+              : // Fond sombre pour les logos : ils s'affichent sur le bandeau
+                // du portail et sur le visuel de connexion, tous deux foncés.
+                // Un logo blanc sur fond blanc paraîtrait manquant.
+                "flex h-[64px] w-[120px] flex-none items-center justify-center overflow-hidden rounded-card border border-line bg-night"
           }
         >
           {present ? (
@@ -80,7 +83,7 @@ function Champ({
             <img
               src={`${apercu}?v=${version}`}
               alt={titre}
-              className={kind === "logo" ? "max-h-full max-w-full object-contain" : "h-full w-full object-cover"}
+              className={kind === "cover" ? "h-full w-full object-cover" : "max-h-full max-w-full object-contain"}
             />
           ) : (
             <span className="text-micro text-ink-3">aucun</span>
@@ -127,15 +130,30 @@ function Champ({
   );
 }
 
-export function ImagesDeMarque({ logo, cover }: { logo: boolean; cover: boolean }) {
+export function ImagesDeMarque({
+  logo,
+  logoWeb,
+  cover,
+}: {
+  logo: boolean;
+  logoWeb: boolean;
+  cover: boolean;
+}) {
   return (
     <div className="flex flex-col">
       <Champ
         kind="logo"
-        titre="Logo"
-        aide="Affiché sur les pages de connexion et dans l'en-tête du portail client. Un fichier à fond transparent (PNG ou WebP) rend mieux sur les deux fonds."
+        titre="Logo — pôle réseaux sociaux"
+        aide="Signe le portail des clients qui achètent du social. Un fichier à fond transparent (PNG ou WebP) rend mieux : il s'affiche sur un bandeau foncé."
         present={logo}
         apercu="/api/branding/logo"
+      />
+      <Champ
+        kind="logo-web"
+        titre="Logo — pôle web"
+        aide="Signe le portail des clients web. Laissé vide, c'est le logo ci-dessus qui sert partout — deux marques ne sont pas obligatoires."
+        present={logoWeb}
+        apercu="/api/branding/logo-web"
       />
       <Champ
         kind="cover"
@@ -144,6 +162,11 @@ export function ImagesDeMarque({ logo, cover }: { logo: boolean; cover: boolean 
         present={cover}
         apercu="/api/branding/cover"
       />
+      <p className="border-t border-line pt-3 text-small text-ink-3">
+        Les deux logos apparaissent côte à côte sur les écrans de connexion :
+        on y ignore encore qui se connecte, et la maison porte les deux marques.
+        Passé la connexion, chacun ne voit que la sienne.
+      </p>
     </div>
   );
 }

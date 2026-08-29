@@ -22,6 +22,21 @@ export default async function PortailLayout({ children }: { children: React.Reac
   const { user, client, config } = await contextePortail();
   const compteurs = await compteursPortail(client.id);
 
+  /*
+   * La marque du pôle qui sert ce client.
+   *
+   * Un client venu pour son site n'a pas à voir la signature du pôle réseaux
+   * sociaux : ce n'est pas ce qu'il a acheté. Un client qui prend les deux
+   * garde la marque historique, celle sous laquelle la relation a commencé.
+   * Sans second logo réglé, tout le monde voit le premier.
+   */
+  const poles = client.departments?.length ? client.departments : ["social"];
+  const logo = !poles.includes("social") && poles.includes("web") && config.logoWebPath
+    ? "/api/branding/logo-web"
+    : config.logoPath
+      ? "/api/branding/logo"
+      : null;
+
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
       {/* Le bandeau prend les couleurs réglées par l'agence : le portail est un
@@ -30,11 +45,11 @@ export default async function PortailLayout({ children }: { children: React.Reac
       <header style={{ background: config.darkColor }}>
         <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/portail" className="flex items-center gap-[10px] no-underline hover:no-underline">
-            {config.logoPath ? (
+            {logo ? (
               /* eslint-disable-next-line @next/next/no-img-element -- servi
                  par une route maison, hors du pipeline d'images. */
               <img
-                src="/api/branding/logo"
+                src={logo}
                 alt={config.agencyName}
                 className="h-6 w-auto max-w-[130px] object-contain"
               />

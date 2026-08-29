@@ -1111,7 +1111,16 @@ export const settings = pgTable("settings", {
   primaryColor: text("primary_color").notNull().default("#B08D3F"),
   /** Fond des bandeaux du portail. */
   darkColor: text("dark_color").notNull().default("#121212"),
+  /**
+   * Les logos, un par pôle.
+   *
+   * La maison porte deux marques : l'une signe le travail réseaux sociaux,
+   * l'autre le web. Un client n'a pas à voir celle qui ne le concerne pas, et
+   * les écrans d'entrée — où l'on ignore encore qui se connecte — les montrent
+   * toutes les deux.
+   */
   logoPath: text("logo_path"),
+  logoWebPath: text("logo_web_path"),
   /**
    * Le visuel des pages de connexion : colonne de droite sur un écran, fond
    * derrière le formulaire sur un téléphone. Vide = un dégradé construit à

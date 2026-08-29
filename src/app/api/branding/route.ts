@@ -2,11 +2,28 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { eq } from "drizzle-orm";
 import { db, settings } from "@/db";
 import { requireDirection } from "@/lib/auth";
-import { removeStored, storeBranding, UploadError } from "@/lib/storage";
+import { isBrandingKind, removeStored, storeBranding, UploadError, type BrandingKind } from "@/lib/storage";
 import { revalidatePath } from "next/cache";
 
 /**
- * Envoi du logo ou du visuel de connexion.
+ * La colonne des réglages qui porte chaque image. Une seule table de
+ * correspondance, pour que rien ne se règle « à peu près » d'un côté ou de
+ * l'autre.
+ */
+const COLONNE = {
+  logo: "logoPath",
+  "logo-web": "logoWebPath",
+  cover: "coverPath",
+} as const;
+
+/** Le type d'image demandé, refusé s'il n'est pas l'un des trois connus. */
+function demande(request: Request): BrandingKind | null {
+  const brut = new URL(request.url).searchParams.get("kind") ?? "logo";
+  return isBrandingKind(brut) ? brut : null;
+}
+
+/**
+ * Envoi d'un logo ou du visuel de connexion.
  *
  * Une route en flux comme pour les médias : une photo tirée d'un appareil pèse
  * volontiers plus que le plafond des actions serveur, et le dépassement s'y
@@ -18,7 +35,7 @@ import { revalidatePath } from "next/cache";
 export async function POST(request: Request) {
   await requireDirection();
 
-  const kind = new URL(request.url).searchParams.get("kind") === "cover" ? "cover" : "logo";
+  const kind = demande(request);
 
   const rawName = request.headers.get("x-filename") ?? "";
   let filename = "image";
@@ -31,6 +48,7 @@ export async function POST(request: Request) {
   const declared = Number(
     request.headers.get("x-filesize") ?? request.headers.get("content-length") ?? "",
   );
+  if (!kind) return Response.json({ error: "Image inconnue." }, { status: 400 });
   if (!request.body) return Response.json({ error: "Fichier vide." }, { status: 400 });
 
   try {
@@ -45,17 +63,15 @@ export async function POST(request: Request) {
     );
 
     const [config] = await db.select().from(settings).where(eq(settings.id, "agence")).limit(1);
-    const ancienne = kind === "cover" ? config?.coverPath : config?.logoPath;
+    const colonne = COLONNE[kind];
+    const ancienne = config?.[colonne] ?? null;
 
     await db
       .insert(settings)
-      .values({ id: "agence", ...(kind === "cover" ? { coverPath: storagePath } : { logoPath: storagePath }) })
+      .values({ id: "agence", [colonne]: storagePath })
       .onConflictDoUpdate({
         target: settings.id,
-        set: {
-          ...(kind === "cover" ? { coverPath: storagePath } : { logoPath: storagePath }),
-          updatedAt: new Date(),
-        },
+        set: { [colonne]: storagePath, updatedAt: new Date() },
       });
 
     // L'ancienne image ne part qu'une fois la nouvelle en base : dans l'autre
@@ -78,14 +94,16 @@ export async function POST(request: Request) {
 /** Retire le logo ou le visuel : on revient au dégradé et au nom écrit. */
 export async function DELETE(request: Request) {
   await requireDirection();
-  const kind = new URL(request.url).searchParams.get("kind") === "cover" ? "cover" : "logo";
+  const kind = demande(request);
+  if (!kind) return Response.json({ error: "Image inconnue." }, { status: 400 });
 
   const [config] = await db.select().from(settings).where(eq(settings.id, "agence")).limit(1);
-  const ancienne = kind === "cover" ? config?.coverPath : config?.logoPath;
+  const colonne = COLONNE[kind];
+  const ancienne = config?.[colonne] ?? null;
 
   await db
     .update(settings)
-    .set({ ...(kind === "cover" ? { coverPath: null } : { logoPath: null }), updatedAt: new Date() })
+    .set({ [colonne]: null, updatedAt: new Date() })
     .where(eq(settings.id, "agence"));
   if (ancienne) await removeStored(ancienne).catch(() => {});
 

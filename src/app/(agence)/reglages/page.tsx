@@ -39,9 +39,13 @@ export default async function ReglagesPage() {
           </Card>
 
           <Card>
-            <CardHead title="Logo et visuel" />
+            <CardHead title="Logos et visuel" />
             <div className="p-[14px]">
-              <ImagesDeMarque logo={Boolean(config.logoPath)} cover={Boolean(config.coverPath)} />
+              <ImagesDeMarque
+                logo={Boolean(config.logoPath)}
+                logoWeb={Boolean(config.logoWebPath)}
+                cover={Boolean(config.coverPath)}
+              />
             </div>
           </Card>
 
