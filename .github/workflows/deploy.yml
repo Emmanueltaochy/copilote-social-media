@@ -81,45 +81,86 @@ jobs:
       contents: read
       packages: read
     steps:
-      # Un diagnostic avant d'essayer, parce que « i/o timeout » ne dit pas
-      # grand-chose : on saura si l'adresse ne se résout pas, si le port reste
-      # muet, ou si c'est la clé SSH qui est en cause. L'adresse elle-même
-      # n'est jamais écrite dans le journal — c'est un secret.
+      # Un diagnostic avant d'essayer, parce que « i/o timeout » ne dit rien
+      # d'exploitable. Le cas qu'on cherche surtout : un nom qui porte à la
+      # fois une IPv4 et une IPv6 alors que le serveur n'écoute SSH que sur
+      # l'une des deux. Le robot choisit alors parfois la mauvaise, et les
+      # paquets partent dans le vide — ce qui explique qu'un déploiement passe
+      # et que le suivant échoue sans que rien n'ait changé.
+      #
+      # L'étape essaie chaque famille, garde celle qui répond, et la transmet
+      # à la connexion. Les adresses sont masquées avant tout affichage :
+      # l'adresse d'un serveur n'a pas à traîner dans un journal.
       - name: Vérifier que le VPS est joignable
+        id: cible
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
         run: |
           set -uo pipefail
+
           if [ -z "$VPS_HOST" ]; then
-            echo "Le secret VPS_HOST est vide : rien à joindre."
+            echo "Le secret VPS_HOST est vide : il n'y a rien à joindre."
             exit 1
           fi
+          echo "::add-mask::$VPS_HOST"
+
+          essaie() {
+            # nc plutôt que /dev/tcp : il gère les deux familles d'adresses
+            # sans traitement particulier.
+            timeout 12 nc -z -w 8 "$1" "$VPS_PORT" >/dev/null 2>&1
+          }
 
           if [[ "$VPS_HOST" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
-            echo "Adresse : une IP, rien à résoudre."
-          elif getent hosts "$VPS_HOST" >/dev/null 2>&1; then
-            echo "Adresse : le nom se résout."
+            v4="$VPS_HOST"; v6=""
+            echo "Adresse : une IPv4 écrite en clair, rien à résoudre."
           else
-            echo "Le nom du serveur ne se résout pas. Le secret VPS_HOST est mal écrit,"
-            echo "ou le domaine ne pointe plus nulle part."
+            v4="$(getent ahostsv4 "$VPS_HOST" 2>/dev/null | awk '{print $1}' | sort -u | head -1)"
+            v6="$(getent ahostsv6 "$VPS_HOST" 2>/dev/null | awk '{print $1}' | grep -v '^::ffff:' | sort -u | head -1)"
+            if [ -z "$v4" ] && [ -z "$v6" ]; then
+              echo "Le nom du serveur ne se résout pas. Le secret VPS_HOST est mal écrit,"
+              echo "ou le domaine ne pointe plus nulle part."
+              exit 1
+            fi
+            echo "Adresse : le nom se résout${v4:+ en IPv4}${v6:+ et en IPv6}."
+          fi
+          [ -n "$v4" ] && echo "::add-mask::$v4"
+          [ -n "$v6" ] && echo "::add-mask::$v6"
+
+          retenue=""
+          if [ -n "$v4" ] && essaie "$v4"; then
+            echo "IPv4 · port $VPS_PORT : ouvert."
+            retenue="$v4"
+          elif [ -n "$v4" ]; then
+            echo "IPv4 · port $VPS_PORT : aucune réponse en 8 s."
+          fi
+
+          if [ -n "$v6" ]; then
+            if essaie "$v6"; then
+              echo "IPv6 · port $VPS_PORT : ouvert."
+              [ -z "$retenue" ] && retenue="$v6"
+            else
+              echo "IPv6 · port $VPS_PORT : aucune réponse en 8 s."
+              [ -n "$retenue" ] && echo "→ On passera par l'IPv4, qui répond."
+            fi
+          fi
+
+          if [ -z "$retenue" ]; then
+            echo
+            echo "Aucune adresse ne répond sur le port $VPS_PORT."
+            echo "Les paquets partent et personne ne répond : quelque chose les jette en"
+            echo "silence. Un service arrêté répondrait « connexion refusée » tout de suite,"
+            echo "et le site public tourne — c'est donc le port SSH seul qui est filtré."
+            echo
+            echo "À vérifier sur la machine, dans cet ordre :"
+            echo "  ufw status                     — un pare-feu local actif ;"
+            echo "  fail2ban-client status sshd    — une adresse bannie ;"
+            echo "  ss -lntp | grep :$VPS_PORT     — sshd écoute-t-il vraiment là ;"
+            echo "  iptables -L INPUT -n           — une règle DROP posée à la main."
             exit 1
           fi
 
-          if timeout 20 bash -c "cat < /dev/null > /dev/tcp/$VPS_HOST/$VPS_PORT" 2>/dev/null; then
-            echo "Port $VPS_PORT : ouvert. La connexion SSH peut se faire."
-          else
-            echo "Port $VPS_PORT : aucune réponse en 20 s."
-            echo
-            echo "Les paquets partent et personne ne répond : quelque chose les jette en"
-            echo "silence. Un service arrêté répondrait « connexion refusée » tout de suite."
-            echo "À regarder, dans cet ordre :"
-            echo "  1. le VPS est-il allumé (panneau Hostinger) ;"
-            echo "  2. un pare-feu sur la machine elle-même — « ufw status » ;"
-            echo "  3. un bannissement fail2ban — « fail2ban-client status sshd » ;"
-            echo "  4. le secret VPS_HOST pointe-t-il encore la bonne adresse."
-            exit 1
-          fi
+          echo "host=$retenue" >> "$GITHUB_OUTPUT"
 
       - name: Déployer sur le VPS
         uses: appleboy/ssh-action@v1
@@ -129,7 +170,9 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          host: ${{ secrets.VPS_HOST }}
+          # L'adresse retenue par la vérification ci-dessus, et non le secret
+          # brut : si le nom porte une IPv6 muette, on passe par l'IPv4.
+          host: ${{ steps.cible.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
