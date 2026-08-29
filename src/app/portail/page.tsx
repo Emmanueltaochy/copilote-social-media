@@ -104,7 +104,7 @@ export default async function PortailPage() {
     reglages(),
     actionsDuClient(client.id),
     projetsDuClient(client.id),
-    fichiersDuClient(client.id),
+    fichiersDuClient(client.id, true),
     db.select().from(brands).where(eq(brands.clientId, client.id)).limit(1),
     livrablesDuClient(client.id),
   ]);
@@ -423,9 +423,10 @@ export default async function PortailPage() {
 
         <Card>
           <div className="border-b border-line px-4 py-5 sm:px-6">
-            <span className="text-title font-semibold">Vos fichiers</span>
+            <span className="text-title font-semibold">Vos documents</span>
             <p className="mt-1 text-base text-ink-2">
-              Déposez ici tout ce dont nous avons besoin : logo, photos, textes, documents.
+              Les documents que nous partageons avec vous — devis, chartes, livrables — et tout
+              ce que vous souhaitez nous transmettre : logo, photos, textes.
             </p>
           </div>
           <DepotFichiers clientId={client.id} accent={config.primaryColor} />

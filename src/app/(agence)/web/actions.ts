@@ -8,6 +8,7 @@ import {
   db,
   briefFields,
   briefs,
+  clientFiles,
   users,
   webDeliverables,
   webMilestones,
@@ -403,6 +404,12 @@ export async function addDeliverable(formData: FormData): Promise<void> {
     .from(webProjects)
     .where(eq(webProjects.id, projectId))
     .limit(1);
+
+  // Publier un livrable, c'est le montrer : le fichier lié passe partagé quoi
+  // qu'il arrive, y compris s'il avait été déposé comme document interne.
+  if (fileId) {
+    await db.update(clientFiles).set({ visibility: "client" }).where(eq(clientFiles.id, fileId));
+  }
 
   await db.insert(webDeliverables).values({
     projectId,

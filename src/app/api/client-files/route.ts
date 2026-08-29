@@ -41,6 +41,21 @@ export async function POST(request: Request) {
     }
   })();
 
+  /*
+   * Qui verra ce document.
+   *
+   * Un dépôt du client est par nature partagé — il nous l'envoie. Un dépôt de
+   * l'équipe est interne sauf demande explicite : le contrat signé et la
+   * grille tarifaire vivent dans le même dossier que la maquette livrée, et
+   * c'est le partage qui doit être un geste, pas la confidentialité.
+   */
+  const visibility =
+    user.role === "client"
+      ? "client"
+      : (request.headers.get("x-visibility") ?? "") === "client"
+        ? "client"
+        : "interne";
+
   const mimeType = (request.headers.get("content-type") ?? "").split(";")[0].trim();
   const declared = Number(
     request.headers.get("x-filesize") ?? request.headers.get("content-length") ?? "",
@@ -68,6 +83,7 @@ export async function POST(request: Request) {
         storagePath: stored.storagePath,
         mimeType: stored.mimeType,
         sizeBytes: stored.sizeBytes,
+        visibility,
         uploadedById: user.id,
       })
       .returning({ id: clientFiles.id });

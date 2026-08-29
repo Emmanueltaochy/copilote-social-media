@@ -741,6 +741,19 @@ export const clientFiles = pgTable(
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull().default(0),
     label: text("label"),
+    /**
+     * Qui voit ce document : « interne » (l'agence seule) ou « client »
+     * (partagé, visible dans le portail).
+     *
+     * Le dossier d'un client contient les deux natures : le contrat signé et
+     * la grille tarifaire n'ont rien à faire sous ses yeux, le devis validé et
+     * la maquette livrée sont faits pour lui. Sans cette distinction, tout ce
+     * que l'équipe déposait sur la fiche apparaissait dans le portail.
+     *
+     * Interne par défaut : un document qu'on n'a pas explicitement partagé ne
+     * doit pas l'être par accident.
+     */
+    visibility: text("visibility").notNull().default("interne"),
     uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

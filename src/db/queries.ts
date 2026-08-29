@@ -895,6 +895,7 @@ export async function listClientFiles(clientId: string) {
       label: clientFiles.label,
       mimeType: clientFiles.mimeType,
       sizeBytes: clientFiles.sizeBytes,
+      visibility: clientFiles.visibility,
       createdAt: clientFiles.createdAt,
       uploadedByName: users.name,
     })

@@ -37,6 +37,9 @@ export function AjoutLivrable({ projectId, clientId }: { projectId: string; clie
       const résultat = await new Promise<{ id?: string; error?: string }>((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `/api/client-files?clientId=${encodeURIComponent(clientId)}`);
+        // Une maquette est faite pour être vue : elle part partagée, sans quoi
+        // le client ouvrirait un lien qui lui répond « non autorisé ».
+        xhr.setRequestHeader("x-visibility", "client");
         xhr.setRequestHeader("x-filename", encodeURIComponent(fichier.name));
         xhr.setRequestHeader("x-filesize", String(fichier.size));
         xhr.setRequestHeader("x-label", encodeURIComponent(label));

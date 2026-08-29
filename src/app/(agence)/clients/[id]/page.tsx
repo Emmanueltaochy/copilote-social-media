@@ -26,6 +26,7 @@ import {
   deleteClientFile,
   removeContractLine,
   revokeClientAccess,
+  toggleFileVisibility,
   updateClient,
 } from "../actions";
 import { FilesCard } from "./FilesCard";
@@ -374,7 +375,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             />
           </Card>
 
-          <FilesCard clientId={client.id} files={files} onDelete={deleteClientFile} />
+          <FilesCard
+            clientId={client.id}
+            files={files}
+            onDelete={deleteClientFile}
+            onToggle={toggleFileVisibility}
+          />
 
           <Card className="flex flex-col gap-4 p-5">
             <div>

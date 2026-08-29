@@ -11,6 +11,7 @@ type File_ = {
   label: string | null;
   mimeType: string;
   sizeBytes: number;
+  visibility: string;
   createdAt: Date;
   uploadedByName: string | null;
 };
@@ -38,16 +39,20 @@ export function FilesCard({
   clientId,
   files,
   onDelete,
+  onToggle,
 }: {
   clientId: string;
   files: File_[];
   onDelete: (formData: FormData) => Promise<void>;
+  onToggle: (formData: FormData) => Promise<void>;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Interne par défaut : partager est un geste, la confidentialité non.
+  const [partage, setPartage] = useState(false);
 
   async function send() {
     const picked = Array.from(inputRef.current?.files ?? []);
@@ -63,6 +68,7 @@ export function FilesCard({
           "x-filename": encodeURIComponent(file.name),
           "x-filesize": String(file.size),
           "x-label": encodeURIComponent(labelRef.current?.value ?? ""),
+          "x-visibility": partage ? "client" : "interne",
         },
         body: file,
       });
@@ -87,10 +93,14 @@ export function FilesCard({
         <p className="px-[14px] py-4 text-base text-ink-2">
           Aucun document. Le contrat, la charte de marque, un devis ou un brief annuel ont leur
           place ici : le jour où quelqu&apos;un cherche ce qui a été signé, il sait où regarder.
+          Un document peut rester interne ou être partagé avec le client, qui le retrouve alors
+          dans son portail.
         </p>
       ) : (
-        files.map((f) => (
-          <div key={f.id} className="flex items-center gap-3 border-b border-line px-[14px] py-[10px]">
+        files.map((f) => {
+          const partagé = f.visibility === "client";
+          return (
+          <div key={f.id} data-fichier={f.id} className="flex items-center gap-3 border-b border-line px-[14px] py-[10px]">
             <span className="flex min-w-0 flex-1 flex-col">
               <a
                 href={`/api/client-files/${f.id}`}
@@ -106,6 +116,29 @@ export function FilesCard({
                 {f.uploadedByName ? ` · ${f.uploadedByName}` : ""}
               </span>
             </span>
+            {/* L'état se lit sur le bouton, et le bouton fait basculer : deux
+                éléments distincts — une pastille et une case — laisseraient
+                douter de ce qui est vrai après le clic. */}
+            <form action={onToggle} className="flex-none">
+              <input type="hidden" name="id" value={f.id} />
+              <input type="hidden" name="clientId" value={clientId} />
+              <input type="hidden" name="visibility" value={partagé ? "interne" : "client"} />
+              <button
+                type="submit"
+                title={
+                  partagé
+                    ? "Visible dans le portail du client — cliquer pour le repasser en interne"
+                    : "Interne à l'agence — cliquer pour le partager avec le client"
+                }
+                className={
+                  partagé
+                    ? "cursor-pointer rounded-control border border-ok bg-ok-bg px-2 py-[2px] text-micro font-medium text-ok"
+                    : "cursor-pointer rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-3 hover:border-line-strong hover:text-ink"
+                }
+              >
+                {partagé ? "Partagé" : "Interne"}
+              </button>
+            </form>
             <SendByEmail kind="fichier" id={f.id} />
             <form action={onDelete} className="flex-none">
               <input type="hidden" name="id" value={f.id} />
@@ -119,7 +152,8 @@ export function FilesCard({
               </button>
             </form>
           </div>
-        ))
+          );
+        })
       )}
 
       <div className="flex flex-wrap items-end gap-2 border-t border-line px-[14px] py-3">
@@ -136,6 +170,15 @@ export function FilesCard({
           onChange={() => setError(null)}
           className="min-w-0 flex-1 rounded-control border border-line bg-paper px-2 py-[5px] text-small file:mr-2 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-canvas file:px-2 file:py-[2px] file:text-micro disabled:opacity-60"
         />
+        <label className="flex flex-none cursor-pointer items-center gap-[6px] text-small text-ink-2">
+          <input
+            type="checkbox"
+            checked={partage}
+            onChange={(e) => setPartage(e.target.checked)}
+            className="h-[15px] w-[15px] accent-ink"
+          />
+          Partager avec le client
+        </label>
         <button
           type="button"
           onClick={send}
@@ -150,8 +193,9 @@ export function FilesCard({
         <p className="px-[14px] pb-3 text-small text-alert">{error}</p>
       ) : (
         <p className="px-[14px] pb-3 text-small text-ink-3">
-          PDF, Word, Excel, PowerPoint, OpenDocument, texte, CSV, ZIP ou image. Réservé à
-          l&apos;équipe : le client ne voit pas ces documents dans son portail.
+          PDF, Word, Excel, PowerPoint, OpenDocument, texte, CSV, ZIP ou image. Un document reste
+          interne à l&apos;agence sauf si tu le partages : le client le retrouve alors dans son
+          portail, et peut le télécharger. Chaque ligne se bascule à tout moment.
         </p>
       )}
     </Card>

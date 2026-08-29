@@ -9,9 +9,11 @@ import { absolutePath } from "@/lib/storage";
 /**
  * Sert une pièce jointe après contrôle d'accès.
  *
- * Le dossier d'un client est partagé avec lui : depuis son portail il y dépose
- * ses fichiers et relit ceux qu'on lui a laissés. Il n'accède qu'au sien —
- * l'appartenance est vérifiée sur le fichier, jamais sur un paramètre.
+ * Le dossier d'un client est en partie partagé avec lui : depuis son portail il
+ * y dépose ses fichiers et relit ceux qu'on lui a explicitement laissés. Il
+ * n'accède qu'au sien, et seulement aux documents marqués partagés —
+ * l'appartenance comme la visibilité se vérifient sur le fichier, jamais sur
+ * un paramètre.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
@@ -22,8 +24,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const file = rows[0];
   if (!file) return new Response("Introuvable", { status: 404 });
 
-  if (user.role === "client" && user.clientId !== file.clientId) {
-    return new Response("Non autorisé", { status: 403 });
+  if (user.role === "client") {
+    // Deux conditions, et non une : le dossier d'un client contient aussi ce
+    // que l'agence garde pour elle — contrat, grille tarifaire, notes de
+    // rentabilité. Une adresse se devine, la visibilité se vérifie ici.
+    if (user.clientId !== file.clientId || file.visibility !== "client") {
+      return new Response("Non autorisé", { status: 403 });
+    }
   }
 
   let size: number;

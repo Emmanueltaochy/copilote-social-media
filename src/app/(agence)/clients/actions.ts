@@ -165,6 +165,24 @@ export async function updateClient(
 }
 
 /**
+ * Partage un document avec le client, ou le retire de son portail.
+ *
+ * Deux natures cohabitent dans le même dossier : le contrat signé et la grille
+ * tarifaire d'un côté, le devis validé et la charte livrée de l'autre. Le
+ * basculement doit donc être immédiat et réversible — se tromper de case ne
+ * doit pas obliger à réimporter le fichier.
+ */
+export async function toggleFileVisibility(formData: FormData): Promise<void> {
+  await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const visibility = String(formData.get("visibility") ?? "");
+  if (!id || !["interne", "client"].includes(visibility)) return;
+  await db.update(clientFiles).set({ visibility }).where(eq(clientFiles.id, id));
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/**
  * On archive plutôt qu'on ne supprime : l'historique d'un client parti reste
  * nécessaire pour les rapports et la rentabilité des mois passés.
  */

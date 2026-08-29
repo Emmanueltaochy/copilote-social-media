@@ -377,12 +377,24 @@ export async function jalonsVisibles(projectId: string) {
 }
 
 /** Les pièces jointes d'un client, déposées de part et d'autre. */
-export async function fichiersDuClient(clientId: string) {
+/**
+ * Les documents d'un client.
+ *
+ * `partagesSeulement` est ce que voit le portail : le dossier contient aussi
+ * ce que l'agence garde pour elle — contrat signé, grille tarifaire, notes
+ * internes. Les lui montrer était un défaut, pas une fonctionnalité.
+ */
+export async function fichiersDuClient(clientId: string, partagesSeulement = false) {
   return db
     .select({ file: clientFiles, auteur: users.name })
     .from(clientFiles)
     .leftJoin(users, eq(users.id, clientFiles.uploadedById))
-    .where(eq(clientFiles.clientId, clientId))
+    .where(
+      and(
+        eq(clientFiles.clientId, clientId),
+        partagesSeulement ? eq(clientFiles.visibility, "client") : undefined,
+      ),
+    )
     .orderBy(desc(clientFiles.createdAt));
 }
 
