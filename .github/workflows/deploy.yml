@@ -81,6 +81,46 @@ jobs:
       contents: read
       packages: read
     steps:
+      # Un diagnostic avant d'essayer, parce que « i/o timeout » ne dit pas
+      # grand-chose : on saura si l'adresse ne se résout pas, si le port reste
+      # muet, ou si c'est la clé SSH qui est en cause. L'adresse elle-même
+      # n'est jamais écrite dans le journal — c'est un secret.
+      - name: Vérifier que le VPS est joignable
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+        run: |
+          set -uo pipefail
+          if [ -z "$VPS_HOST" ]; then
+            echo "Le secret VPS_HOST est vide : rien à joindre."
+            exit 1
+          fi
+
+          if [[ "$VPS_HOST" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+            echo "Adresse : une IP, rien à résoudre."
+          elif getent hosts "$VPS_HOST" >/dev/null 2>&1; then
+            echo "Adresse : le nom se résout."
+          else
+            echo "Le nom du serveur ne se résout pas. Le secret VPS_HOST est mal écrit,"
+            echo "ou le domaine ne pointe plus nulle part."
+            exit 1
+          fi
+
+          if timeout 20 bash -c "cat < /dev/null > /dev/tcp/$VPS_HOST/$VPS_PORT" 2>/dev/null; then
+            echo "Port $VPS_PORT : ouvert. La connexion SSH peut se faire."
+          else
+            echo "Port $VPS_PORT : aucune réponse en 20 s."
+            echo
+            echo "Les paquets partent et personne ne répond : quelque chose les jette en"
+            echo "silence. Un service arrêté répondrait « connexion refusée » tout de suite."
+            echo "À regarder, dans cet ordre :"
+            echo "  1. le VPS est-il allumé (panneau Hostinger) ;"
+            echo "  2. un pare-feu sur la machine elle-même — « ufw status » ;"
+            echo "  3. un bannissement fail2ban — « fail2ban-client status sshd » ;"
+            echo "  4. le secret VPS_HOST pointe-t-il encore la bonne adresse."
+            exit 1
+          fi
+
       - name: Déployer sur le VPS
         uses: appleboy/ssh-action@v1
         env:
@@ -93,7 +133,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          script_stop: true
+          # Une poignée de main lente ne doit pas compter comme une panne.
+          # « script_stop » n'existe plus dans la version 1 de l'action : il
+          # était accepté sans rien faire, et le « set -euo pipefail » du
+          # script ci-dessous est ce qui l'arrête réellement au premier échec.
+          timeout: 60s
+          command_timeout: 15m
           envs: GITHUB_SHA,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
