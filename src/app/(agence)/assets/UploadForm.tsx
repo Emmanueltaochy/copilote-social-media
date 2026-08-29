@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { aplatir, type Noeud } from "@/lib/folders";
 
@@ -107,23 +107,26 @@ export function UploadForm({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [clientId, setClientId] = useState(clientParDefaut);
-  const [folderId, setFolderId] = useState(dossierParDefaut);
+  const [choixDossier, setChoixDossier] = useState(dossierParDefaut);
   const [items, setItems] = useState<Item[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Le dossier suit le client : garder « Shooting mars » après avoir changé de
-  // client enverrait les fichiers dans le vide — le serveur refuserait le
-  // dossier, et les médias atterriraient à la racine sans qu'on comprenne.
   const dossiersDuClient = useMemo(
     () => aplatir(dossiers.filter((d) => d.clientId === clientId)),
     [dossiers, clientId],
   );
-  useEffect(() => {
-    setFolderId((actuel) =>
-      actuel && !dossiersDuClient.some((d) => d.id === actuel) ? "" : actuel,
-    );
-  }, [dossiersDuClient]);
+
+  /*
+   * Le dossier suit le client. Garder « Shooting mars » après avoir changé de
+   * client enverrait les fichiers dans le vide : le serveur refuserait la
+   * destination et les médias atterriraient à la racine sans qu'on comprenne.
+   *
+   * La retombée à la racine est déduite, pas resynchronisée après coup. Un
+   * effet qui corrige l'état après le rendu affiche brièvement un dossier qui
+   * n'existe pas pour ce client — et fait un second rendu pour rien.
+   */
+  const folderId = dossiersDuClient.some((d) => d.id === choixDossier) ? choixDossier : "";
 
   const total = items.reduce((n, i) => n + i.file.size, 0);
   const sent = items.reduce((n, i) => n + (i.state === "fait" ? i.file.size : i.sent), 0);
@@ -215,7 +218,7 @@ export function UploadForm({
           <span className="eyebrow text-ink-3">Dossier</span>
           <select
             value={folderId}
-            onChange={(e) => setFolderId(e.target.value)}
+            onChange={(e) => setChoixDossier(e.target.value)}
             disabled={running || !clientId}
             className="max-w-[220px] rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold disabled:opacity-60"
           >

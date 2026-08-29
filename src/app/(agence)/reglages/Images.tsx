@@ -75,8 +75,8 @@ function Champ({
           }
         >
           {present ? (
-            // eslint-disable-next-line @next/next/no-img-element -- servi par
-            // une route maison, hors du pipeline d'images.
+            /* eslint-disable-next-line @next/next/no-img-element -- servi par
+               une route maison, hors du pipeline d'images. */
             <img
               src={`${apercu}?v=${version}`}
               alt={titre}
