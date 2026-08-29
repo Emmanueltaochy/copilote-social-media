@@ -15,6 +15,7 @@ import {
   contentStats,
   contentVersions,
   assets,
+  assetFolders,
   assetUsages,
   contractLines,
   gearPresets,
@@ -519,14 +520,71 @@ export async function listClientOptions(pole?: "social" | "web") {
 
 /* ----------------------------------------------------------------- assets -- */
 
-export async function listAssets(clientId?: string) {
+export async function listAssets(clientId?: string, folderId?: string | null) {
   return db
     .select({ asset: assets, clientName: clients.shortName, authorName: users.name })
     .from(assets)
     .innerJoin(clients, eq(clients.id, assets.clientId))
     .leftJoin(users, eq(users.id, assets.authorId))
-    .where(clientId ? eq(assets.clientId, clientId) : undefined)
+    .where(
+      and(
+        clientId ? eq(assets.clientId, clientId) : undefined,
+        // `undefined` = on ne filtre pas, `null` = la racine. La nuance compte :
+        // sans elle, ouvrir la bibliothèque d'un client montrerait d'un bloc ce
+        // qu'on vient justement de ranger dans des dossiers.
+        folderId === undefined ? undefined : folderId === null ? isNull(assets.folderId) : eq(assets.folderId, folderId),
+      ),
+    )
     .orderBy(desc(assets.createdAt));
+}
+
+/**
+ * Les dossiers d'un client, à plat.
+ *
+ * L'arborescence se reconstruit en mémoire : elle compte quelques dizaines de
+ * nœuds, et une requête récursive coûterait plus cher à lire qu'à exécuter.
+ * Chaque dossier porte le nombre de médias qu'il contient en propre — celui de
+ * ses sous-dossiers se cumule ensuite côté écran.
+ */
+export async function listAssetFolders(clientId: string) {
+  return db
+    .select({
+      id: assetFolders.id,
+      parentId: assetFolders.parentId,
+      name: assetFolders.name,
+      medias: raw<number>`(select count(*)::int from assets a where a.folder_id = ${assetFolders.id})`,
+    })
+    .from(assetFolders)
+    .where(eq(assetFolders.clientId, clientId))
+    .orderBy(asc(assetFolders.name));
+}
+
+/**
+ * Tous les dossiers, tous clients confondus.
+ *
+ * Sert le formulaire d'import : la destination doit se mettre à jour dès qu'on
+ * change de client dans la liste déroulante, sans attendre un aller-retour
+ * serveur au milieu d'une sélection de trente fichiers.
+ */
+export async function listAllAssetFolders() {
+  return db
+    .select({
+      id: assetFolders.id,
+      clientId: assetFolders.clientId,
+      parentId: assetFolders.parentId,
+      name: assetFolders.name,
+    })
+    .from(assetFolders)
+    .orderBy(asc(assetFolders.name));
+}
+
+/** Combien de médias à la racine d'un client, hors de tout dossier. */
+export async function assetsAtRoot(clientId: string) {
+  const [row] = await db
+    .select({ n: count() })
+    .from(assets)
+    .where(and(eq(assets.clientId, clientId), isNull(assets.folderId)));
+  return row?.n ?? 0;
 }
 
 /**

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { aplatir, type Noeud } from "@/lib/folders";
 
 type Item = {
   file: File;
@@ -47,11 +48,13 @@ function formatBytes(n: number): string {
 function upload(
   file: File,
   clientId: string,
+  folderId: string,
   onProgress: (sent: number) => void,
 ): Promise<{ error?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/upload?clientId=${encodeURIComponent(clientId)}`);
+    const dest = folderId ? `&folderId=${encodeURIComponent(folderId)}` : "";
+    xhr.open("POST", `/api/upload?clientId=${encodeURIComponent(clientId)}${dest}`);
     xhr.setRequestHeader("x-filename", encodeURIComponent(file.name));
     // La taille attendue voyage dans un en-tête à nous. Content-Length peut
     // disparaître en chemin — un relais qui retransmet par blocs le retire —
@@ -89,13 +92,38 @@ function upload(
   });
 }
 
-export function UploadForm({ clients }: { clients: { id: string; name: string }[] }) {
+export function UploadForm({
+  clients,
+  dossiers = [],
+  clientParDefaut = "",
+  dossierParDefaut = "",
+}: {
+  clients: { id: string; name: string }[];
+  /** Tous les dossiers, tous clients confondus : la destination suit le client choisi. */
+  dossiers?: (Noeud & { clientId: string })[];
+  clientParDefaut?: string;
+  dossierParDefaut?: string;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(clientParDefaut);
+  const [folderId, setFolderId] = useState(dossierParDefaut);
   const [items, setItems] = useState<Item[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Le dossier suit le client : garder « Shooting mars » après avoir changé de
+  // client enverrait les fichiers dans le vide — le serveur refuserait le
+  // dossier, et les médias atterriraient à la racine sans qu'on comprenne.
+  const dossiersDuClient = useMemo(
+    () => aplatir(dossiers.filter((d) => d.clientId === clientId)),
+    [dossiers, clientId],
+  );
+  useEffect(() => {
+    setFolderId((actuel) =>
+      actuel && !dossiersDuClient.some((d) => d.id === actuel) ? "" : actuel,
+    );
+  }, [dossiersDuClient]);
 
   const total = items.reduce((n, i) => n + i.file.size, 0);
   const sent = items.reduce((n, i) => n + (i.state === "fait" ? i.file.size : i.sent), 0);
@@ -130,7 +158,7 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
       const onProgress = (bytes: number) =>
         setItems((prev) => prev.map((it, k) => (k === i ? { ...it, sent: bytes } : it)));
 
-      let result = await upload(queue[i].file, clientId, onProgress);
+      let result = await upload(queue[i].file, clientId, folderId, onProgress);
 
       // Une coupure en cours d'envoi est le cas le plus courant sur une
       // connexion domestique, et le serveur refuse alors le fichier sans rien
@@ -139,7 +167,7 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
       // importer. Une seule reprise : au-delà, ce n'est plus un hasard.
       if (result.error && /interrompu/i.test(result.error)) {
         onProgress(0);
-        result = await upload(queue[i].file, clientId, onProgress);
+        result = await upload(queue[i].file, clientId, folderId, onProgress);
       }
 
       setItems((prev) =>
@@ -178,6 +206,24 @@ export function UploadForm({ clients }: { clients: { id: string; name: string }[
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-[6px]">
+          <span className="eyebrow text-ink-3">Dossier</span>
+          <select
+            value={folderId}
+            onChange={(e) => setFolderId(e.target.value)}
+            disabled={running || !clientId}
+            className="max-w-[220px] rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold disabled:opacity-60"
+          >
+            <option value="">Racine</option>
+            {dossiersDuClient.map((d) => (
+              <option key={d.id} value={d.id}>
+                {"\u00a0\u00a0".repeat(d.niveau)}
+                {d.name}
               </option>
             ))}
           </select>

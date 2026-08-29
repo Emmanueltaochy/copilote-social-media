@@ -5,7 +5,16 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dot, Eyebrow } from "@/components/ui/primitives";
 import { requireDepartment } from "@/lib/auth";
-import { assetCountsByClient, assetsFootprint, listAssets, listClientOptions } from "@/db/queries";
+import {
+  assetCountsByClient,
+  assetsAtRoot,
+  assetsFootprint,
+  listAssetFolders,
+  listAllAssetFolders,
+  listAssets,
+  listClientOptions,
+} from "@/db/queries";
+import { aplatir, enfants, filDAriane } from "@/lib/folders";
 import {
   diskUsage,
   formatBytes,
@@ -17,7 +26,8 @@ import {
 import { cn } from "@/lib/cn";
 import { toneText, type Tone } from "@/lib/tone";
 import { UploadForm } from "./UploadForm";
-import { deleteAsset, updateAssetRights } from "./actions";
+import { MoveSelect } from "./MoveSelect";
+import { createFolder, deleteAsset, deleteFolder, moveAsset, updateAssetRights } from "./actions";
 
 const RIGHTS: Record<string, { label: string; tone: Tone }> = {
   illimites: { label: "Droits illimités", tone: "ok" },
@@ -45,24 +55,51 @@ function Chip({ href, label, n, on }: { href: string; label: string; n: number; 
   );
 }
 
+/**
+ * La bibliothèque de médias.
+ *
+ * Elle a longtemps été un mur de vignettes : les carrousels livrés y voisinaient
+ * avec les photos brutes du même shooting, et retrouver un visuel demandait de
+ * les ouvrir un par un. Elle se range désormais en dossiers, propres à chaque
+ * client et imbriquables — « Shooting mars », puis « Brut » et « Retouché ».
+ *
+ * La navigation passe par l'adresse plutôt que par un état de composant : un
+ * dossier se met en favori, se partage à un collègue, et le retour arrière du
+ * navigateur remonte d'un cran comme on l'attend.
+ */
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ client?: string }>;
+  searchParams: Promise<{ client?: string; dossier?: string }>;
 }) {
   await requireDepartment("social");
-  const [{ client: demandé }, clients, counts, footprint, disk] = await Promise.all([
-    searchParams,
-    listClientOptions("social"),
-    assetCountsByClient(),
-    assetsFootprint(),
-    diskUsage(),
-  ]);
+  const [{ client: demandé, dossier: dossierDemandé }, clients, counts, footprint, disk, tousDossiers] =
+    await Promise.all([
+      searchParams,
+      listClientOptions("social"),
+      assetCountsByClient(),
+      assetsFootprint(),
+      diskUsage(),
+      listAllAssetFolders(),
+    ]);
 
   // On ne passe à la requête qu'un identifiant reconnu : une valeur bricolée
   // dans l'URL ne doit pas atteindre la base.
   const selected = clients.find((c) => c.id === demandé)?.id;
-  const rows = await listAssets(selected);
+
+  // Les dossiers n'existent qu'à l'intérieur d'un client : ranger ensemble les
+  // médias de deux marques n'aurait aucun sens, et « Shooting mars » ne veut
+  // rien dire hors du client dont c'est le shooting.
+  const dossiers = selected ? await listAssetFolders(selected) : [];
+  const courant = dossiers.find((d) => d.id === dossierDemandé)?.id ?? null;
+  const arbre = aplatir(dossiers);
+  const chemin = filDAriane(dossiers, courant);
+  const sousDossiers = selected ? enfants(dossiers, courant) : [];
+
+  // Sans client choisi, la bibliothèque reste le mur d'origine : elle sert
+  // alors à chercher, pas à ranger.
+  const rows = await listAssets(selected, selected ? courant : undefined);
+  const racine = selected ? await assetsAtRoot(selected) : 0;
 
   if (clients.length === 0) {
     return (
@@ -78,6 +115,8 @@ export default async function AssetsPage({
 
   const watch = rows.filter((r) => r.asset.rights !== "illimites").length;
   const selectedName = clients.find((c) => c.id === selected)?.name;
+  const lien = (d: string | null) =>
+    `/assets?client=${selected}${d ? `&dossier=${d}` : ""}`;
 
   return (
     <>
@@ -100,7 +139,14 @@ export default async function AssetsPage({
                 {disk ? ` · ${formatBytes(disk.freeBytes)} libres sur le serveur` : ""}
               </span>
             </div>
-            <UploadForm clients={clients} />
+            {/* Le client et le dossier ouverts sont proposés d'avance : on
+                importe presque toujours là où l'on se trouve. */}
+            <UploadForm
+              clients={clients}
+              dossiers={tousDossiers}
+              clientParDefaut={selected ?? ""}
+              dossierParDefaut={courant ?? ""}
+            />
             <p className="text-small text-ink-2">
               Les images sont recompressées à l&apos;import et une miniature est générée :
               envoie les fichiers de ton photographe tels quels, quelle que soit leur taille —
@@ -137,17 +183,118 @@ export default async function AssetsPage({
             ))}
           </div>
 
+          {selected ? (
+            <Card className="flex flex-col gap-3 p-4">
+              {/* Le fil d'Ariane, et non un arbre déplié en permanence : une
+                  colonne d'arborescence mangerait la moitié de l'écran d'une
+                  bibliothèque dont l'objet est de montrer des images. */}
+              <div className="flex flex-wrap items-center gap-2 text-base">
+                <Link
+                  href={lien(null)}
+                  className={cn(
+                    "no-underline hover:underline",
+                    courant ? "text-ink-2" : "font-medium text-ink",
+                  )}
+                >
+                  {selectedName}
+                </Link>
+                {chemin.map((d, i) => (
+                  <span key={d.id} className="flex items-center gap-2">
+                    <span className="text-ink-3">/</span>
+                    <Link
+                      href={lien(d.id)}
+                      className={cn(
+                        "no-underline hover:underline",
+                        i === chemin.length - 1 ? "font-medium text-ink" : "text-ink-2",
+                      )}
+                    >
+                      {d.name}
+                    </Link>
+                  </span>
+                ))}
+              </div>
+
+              {sousDossiers.length > 0 ? (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2">
+                  {sousDossiers.map((d) => {
+                    const total = arbre.find((r) => r.id === d.id)?.total ?? d.medias ?? 0;
+                    return (
+                      <div
+                        key={d.id}
+                        data-dossier={d.id}
+                        className="flex items-center gap-2 rounded-card border border-line bg-paper px-3 py-[10px]"
+                      >
+                        <Link
+                          href={lien(d.id)}
+                          className="clip min-w-0 flex-1 text-base font-medium text-ink no-underline hover:underline"
+                        >
+                          {d.name}
+                        </Link>
+                        <span className="flex-none text-micro tabular-nums text-ink-3">
+                          {total}
+                        </span>
+                        <form action={deleteFolder} className="flex-none">
+                          <input type="hidden" name="id" value={d.id} />
+                          <button
+                            type="submit"
+                            title="Supprimer le dossier — son contenu remonte d'un cran"
+                            className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                          >
+                            ✕
+                          </button>
+                        </form>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <form action={createFolder} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="clientId" value={selected} />
+                {courant ? <input type="hidden" name="parentId" value={courant} /> : null}
+                <input
+                  name="name"
+                  required
+                  placeholder={
+                    courant
+                      ? `Nouveau dossier dans ${chemin[chemin.length - 1]?.name}`
+                      : "Nouveau dossier (Shooting mars, Carrousels livrés…)"
+                  }
+                  className="min-w-[240px] flex-1 rounded-control border border-line bg-paper px-3 py-[6px] text-small outline-none focus:border-gold"
+                />
+                <button
+                  type="submit"
+                  className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                >
+                  Créer le dossier
+                </button>
+              </form>
+
+              {courant === null && racine > 0 && dossiers.length > 0 ? (
+                <p className="text-small text-ink-3">
+                  {racine} média{racine > 1 ? "s" : ""} encore à la racine. La liste déroulante
+                  sous chaque vignette les range sans les rouvrir.
+                </p>
+              ) : null}
+            </Card>
+          ) : null}
+
           {rows.length === 0 ? (
             <Card className="p-5">
               <p className="text-base text-ink-2">
-                {selectedName
-                  ? `Aucun média pour ${selectedName}. Importe ses photos et vidéos livrées, ou reviens à tous les clients.`
-                  : "Aucun média pour l'instant. Importe les photos et vidéos livrées : elles apparaîtront ici, réutilisables d'un contenu à l'autre, et visibles par le client dans son portail."}
+                {courant
+                  ? "Ce dossier est vide. Importe des médias dedans, ou range-en depuis la racine."
+                  : selectedName
+                    ? `Aucun média pour ${selectedName}. Importe ses photos et vidéos livrées, ou reviens à tous les clients.`
+                    : "Aucun média pour l'instant. Importe les photos et vidéos livrées : elles apparaîtront ici, réutilisables d'un contenu à l'autre, et visibles par le client dans son portail."}
               </p>
             </Card>
           ) : (
             <Card>
-              <CardHead title="Médias" meta={`${rows.length}`} />
+              <CardHead
+                title={courant ? chemin[chemin.length - 1]?.name ?? "Médias" : "Médias"}
+                meta={`${rows.length}`}
+              />
               <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] items-start gap-3 p-[14px]">
                 {rows.map(({ asset, clientName, authorName }) => {
                   const rights = RIGHTS[asset.rights];
@@ -193,6 +340,17 @@ export default async function AssetsPage({
                           </span>
                         </span>
 
+                        {selected ? (
+                          <div className="mt-1 flex items-center gap-1">
+                            <MoveSelect
+                              action={moveAsset}
+                              id={asset.id}
+                              dossiers={arbre}
+                              courant={asset.folderId}
+                            />
+                          </div>
+                        ) : null}
+
                         <div className="mt-1 flex items-center gap-1">
                           <form action={updateAssetRights} className="flex-1">
                             <input type="hidden" name="id" value={asset.id} />
@@ -226,8 +384,8 @@ export default async function AssetsPage({
                 })}
               </div>
               <p className="px-[14px] pb-3 text-small text-ink-3">
-                Changer les droits enregistre immédiatement. Les médias ne sont accessibles
-                qu&apos;aux personnes connectées — aucune adresse publique.
+                Changer les droits ou de dossier enregistre immédiatement. Les médias ne sont
+                accessibles qu&apos;aux personnes connectées — aucune adresse publique.
               </p>
             </Card>
           )}

@@ -1,6 +1,6 @@
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { eq, sql } from "drizzle-orm";
-import { db, assets, assetUsages, contents } from "@/db";
+import { db, assets, assetFolders, assetUsages, contents } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { storeIncoming, UploadError } from "@/lib/storage";
 
@@ -32,6 +32,10 @@ export async function POST(request: Request) {
   // importer puis retourner chercher le média dans une liste fait trois
   // écrans pour une seule intention.
   const contentId = url.searchParams.get("contentId") ?? "";
+  // Le dossier de destination, choisi à l'import : ranger trente photos une à
+  // une après coup, personne ne le fait — et la bibliothèque redevient le tas
+  // qu'on voulait éviter.
+  const askedFolder = url.searchParams.get("folderId") ?? "";
 
   // Le nom de fichier voyage encodé : il contient volontiers des accents et
   // des espaces, qu'un en-tête HTTP ne transporte pas tels quels.
@@ -52,6 +56,18 @@ export async function POST(request: Request) {
 
   if (!request.body) {
     return Response.json({ error: "Fichier vide." }, { status: 400 });
+  }
+
+  // Le dossier est vérifié contre le client : un identifiant bricolé dans
+  // l'adresse ne doit pas ranger un média chez quelqu'un d'autre.
+  let folderId: string | null = null;
+  if (askedFolder) {
+    const [dossier] = await db
+      .select({ clientId: assetFolders.clientId })
+      .from(assetFolders)
+      .where(eq(assetFolders.id, askedFolder))
+      .limit(1);
+    if (dossier && dossier.clientId === clientId) folderId = askedFolder;
   }
 
   try {
@@ -75,6 +91,7 @@ export async function POST(request: Request) {
         sizeBytes: stored.sizeBytes,
         width: stored.width,
         height: stored.height,
+        folderId,
         authorId: user.id,
       })
       .returning({ id: assets.id });

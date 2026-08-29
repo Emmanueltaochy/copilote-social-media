@@ -1,3 +1,4 @@
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
   boolean,
   date,
@@ -486,6 +487,38 @@ export const shootDeliverables = pgTable(
 
 export const assetRights = pgEnum("asset_rights", ["illimites", "a_renouveler", "expires"]);
 
+/**
+ * Les dossiers de la bibliothèque.
+ *
+ * Une bibliothèque à plat ne tient pas : les carrousels finis s'y mélangent
+ * aux photos brutes du même shooting, et il faut ouvrir chaque vignette pour
+ * savoir laquelle est laquelle. Les dossiers sont propres à un client — on ne
+ * range pas les médias de deux marques ensemble — et s'imbriquent, parce qu'un
+ * « Shooting mars » contient un « Brut » et un « Retouché ».
+ *
+ * Supprimer un dossier ne supprime jamais un média : son contenu remonte d'un
+ * cran. Une suppression en cascade ferait disparaître le travail de plusieurs
+ * jours sur un clic.
+ */
+export const assetFolders = pgTable(
+  "asset_folders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    parentId: uuid("parent_id").references((): AnyPgColumn => assetFolders.id, {
+      onDelete: "cascade",
+    }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("asset_folders_client_idx").on(t.clientId),
+    index("asset_folders_parent_idx").on(t.parentId),
+  ],
+);
+
 export const assets = pgTable(
   "assets",
   {
@@ -494,6 +527,8 @@ export const assets = pgTable(
       .notNull()
       .references(() => clients.id, { onDelete: "cascade" }),
     shootId: uuid("shoot_id").references(() => shoots.id, { onDelete: "set null" }),
+    /** Le dossier où le média est rangé. Nul = à la racine du client. */
+    folderId: uuid("folder_id").references(() => assetFolders.id, { onDelete: "set null" }),
     filename: text("filename").notNull(),
     /** Chemin sur le volume du VPS, jamais une URL publique. */
     storagePath: text("storage_path").notNull(),
