@@ -8,6 +8,8 @@ import { CONTENT_STATUS } from "@/data/content";
 import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
 import { actionsDuClient, compteursPortail } from "@/db/web-queries";
+import { promosPourClient } from "@/db/queries";
+import { BanniereClient } from "./Banniere";
 import { contextePortail } from "@/lib/portail";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,9 @@ export default async function PortailPage() {
   const { user, client, config } = await contextePortail();
   const { start, end } = monthRange();
 
-  const [published, upcoming, answers, actions, compteurs] = await Promise.all([
+  const poles = client.departments?.length ? client.departments : ["social"];
+
+  const [published, upcoming, answers, actions, compteurs, bannieres] = await Promise.all([
     db
       .select({ content: contents })
       .from(contents)
@@ -52,6 +56,7 @@ export default async function PortailPage() {
       .limit(5),
     actionsDuClient(client.id),
     compteursPortail(client.id),
+    promosPourClient(poles),
   ]);
 
   const p = pace(published.length, client.contentTarget);
@@ -123,6 +128,13 @@ export default async function PortailPage() {
           ))}
         </Card>
       ) : null}
+
+      {/* Les offres de l'agence viennent après ce qu'on attend du client : une
+          bannière placée devant une validation en retard ferait manquer la
+          validation, et c'est pour elle qu'il est venu. */}
+      {bannieres.map((b) => (
+        <BanniereClient key={b.id} banniere={b} accent={config.primaryColor} />
+      ))}
 
       {client.contentTarget > 0 || published.length > 0 ? (
         <Card className="flex flex-col gap-4 p-6">

@@ -5,6 +5,9 @@ import { reglages } from "@/db/web-queries";
 import { mailConfigured } from "@/lib/mail";
 import { FormulaireReglages } from "./Formulaire";
 import { ImagesDeMarque } from "./Images";
+import { Bannieres } from "./Bannieres";
+import { listPromos } from "@/db/queries";
+import { basculerPromo, creerPromo, supprimerPromo } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ReglagesPage() {
   await requireDirection();
-  const config = await reglages();
+  const [config, bannieres] = await Promise.all([reglages(), listPromos()]);
 
   return (
     <>
@@ -47,6 +50,19 @@ export default async function ReglagesPage() {
                 cover={Boolean(config.coverPath)}
               />
             </div>
+          </Card>
+
+          <Card>
+            <CardHead
+              title="Bannières du portail client"
+              meta={bannieres.length ? `${bannieres.length}` : undefined}
+            />
+            <Bannieres
+              bannieres={bannieres}
+              creer={creerPromo}
+              basculer={basculerPromo}
+              supprimer={supprimerPromo}
+            />
           </Card>
 
           <Card>

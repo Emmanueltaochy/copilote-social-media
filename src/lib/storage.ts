@@ -689,3 +689,70 @@ export async function storeBranding(
     await unlink(tmpPath).catch(() => {});
   }
 }
+
+/**
+ * Enregistre le visuel d'une bannière de portail.
+ *
+ * Ramené à 1600 px de large sans recadrage : une bannière est composée avec
+ * ses proportions — un rognage automatique couperait le texte que l'agence y
+ * a mis. Elle est simplement empêchée de dépasser une taille qui ralentirait
+ * l'affichage du portail.
+ */
+export async function storePromoImage(file: IncomingFile): Promise<string> {
+  const mime = resolveMime(file.mimeType, file.filename);
+  if (!isImage(mime)) throw new UploadError("Une image : JPEG, PNG, HEIC ou WebP.");
+  if (file.declaredBytes !== null && file.declaredBytes > MAX_BRANDING_BYTES) {
+    throw new UploadError(
+      `Image trop lourde (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_BRANDING_BYTES)}.`,
+    );
+  }
+
+  const dir = "promos";
+  await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
+
+  const tmpPath = path.join(tmpDir, randomUUID());
+  let received = 0;
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
+
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          if (received > MAX_BRANDING_BYTES) {
+            throw new UploadError(`Image trop lourde (plus de ${formatBytes(MAX_BRANDING_BYTES)}).`);
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
+
+    if (received === 0) throw new UploadError("Fichier vide.");
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError("Envoi interrompu. Rien n'a été enregistré, relance l'image.");
+    }
+
+    const storagePath = path.join(dir, `${randomUUID()}.webp`);
+    await sharp(tmpPath, { failOn: "none" })
+      .rotate()
+      .resize({ width: 1600, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toFile(path.join(MEDIA_ROOT, storagePath));
+
+    return storagePath;
+  } catch (error) {
+    if (error instanceof Error && /premature end|truncat/i.test(error.message)) {
+      throw new UploadError("Envoi interrompu : l'image est arrivée incomplète. Relance-la.");
+    }
+    if (error instanceof Error && /unsupported image format|Input file/i.test(error.message)) {
+      throw new UploadError("Cette image n'a pas pu être lue. Essaie un JPEG ou un PNG.");
+    }
+    throw error;
+  } finally {
+    await unlink(tmpPath).catch(() => {});
+  }
+}

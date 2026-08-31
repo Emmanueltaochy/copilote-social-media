@@ -160,6 +160,20 @@ export async function requireDirection(): Promise<User> {
   return user;
 }
 
+/**
+ * La direction, pour une route d'API.
+ *
+ * `requireDirection` redirige, ce qui convient à une page — le navigateur suit
+ * et affiche l'accueil — mais trompe un appel programmé : `fetch` suit la
+ * redirection, reçoit une page en 200, et le code appelant la lit comme un
+ * succès alors que rien n'a été fait. Une route répond, elle ne renvoie pas
+ * ailleurs.
+ */
+export async function currentDirection(): Promise<User | null> {
+  const user = await currentUser();
+  return user && user.role === "direction" ? user : null;
+}
+
 /** Les montants et les marges ne s'affichent pas pour toute l'équipe. */
 export const canSeeMoney = (user: Pick<User, "role">) => user.role === "direction";
 

@@ -1132,6 +1132,42 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ------------------------------------------------------------ bannières -- */
+
+/**
+ * Les bannières du portail client.
+ *
+ * L'agence vend aussi à ses propres clients : un client réseaux sociaux qui
+ * n'a pas de site est le meilleur prospect pour en commander un. Le portail
+ * est l'endroit où il vient de lui-même, plusieurs fois par mois.
+ *
+ * Deux garde-fous plutôt qu'un : une bannière porte une audience — on ne
+ * propose pas la création d'un site à qui vient d'en acheter un — et une date
+ * de fin, parce qu'une promotion « ce mois-ci » encore affichée en décembre
+ * décrédibilise tout le reste. Personne ne pense à retirer une bannière.
+ */
+export const promos = pgTable(
+  "promos",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Bouton facultatif : les deux vont ensemble ou aucun des deux. */
+    ctaLabel: text("cta_label"),
+    ctaUrl: text("cta_url"),
+    /** Visuel facultatif, gardé dans ses proportions d'origine. */
+    imagePath: text("image_path"),
+    /** « tous », « social » ou « web ». */
+    audience: text("audience").notNull().default("tous"),
+    active: boolean("active").notNull().default(true),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("promos_active_idx").on(t.active)],
+);
+
 /* ------------------------------------------------------------ livrables -- */
 
 export const deliverableStatus = pgEnum("deliverable_status", [

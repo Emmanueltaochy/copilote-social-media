@@ -19,6 +19,7 @@ import {
   assetUsages,
   contractLines,
   gearPresets,
+  promos,
   shoots,
   shootCrew,
   shootDeliverables,
@@ -30,6 +31,39 @@ import {
   type Client,
 } from "./schema";
 import { monthRange, pace, type Pace } from "@/lib/pacing";
+
+/* -------------------------------------------------------------- bannières -- */
+
+/** Toutes les bannières, pour l'écran qui les gère. */
+export async function listPromos() {
+  return db.select().from(promos).orderBy(desc(promos.createdAt));
+}
+
+/**
+ * Les bannières qu'un client donné doit voir, à cet instant.
+ *
+ * Trois conditions, et chacune a sa raison. Active, parce qu'on prépare une
+ * campagne avant de la montrer. Dans sa fenêtre de dates, parce qu'une
+ * promotion « ce mois-ci » encore affichée en décembre décrédibilise tout le
+ * reste et que personne ne pense à retirer une bannière. Et de la bonne
+ * audience : on ne propose pas la création d'un site à qui vient d'en acheter
+ * un.
+ */
+export async function promosPourClient(poles: string[], now: Date = new Date()) {
+  const rows = await db
+    .select()
+    .from(promos)
+    .where(
+      and(
+        eq(promos.active, true),
+        raw`(${promos.startsAt} is null or ${promos.startsAt} <= ${now.toISOString()})`,
+        raw`(${promos.endsAt} is null or ${promos.endsAt} >= ${now.toISOString()})`,
+      ),
+    )
+    .orderBy(desc(promos.createdAt));
+
+  return rows.filter((p) => p.audience === "tous" || poles.includes(p.audience));
+}
 
 /* ---------------------------------------------------------------- clients -- */
 

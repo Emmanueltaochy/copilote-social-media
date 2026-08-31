@@ -1,7 +1,7 @@
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { eq } from "drizzle-orm";
 import { db, settings } from "@/db";
-import { requireDirection } from "@/lib/auth";
+import { currentDirection } from "@/lib/auth";
 import { isBrandingKind, removeStored, storeBranding, UploadError, type BrandingKind } from "@/lib/storage";
 import { revalidatePath } from "next/cache";
 
@@ -33,7 +33,9 @@ function demande(request: Request): BrandingKind | null {
  * client, avant même de se connecter.
  */
 export async function POST(request: Request) {
-  await requireDirection();
+  if (!(await currentDirection())) {
+    return Response.json({ error: "Non autorisé." }, { status: 403 });
+  }
 
   const kind = demande(request);
 
@@ -93,7 +95,9 @@ export async function POST(request: Request) {
 
 /** Retire le logo ou le visuel : on revient au dégradé et au nom écrit. */
 export async function DELETE(request: Request) {
-  await requireDirection();
+  if (!(await currentDirection())) {
+    return Response.json({ error: "Non autorisé." }, { status: 403 });
+  }
   const kind = demande(request);
   if (!kind) return Response.json({ error: "Image inconnue." }, { status: 400 });
 
