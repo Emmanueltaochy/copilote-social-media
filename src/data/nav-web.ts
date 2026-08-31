@@ -11,6 +11,7 @@ export const NAV_WEB: NavItem[] = [
   { label: "Projets", href: "/web" },
   { label: "Briefs", href: "/web/briefs" },
   { label: "Clients", href: "/clients" },
+  { label: "Devis", href: "/devis" },
   { label: "Mes heures", href: "/heures" },
   { label: "Équipe", href: "/equipe", directionOnly: true },
   { label: "Réglages", href: "/reglages", directionOnly: true },

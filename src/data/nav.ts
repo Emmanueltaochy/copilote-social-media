@@ -21,6 +21,7 @@ export const NAV: NavItem[] = [
   { label: "Mes heures", href: "/heures" },
   { label: "Terrain", href: "/terrain" },
   { label: "Clients", href: "/clients" },
+  { label: "Devis", href: "/devis" },
   { label: "Équipe", href: "/equipe", directionOnly: true },
   { label: "Rentabilité", href: "/rentabilite", directionOnly: true },
   { label: "Réglages", href: "/reglages", directionOnly: true },

@@ -770,6 +770,7 @@ export const notificationKind = pgEnum("notification_kind", [
   "publie",
   "tournage",
   "message",
+  "devis",
 ]);
 
 /**
@@ -1131,6 +1132,52 @@ export const settings = pgTable("settings", {
   portalWelcome: text("portal_welcome"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* --------------------------------------------------------------- devis -- */
+
+export const quoteStatus = pgEnum("quote_status", [
+  "nouvelle",
+  "en_cours",
+  "envoye",
+  "clos",
+]);
+
+/**
+ * Une demande de devis, faite par un client depuis son portail.
+ *
+ * Un client qui a une idée l'a le soir, pas au moment où on l'appelle. Le
+ * portail est ouvert en permanence : autant qu'il puisse y déposer sa demande
+ * quand elle lui vient, avec ce qu'il en sait déjà.
+ *
+ * Le budget est un texte libre et non un montant. Un client dit « autour de
+ * trois mille » ou « je ne sais pas encore » ; un champ chiffré obligatoire le
+ * ferait renoncer, et une demande abandonnée coûte plus cher qu'une fourchette
+ * imprécise.
+ */
+export const quoteRequests = pgTable(
+  "quote_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** Le contact qui a fait la demande. */
+    requestedById: uuid("requested_by_id").references(() => users.id, { onDelete: "set null" }),
+    subject: text("subject").notNull(),
+    /** « site », « social », « shooting », « ads » ou « autre ». */
+    kind: text("kind").notNull().default("autre"),
+    details: text("details"),
+    budget: text("budget"),
+    /** Pour quand le client l'espère. */
+    deadline: date("deadline"),
+    status: quoteStatus("status").notNull().default("nouvelle"),
+    /** Note interne : jamais montrée au client. */
+    agencyNote: text("agency_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("quote_requests_client_idx").on(t.clientId), index("quote_requests_status_idx").on(t.status)],
+);
 
 /* ------------------------------------------------------------ bannières -- */
 

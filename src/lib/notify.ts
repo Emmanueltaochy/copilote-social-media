@@ -25,7 +25,8 @@ export type NotifyKind =
   | "modification_demandee"
   | "publie"
   | "tournage"
-  | "message";
+  | "message"
+  | "devis";
 
 export type NotifyInput = {
   kind: NotifyKind;

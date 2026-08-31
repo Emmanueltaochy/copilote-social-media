@@ -8,6 +8,7 @@ const ONGLETS = [
   { href: "/portail/valider", label: "À valider", cle: "aValider" },
   { href: "/portail/medias", label: "Médias" },
   { href: "/portail/documents", label: "Documents" },
+  { href: "/portail/devis", label: "Devis" },
   { href: "/portail/projets", label: "Projets", cle: "projets" },
   { href: "/portail/charte", label: "Charte" },
 ] as const;

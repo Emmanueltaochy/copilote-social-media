@@ -20,6 +20,7 @@ import {
   contractLines,
   gearPresets,
   promos,
+  quoteRequests,
   shoots,
   shootCrew,
   shootDeliverables,
@@ -31,6 +32,48 @@ import {
   type Client,
 } from "./schema";
 import { monthRange, pace, type Pace } from "@/lib/pacing";
+
+/* ------------------------------------------------------------------ devis -- */
+
+/** Les demandes d'un client, telles qu'il les relit dans son portail. */
+export async function devisDuClient(clientId: string) {
+  return db
+    .select()
+    .from(quoteRequests)
+    .where(eq(quoteRequests.clientId, clientId))
+    .orderBy(desc(quoteRequests.createdAt));
+}
+
+/**
+ * Toutes les demandes, pour l'écran de l'agence.
+ *
+ * Les demandes ouvertes remontent : une demande close reste consultable mais
+ * n'a plus à disputer la place à celle qui attend une réponse.
+ */
+export async function listDevis() {
+  return db
+    .select({
+      devis: quoteRequests,
+      clientName: clients.shortName,
+      demandeur: users.name,
+    })
+    .from(quoteRequests)
+    .innerJoin(clients, eq(clients.id, quoteRequests.clientId))
+    .leftJoin(users, eq(users.id, quoteRequests.requestedById))
+    .orderBy(
+      raw`case ${quoteRequests.status} when 'nouvelle' then 0 when 'en_cours' then 1 when 'envoye' then 2 else 3 end`,
+      desc(quoteRequests.createdAt),
+    );
+}
+
+/** Combien de demandes n'ont pas encore été ouvertes. */
+export async function devisNouveaux(): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.status, "nouvelle"));
+  return row?.n ?? 0;
+}
 
 /* -------------------------------------------------------------- bannières -- */
 
