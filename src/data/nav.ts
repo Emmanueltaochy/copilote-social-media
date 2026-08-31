@@ -6,7 +6,8 @@ export type NavItem = {
 };
 
 export const NAV: NavItem[] = [
-  { label: "Cockpit", href: "/" },
+  { label: "Suivi", href: "/" },
+  { label: "Cockpit", href: "/cockpit" },
   { label: "Avancement", href: "/avancement" },
   { label: "Calendrier", href: "/calendrier" },
   { label: "Préparer le mois", href: "/preparer" },

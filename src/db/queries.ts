@@ -89,6 +89,92 @@ export async function listClientsWithPace(
   }));
 }
 
+/**
+ * Tout ce que l'écran de suivi montre d'une semaine.
+ *
+ * Trois choses, et non une seule liste : ce qui est programmé sur ces sept
+ * jours, ce qui existe sans date — la première cause de contenus oubliés — et
+ * l'écart entre ce qu'on a vendu au mois et ce qui existe réellement. Un
+ * calendrier qui ne montre que les contenus créés donne une semaine vide et
+ * rassurante alors qu'il manque six posts.
+ */
+export async function semaineDeSuivi(
+  lundiIso: string,
+  now: Date = new Date(),
+  pole?: "social" | "web",
+) {
+  const debut = new Date(`${lundiIso}T00:00:00`);
+  const fin = new Date(debut);
+  fin.setDate(debut.getDate() + 7);
+  const { start: moisDebut, end: moisFin } = monthRange(now);
+
+  const [programmes, sansDate, parClient] = await Promise.all([
+    db
+      .select({ content: contents, clientName: clients.shortName, ownerName: users.name })
+      .from(contents)
+      .innerJoin(clients, eq(clients.id, contents.clientId))
+      .leftJoin(users, eq(users.id, contents.ownerId))
+      .where(
+        and(
+          gte(contents.scheduledAt, debut),
+          lt(contents.scheduledAt, fin),
+          eq(clients.active, true),
+          duPole(pole),
+        ),
+      )
+      .orderBy(asc(contents.scheduledAt), asc(clients.shortName)),
+
+    // Sans date, et pas encore publié : un contenu publié sans date programmée
+    // n'attend plus rien de personne.
+    db
+      .select({ content: contents, clientName: clients.shortName })
+      .from(contents)
+      .innerJoin(clients, eq(clients.id, contents.clientId))
+      .where(
+        and(
+          isNull(contents.scheduledAt),
+          isNull(contents.publishedAt),
+          eq(clients.active, true),
+          duPole(pole),
+        ),
+      )
+      .orderBy(asc(clients.shortName)),
+
+    // L'engagement du mois face à ce qui existe. « Existe » compte tous les
+    // contenus du mois, quel que soit leur avancement : une idée notée est
+    // déjà une case remplie, ce qui manque est ce qui n'est nulle part.
+    db
+      .select({
+        id: clients.id,
+        nom: clients.shortName,
+        cible: clients.contentTarget,
+        // Deux précautions dans ces sous-requêtes. La colonne de la requête
+        // extérieure est écrite en toutes lettres : interpolée, drizzle la rend
+        // sans préfixe de table, et « id » se résoudrait alors contre le
+        // « contents c » du dessous — la condition serait toujours fausse. Et
+        // les bornes voyagent en texte ISO : un objet Date passé en paramètre
+        // d'un fragment brut n'est pas sérialisable par le pilote.
+        existants: raw<number>`(
+          select count(*)::int from contents c
+          where c.client_id = clients.id
+            and coalesce(c.scheduled_at, c.published_at, c.created_at) >= ${moisDebut.toISOString()}
+            and coalesce(c.scheduled_at, c.published_at, c.created_at) < ${moisFin.toISOString()}
+        )`,
+        publies: raw<number>`(
+          select count(*)::int from contents c
+          where c.client_id = clients.id
+            and c.published_at >= ${moisDebut.toISOString()}
+            and c.published_at < ${moisFin.toISOString()}
+        )`,
+      })
+      .from(clients)
+      .where(and(eq(clients.active, true), duPole(pole)))
+      .orderBy(asc(clients.shortName)),
+  ]);
+
+  return { programmes, sansDate, parClient };
+}
+
 /** Ordre du cockpit : le plus urgent en premier. */
 const URGENCY: Record<string, number> = { late: 0, risk: 1, ontime: 2, ahead: 3, none: 4 };
 

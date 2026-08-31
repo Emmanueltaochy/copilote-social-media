@@ -1,140 +1,321 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
-import { Card, CardHead } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PacingBar } from "@/components/ui/PacingBar";
-import { Dot, StatusPill } from "@/components/ui/primitives";
-import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
+import { Dot, Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireDepartment } from "@/lib/auth";
-import { byUrgency, countMissedPublications, listAwaitingApproval, listClientsWithPace, listTodayQueue, listUpcomingShoots } from "@/db/queries";
+import { semaineDeSuivi } from "@/db/queries";
+import { CONTENT_KIND, networksLabel } from "@/data/content";
+import { mondayOf } from "@/lib/ads";
+import { decalerSemaine, etatDuContenu, joursDeLaSemaine } from "@/lib/suivi";
 import { cn } from "@/lib/cn";
-import { monthLabel, monthProgressLabel } from "@/lib/pacing";
-import { toneText } from "@/lib/tone";
+import { toneBorder, toneText } from "@/lib/tone";
 
-const COLS = "190px minmax(80px,1fr) 132px 96px 136px";
+export const dynamic = "force-dynamic";
 
-export default async function CockpitPage() {
+const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+/**
+ * Le suivi de la semaine : l'écran d'accueil de l'agence.
+ *
+ * Un calendrier ordinaire ne montre que les contenus qui existent, et affiche
+ * donc une semaine vide et rassurante alors qu'il manque six posts. Celui-ci
+ * montre trois choses ensemble : ce qui est programmé jour par jour, ce qui
+ * traîne sans date, et l'écart entre ce qu'on a vendu au mois et ce qui existe
+ * réellement.
+ *
+ * La couleur ne vient pas du statut mais de la distance à l'échéance : « en
+ * création » est parfait à dix jours de la sortie et alarmant la veille. Seul
+ * ce qui est en retard ou doit partir aujourd'hui sans être prêt s'allume en
+ * rouge — sans quoi tout serait rouge et plus rien ne se verrait.
+ */
+export default async function SuiviPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ semaine?: string }>;
+}) {
+  // Le suivi porte sur le calendrier éditorial : il n'a de sens que pour le
+  // pôle social. Quelqu'un qui ne fait que du web est renvoyé à son tableau,
+  // comme le faisait le cockpit qui occupait cette adresse.
   await requireDepartment("social");
-  const clients = await listClientsWithPace(new Date(), "social");
+  const { semaine: demandée } = await searchParams;
 
-  if (clients.length === 0) {
+  const now = new Date();
+  // Une valeur bricolée dans l'adresse ne doit pas atteindre la requête : on
+  // n'accepte qu'un lundi bien formé, et on retombe sinon sur cette semaine.
+  const lundi =
+    demandée && /^\d{4}-\d{2}-\d{2}$/.test(demandée) && mondayOf(new Date(`${demandée}T00:00:00`)) === demandée
+      ? demandée
+      : mondayOf(now);
+
+  const { programmes, sansDate, parClient } = await semaineDeSuivi(lundi, now, "social");
+
+  if (parClient.length === 0) {
     return (
       <>
-        <PageHeader
-          title="Cockpit agence"
-          sub={`${monthLabel()} · ${monthProgressLabel()}`}
-        />
+        <PageHeader title="Suivi de la semaine" sub="Rien à suivre pour l'instant" />
         <EmptyState
           eyebrow="Premier pas"
           title="Aucun client pour l'instant"
           actionLabel="Ajouter un client"
           actionHref="/clients"
         >
-          Le cockpit compare, pour chaque client, ce qui a été publié à ce qui aurait dû
-          l&apos;être à cette date du mois. Commence par créer un client et son engagement
-          mensuel : tout le reste en découle.
+          Le suivi montre, jour par jour, ce qui doit sortir et ce qui manque encore.
+          Commence par créer un client et son engagement mensuel : tout le reste en découle.
         </EmptyState>
       </>
     );
   }
 
-  const [queue, approvals, shoots, missed] = await Promise.all([
-    listTodayQueue(),
-    listAwaitingApproval(),
-    listUpcomingShoots(),
-    countMissedPublications(),
-  ]);
+  const jours = joursDeLaSemaine(lundi);
+  const aujourdhui = mondayOf(now) === lundi ? now.getDate() : -1;
 
-  const late = clients.filter((c) => c.pace.key === "late" || c.pace.key === "risk").length;
-  const rows = byUrgency(clients);
+  // Ce qui manque au contrat, client par client. Un contenu « existe » dès
+  // qu'il est noté, même à l'état d'idée : ce qui manque est ce qui n'est
+  // nulle part.
+  const manques = parClient
+    .map((c) => ({ ...c, manquants: Math.max(0, c.cible - c.existants) }))
+    .filter((c) => c.manquants > 0);
+
+  const états = new Map(programmes.map((p) => [p.content.id, etatDuContenu(p.content, now)]));
+  const enRetard = programmes.filter((p) => états.get(p.content.id)?.cle === "retard").length;
+  const duJour = programmes.filter(
+    (p) => états.get(p.content.id)?.cle === "aujourdhui" && états.get(p.content.id)?.alerte,
+  ).length;
+  const àFinir = programmes.filter((p) => états.get(p.content.id)?.alerte).length - enRetard - duJour;
+  const totalManquants = manques.reduce((n, c) => n + c.manquants, 0);
+
+  const libelléSemaine = `${jours[0].toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} — ${jours[6].toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
+
+  /** Une pastille de tête : le nombre d'abord, ce qu'il désigne ensuite. */
+  const alerte = (n: number, label: string, tone: "alert" | "warn" | "info" | "neutral", href: string) => (
+    <Link
+      key={label}
+      href={href}
+      className={cn(
+        "flex min-w-[150px] flex-1 flex-col gap-[2px] rounded-card border px-4 py-3 no-underline hover:no-underline",
+        n === 0
+          ? "border-line bg-paper"
+          : tone === "alert"
+            ? "border-alert-line bg-alert-bg"
+            : tone === "warn"
+              ? "border-warn bg-warn-bg"
+              : "border-line bg-paper",
+      )}
+    >
+      <span className={cn("text-display font-semibold tabular-nums", n === 0 ? "text-ink-3" : toneText[tone])}>
+        {n}
+      </span>
+      <span className={cn("text-small", n === 0 ? "text-ink-3" : "text-ink-2")}>{label}</span>
+    </Link>
+  );
 
   return (
     <>
       <PageHeader
-        title="Cockpit agence"
-        sub={`${monthLabel()} · ${monthProgressLabel()} · ${clients.length} ${clients.length > 1 ? "clients actifs" : "client actif"}`}
+        title="Suivi de la semaine"
+        sub={`${libelléSemaine} · ${programmes.length} ${programmes.length > 1 ? "contenus programmés" : "contenu programmé"}`}
       />
 
-      <div className="flex flex-none items-stretch overflow-x-auto border-b border-line bg-paper px-5">
-        {[
-          { n: late, label: late > 1 ? "clients en retard sur leur engagement" : "client en retard sur son engagement", tone: "alert" as const, href: "/avancement" },
-          { n: missed, label: missed > 1 ? "contenus non publiés à l'heure prévue" : "contenu non publié à l'heure prévue", tone: "alert" as const, href: "/a-publier" },
-          { n: approvals.length, label: "contenus en attente de validation", tone: "warn" as const, href: "/approbations" },
-          { n: shoots.length, label: "tournages à venir", tone: "neutral" as const, href: "/tournages" },
-        ].map((a) => (
-          <Link
-            key={a.label}
-            href={a.href}
-            className="mr-[18px] flex flex-none items-center gap-[10px] border-r border-line py-[10px] pr-[18px] no-underline hover:opacity-70 hover:no-underline"
-          >
-            <span className={cn("text-title leading-tight font-semibold tabular-nums", a.n > 0 ? toneText[a.tone] : "text-ink-3")}>
-              {a.n}
-            </span>
-            <span className="max-w-[150px] text-small leading-tight text-ink-2">{a.label}</span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-7 lg:px-5">
-        <Card>
-          <CardHead
-            title="Pilotage des engagements · trié par urgence"
-            meta="Le repère or marque le rythme attendu aujourd'hui"
-          />
-          <TableScroll min={740}>
-          <TableHead cols={COLS} sticky>
-            <Th>Client</Th>
-            <Th>Avancement du mois</Th>
-            <Th>Réalisé / attendu</Th>
-            <Th align="right">Écart</Th>
-            <Th align="right">État</Th>
-          </TableHead>
-          {rows.map((c) => (
-            <TableRow key={c.id} cols={COLS}>
-              <span className="flex min-w-0 items-center gap-2">
-                <Dot tone={c.pace.tone} />
-                <Link href={`/clients/${c.id}`} className="clip text-base font-medium text-ink no-underline hover:underline">
-                  {c.shortName}
-                </Link>
-              </span>
-              <PacingBar
-                className="min-w-[60px]"
-                fillPct={c.pace.fillPct}
-                projPct={c.pace.projPct}
-                markerLeft={c.pace.markerLeft}
-              />
-              <span className="text-base text-ink-2 tabular-nums">{c.pace.doneLabel}</span>
-              <Num className={cn("font-medium", toneText[c.pace.tone])}>{c.pace.deltaLabel}</Num>
-              <span className="flex justify-end">
-                <StatusPill tone={c.pace.tone}>{c.pace.label}</StatusPill>
-              </span>
-            </TableRow>
-          ))}
-          </TableScroll>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-[14px] py-[10px]">
-            <span className="text-small text-ink-3">
-              Barre grise claire = projection au rythme actuel en fin de mois
-            </span>
-            <Link href="/clients" className="text-small font-medium">Gérer les clients</Link>
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+          {/* Ce qui ne va pas, en gros et en premier. Un chiffre à zéro reste
+              affiché, en gris : sa présence dit qu'on a regardé. */}
+          <div className="flex flex-wrap gap-3">
+            {alerte(enRetard, enRetard > 1 ? "en retard" : "en retard", "alert", "/production")}
+            {alerte(duJour, "à publier aujourd'hui, pas prêts", "alert", "/a-publier")}
+            {alerte(àFinir > 0 ? àFinir : 0, "à finir sous 48 h", "warn", "/production")}
+            {alerte(sansDate.length, "sans date", "warn", "/calendrier")}
+            {alerte(totalManquants, "à créer ce mois-ci", "info", "/preparer")}
           </div>
-        </Card>
 
-        {queue.length > 0 ? (
-          <Card className="mt-4">
-            <CardHead title="À publier aujourd'hui" meta={`${queue.length}`} />
-            {queue.map(({ content, clientName }) => (
-              <TableRow key={content.id} cols="72px 1fr 160px">
-                <span className="text-base font-medium tabular-nums">
-                  {content.scheduledAt?.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <span className="clip text-base">{clientName} · {content.title}</span>
-                <span className={cn("text-right text-small font-medium", content.publishedAt ? "text-ok" : "text-ink-2")}>
-                  {content.publishedAt ? "Publié" : "À publier"}
-                </span>
-              </TableRow>
-            ))}
-          </Card>
-        ) : null}
+          {/* Navigation de semaine. L'adresse porte le lundi : une semaine se
+              met en favori et se partage. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/?semaine=${decalerSemaine(lundi, -1)}`}
+              className="rounded-control border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+            >
+              ← Semaine précédente
+            </Link>
+            <Link
+              href="/"
+              className={cn(
+                "rounded-control border px-3 py-[6px] text-base no-underline hover:no-underline",
+                mondayOf(now) === lundi
+                  ? "border-ink bg-ink text-paper"
+                  : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
+              )}
+            >
+              Cette semaine
+            </Link>
+            <Link
+              href={`/?semaine=${decalerSemaine(lundi, 1)}`}
+              className="rounded-control border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+            >
+              Semaine suivante →
+            </Link>
+          </div>
+
+          {/* Sept colonnes sur un écran, sept blocs empilés sur un téléphone :
+              à cette largeur, une colonne de contenu ne se lit plus. */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-7">
+            {jours.map((jour, i) => {
+              const items = programmes.filter(
+                (p) =>
+                  p.content.scheduledAt &&
+                  p.content.scheduledAt.getDate() === jour.getDate() &&
+                  p.content.scheduledAt.getMonth() === jour.getMonth(),
+              );
+              const alerteDuJour = items.some((p) => états.get(p.content.id)?.alerte);
+              const cJour = jour.getDate() === aujourdhui && jour.getMonth() === now.getMonth();
+
+              return (
+                <div
+                  key={i}
+                  data-jour={jour.toISOString().slice(0, 10)}
+                  className={cn(
+                    "flex flex-col gap-2 rounded-card border p-2",
+                    cJour ? "border-ink-3 bg-paper" : "border-line bg-paper",
+                  )}
+                >
+                  {/* Le quantième et le nombre de contenus sont deux nombres
+                      voisins : sans mise en forme distincte, « Mar 1 » se lit
+                      « un contenu mardi » aussi bien que « mardi 1er ». Le
+                      premier est écrit en gros, le second dans une pastille. */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span className="flex items-baseline gap-[5px]">
+                      <span className={cn("text-micro uppercase", cJour ? "text-ink-2" : "text-ink-3")}>
+                        {JOURS[i].slice(0, 3)}
+                      </span>
+                      <span className={cn("text-lead tabular-nums", cJour ? "font-semibold text-ink" : "font-medium text-ink-2")}>
+                        {jour.getDate()}
+                      </span>
+                      {jour.getDate() === 1 || i === 0 ? (
+                        <span className="text-micro text-ink-3">
+                          {jour.toLocaleDateString("fr-FR", { month: "short" })}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="flex items-center gap-[5px]">
+                      {alerteDuJour ? <Dot tone="alert" solid size={6} /> : null}
+                      {items.length > 0 ? (
+                        <span className="rounded-full bg-slot px-[6px] py-[1px] text-micro tabular-nums text-ink-2">
+                          {items.length}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  {items.length === 0 ? (
+                    <span className="px-1 pb-1 text-micro text-ink-3">—</span>
+                  ) : (
+                    items.map(({ content, clientName }) => {
+                      const état = états.get(content.id)!;
+                      return (
+                        <Link
+                          key={content.id}
+                          href={`/contenu/${content.id}`}
+                          data-contenu={content.id}
+                          data-etat={état.cle}
+                          className={cn(
+                            "flex flex-col gap-[3px] rounded-control border border-l-[3px] bg-canvas px-2 py-[6px] no-underline hover:no-underline",
+                            toneBorder[état.tone],
+                          )}
+                        >
+                          <span className="clip text-small font-medium text-ink">{clientName}</span>
+                          {/* Le titre, tout de suite après le client : sans lui
+                              on voit qu'il y a deux posts jeudi sans savoir
+                              lesquels, et il faut ouvrir pour reconnaître. */}
+                          <span className="clip text-small text-ink-2">{content.title}</span>
+                          <span className="clip text-micro text-ink-3">
+                            {CONTENT_KIND[content.kind] ?? content.kind} · {networksLabel(content)}
+                          </span>
+                          <span className={cn("clip text-micro", toneText[état.tone])}>{état.label}</span>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Ce qui n'a pas de place dans la grille, et que la grille ne peut
+              donc pas rappeler : les contenus sans date, et les contenus qui
+              n'existent pas encore. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card className="flex flex-col gap-3 p-4">
+              <div>
+                <Eyebrow>Sans date</Eyebrow>
+                <p className="text-small text-ink-2">
+                  Ces contenus existent mais ne sont posés nulle part : ils ne sortiront pas
+                  tant qu&apos;ils n&apos;ont pas de jour.
+                </p>
+              </div>
+              {sansDate.length === 0 ? (
+                <p className="text-base text-ink-3">Tout est daté.</p>
+              ) : (
+                <div className="flex flex-col">
+                  {sansDate.slice(0, 8).map(({ content, clientName }) => (
+                    <Link
+                      key={content.id}
+                      href={`/contenu/${content.id}`}
+                      data-sans-date={content.id}
+                      className="flex flex-wrap items-center gap-2 border-b border-line py-2 no-underline last:border-b-0 hover:no-underline"
+                    >
+                      <span className="w-[130px] flex-none text-base font-medium text-ink">
+                        {clientName}
+                      </span>
+                      <span className="clip min-w-0 flex-1 text-base text-ink-2">{content.title}</span>
+                      <StatusPill tone="warn">à programmer</StatusPill>
+                    </Link>
+                  ))}
+                  {sansDate.length > 8 ? (
+                    <span className="pt-2 text-small text-ink-3">
+                      et {sansDate.length - 8} autre{sansDate.length - 8 > 1 ? "s" : ""}.
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </Card>
+
+            <Card className="flex flex-col gap-3 p-4">
+              <div>
+                <Eyebrow>À créer ce mois-ci</Eyebrow>
+                <p className="text-small text-ink-2">
+                  L&apos;écart entre l&apos;engagement vendu et ce qui existe, même à
+                  l&apos;état d&apos;idée. C&apos;est ce qui manquera si personne ne s&apos;en
+                  occupe.
+                </p>
+              </div>
+              {manques.length === 0 ? (
+                <p className="text-base text-ok">Tous les engagements du mois sont couverts.</p>
+              ) : (
+                <div className="flex flex-col">
+                  {manques.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/preparer?client=${c.id}`}
+                      data-manque={c.id}
+                      className="flex flex-wrap items-center gap-2 border-b border-line py-2 no-underline last:border-b-0 hover:no-underline"
+                    >
+                      <span className="w-[130px] flex-none text-base font-medium text-ink">
+                        {c.nom}
+                      </span>
+                      <span className="clip min-w-0 flex-1 text-base tabular-nums text-ink-2">
+                        {c.existants} / {c.cible} prévus · {c.publies} publiés
+                      </span>
+                      <StatusPill tone="alert">
+                        {c.manquants} à créer
+                      </StatusPill>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
       </div>
     </>
   );
