@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/connexion/actions";
 import { compteursPortail } from "@/db/web-queries";
+import { compteFactures } from "@/db/queries";
 import { contextePortail } from "@/lib/portail";
 import { NavPortail } from "./Nav";
 
@@ -20,7 +21,10 @@ export const dynamic = "force-dynamic";
  */
 export default async function PortailLayout({ children }: { children: React.ReactNode }) {
   const { user, client, config } = await contextePortail();
-  const compteurs = await compteursPortail(client.id);
+  const [compteurs, factures] = await Promise.all([
+    compteursPortail(client.id),
+    compteFactures(client.id),
+  ]);
 
   /*
    * La marque du pôle qui sert ce client.
@@ -76,6 +80,7 @@ export default async function PortailLayout({ children }: { children: React.Reac
           accent={config.primaryColor}
           aValider={compteurs.aValider}
           projets={compteurs.projets}
+          factures={factures}
         />
       </header>
 

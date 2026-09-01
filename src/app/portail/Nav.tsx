@@ -9,6 +9,7 @@ const ONGLETS = [
   { href: "/portail/medias", label: "Médias" },
   { href: "/portail/documents", label: "Documents" },
   { href: "/portail/devis", label: "Devis" },
+  { href: "/portail/factures", label: "Factures", cle: "factures" },
   { href: "/portail/projets", label: "Projets", cle: "projets" },
   { href: "/portail/charte", label: "Charte" },
 ] as const;
@@ -28,10 +29,12 @@ export function NavPortail({
   accent,
   aValider,
   projets,
+  factures,
 }: {
   accent: string;
   aValider: number;
   projets: number;
+  factures: number;
 }) {
   const chemin = usePathname();
   const compte: Record<string, number> = { aValider, projets };
@@ -39,7 +42,11 @@ export function NavPortail({
   return (
     <nav className="mx-auto w-full max-w-[1100px] overflow-x-auto px-4 sm:px-6">
       <ul className="flex list-none gap-1 pb-0">
-        {ONGLETS.filter((o) => o.href !== "/portail/projets" || projets > 0).map((o) => {
+        {ONGLETS.filter(
+          (o) =>
+            (o.href !== "/portail/projets" || projets > 0) &&
+            (o.href !== "/portail/factures" || factures > 0),
+        ).map((o) => {
           // « Accueil » ne s'allume que sur sa propre adresse : sans quoi il
           // resterait actif partout, puisque tout commence par /portail.
           const actif = o.href === "/portail" ? chemin === "/portail" : chemin.startsWith(o.href);

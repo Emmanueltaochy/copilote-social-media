@@ -19,6 +19,7 @@ import {
   assetUsages,
   contractLines,
   gearPresets,
+  invoices,
   promos,
   quoteRequests,
   shoots,
@@ -32,6 +33,33 @@ import {
   type Client,
 } from "./schema";
 import { monthRange, pace, type Pace } from "@/lib/pacing";
+import { mondayOf } from "@/lib/ads";
+
+/* --------------------------------------------------------------- factures -- */
+
+/**
+ * Les factures d'un client, la plus récente d'abord.
+ *
+ * L'ordre est celui de l'émission et non de l'enregistrement : une facture
+ * d'avril déposée en juin appartient à avril, et c'est ainsi qu'un comptable
+ * la cherche.
+ */
+export async function facturesDuClient(clientId: string) {
+  return db
+    .select()
+    .from(invoices)
+    .where(eq(invoices.clientId, clientId))
+    .orderBy(desc(invoices.issuedOn), desc(invoices.createdAt));
+}
+
+/** Combien de factures un client a, pour savoir s'il faut lui montrer l'onglet. */
+export async function compteFactures(clientId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(invoices)
+    .where(eq(invoices.clientId, clientId));
+  return row?.n ?? 0;
+}
 
 /* ------------------------------------------------------------------ devis -- */
 
@@ -795,6 +823,11 @@ export async function listClientAccess(clientId: string) {
 /** Saisies d'une personne sur un mois, du plus récent au plus ancien. */
 export async function listTimeEntries(userId: string, now: Date = new Date()) {
   const { start, end } = monthRange(now);
+  // La semaine en cours s'affiche toujours, même quand son lundi appartient au
+  // mois précédent. Sans cela, une heure saisie un mardi 1er disparaissait de
+  // l'écran à l'instant où on l'enregistrait : elle porte le lundi 31, que le
+  // filtre mensuel écartait. Six mois sur sept commencent ainsi.
+  const lundi = mondayOf(now);
   return db
     .select({ entry: timeEntries, clientName: clients.shortName })
     .from(timeEntries)
@@ -802,8 +835,11 @@ export async function listTimeEntries(userId: string, now: Date = new Date()) {
     .where(
       and(
         eq(timeEntries.userId, userId),
-        gte(timeEntries.weekStart, start.toISOString().slice(0, 10)),
-        lt(timeEntries.weekStart, end.toISOString().slice(0, 10)),
+        raw`(
+          (${timeEntries.weekStart} >= ${start.toISOString().slice(0, 10)}
+           and ${timeEntries.weekStart} < ${end.toISOString().slice(0, 10)})
+          or ${timeEntries.weekStart} = ${lundi}
+        )`,
       ),
     )
     .orderBy(desc(timeEntries.weekStart), asc(clients.shortName));

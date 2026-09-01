@@ -1133,6 +1133,48 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ------------------------------------------------------------- factures -- */
+
+/**
+ * Les factures déposées par l'agence pour ses clients.
+ *
+ * Un client réclame ses factures à son comptable près, souvent en janvier et
+ * pour l'année entière. Les lui laisser dans son portail lui évite de nous
+ * écrire, et nous évite de rechercher dans une boîte mail ce qui a été envoyé
+ * dix mois plus tôt.
+ *
+ * Une table à part des pièces jointes, parce qu'une facture porte ce qu'un
+ * document ordinaire n'a pas : un numéro, un montant, une date d'émission et
+ * un état de règlement. C'est ce qui permet de la retrouver, de la totaliser
+ * par année, et de dire d'un coup d'œil ce qui reste à payer.
+ */
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** Le numéro de la facture, tel qu'il figure sur le document. */
+    number: text("number").notNull(),
+    /** « Prestation août 2026 », « Création du site ». */
+    label: text("label"),
+    /** Montant TTC en centimes : c'est ce que le client paie. */
+    amountCents: integer("amount_cents").notNull().default(0),
+    issuedOn: date("issued_on").notNull(),
+    dueOn: date("due_on"),
+    /** Le règlement est une date, pas une case : « quand » compte en compta. */
+    paidOn: date("paid_on"),
+    filename: text("filename").notNull(),
+    storagePath: text("storage_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invoices_client_idx").on(t.clientId), index("invoices_issued_idx").on(t.issuedOn)],
+);
+
 /* --------------------------------------------------------------- devis -- */
 
 export const quoteStatus = pgEnum("quote_status", [

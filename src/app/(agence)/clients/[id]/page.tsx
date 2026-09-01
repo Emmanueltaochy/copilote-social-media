@@ -24,13 +24,16 @@ import { SendByEmail } from "@/components/ui/SendByEmail";
 import {
   archiveClient,
   deleteClientFile,
+  marquerFacture,
+  supprimerFacture,
   removeContractLine,
   revokeClientAccess,
   toggleFileVisibility,
   updateClient,
 } from "../actions";
 import { FilesCard } from "./FilesCard";
-import { listClientAccess, listClientFiles } from "@/db/queries";
+import { FacturesCard } from "./FacturesCard";
+import { facturesDuClient, listClientAccess, listClientFiles } from "@/db/queries";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireStaff();
@@ -59,6 +62,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     db.select().from(brands).where(eq(brands.clientId, id)).limit(1),
     recapWeb(id),
   ]);
+  // La facturation regarde la direction : elle porte des montants, et l'écran
+  // ne les charge donc pas pour qui n'a pas à les voir.
+  const factures = canSeeMoney(user) ? await facturesDuClient(id) : [];
   const charte = charteRows[0];
   const { pace } = client;
 
@@ -381,6 +387,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             onDelete={deleteClientFile}
             onToggle={toggleFileVisibility}
           />
+
+          {canSeeMoney(user) ? (
+            <FacturesCard
+              clientId={client.id}
+              factures={factures}
+              onDelete={supprimerFacture}
+              onPaiement={marquerFacture}
+            />
+          ) : null}
 
           <Card className="flex flex-col gap-4 p-5">
             <div>

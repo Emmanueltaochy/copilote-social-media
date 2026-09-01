@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
 import { unlink } from "node:fs/promises";
-import { db, brands, clientFiles, clients, contractLines, users } from "@/db";
+import { db, brands, clientFiles, clients, contractLines, invoices, users } from "@/db";
 import { absolutePath } from "@/lib/storage";
 import { canSeeMoney, initialsFrom, requireStaff } from "@/lib/auth";
 
@@ -318,4 +318,54 @@ export async function deleteClientFile(formData: FormData): Promise<void> {
   await unlink(absolutePath(row.storagePath)).catch(() => {});
   await db.delete(clientFiles).where(eq(clientFiles.id, id));
   revalidatePath(`/clients/${clientId}`);
+}
+
+/* --------------------------------------------------------------- factures -- */
+
+/**
+ * Marque une facture réglée, ou revient dessus.
+ *
+ * Le règlement est une date et non une case : en comptabilité, « quand »
+ * compte autant que « oui ».
+ */
+export async function marquerFacture(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  // La facturation regarde la direction : elle porte des montants.
+  if (!canSeeMoney(user)) return;
+
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!id) return;
+
+  const payee = String(formData.get("paid") ?? "") === "true";
+  const aujourdhui = new Date();
+  const iso = `${aujourdhui.getFullYear()}-${String(aujourdhui.getMonth() + 1).padStart(2, "0")}-${String(aujourdhui.getDate()).padStart(2, "0")}`;
+
+  await db
+    .update(invoices)
+    .set({ paidOn: payee ? iso : null })
+    .where(eq(invoices.id, id));
+
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/portail/factures");
+}
+
+/** Retire une facture, document compris. */
+export async function supprimerFacture(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  if (!canSeeMoney(user)) return;
+
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!id) return;
+
+  const [facture] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+  if (!facture) return;
+  // Le fichier part avec la ligne : sans cela le disque garderait un PDF que
+  // plus rien ne désigne, et qu'aucun écran ne permettrait de retrouver.
+  await unlink(absolutePath(facture.storagePath)).catch(() => {});
+  await db.delete(invoices).where(eq(invoices.id, id));
+
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/portail/factures");
 }

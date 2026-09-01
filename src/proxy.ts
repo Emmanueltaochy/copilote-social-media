@@ -49,6 +49,6 @@ export const config = {
   // le corps traverse en flux, sans copie ni plafond. Le contrôle d'accès n'y
   // perd rien : la route vérifie elle-même la session, comme toutes les autres.
   matcher: [
-    "/((?!api/upload|api/client-files|api/avatar|api/branding|api/promo|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!api/upload|api/client-files|api/avatar|api/branding|api/promo|api/invoice|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 };
