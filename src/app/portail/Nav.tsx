@@ -22,8 +22,13 @@ const ONGLETS = [
  * ferait manquer la pastille des validations en attente — la seule chose que
  * le client doit voir en arrivant.
  *
- * Un onglet sans rien à montrer disparaît : « Projets » n'a pas lieu d'être
- * pour un client qui n'achète que du social.
+ * « Projets » disparaît quand il n'y a rien à montrer : un client qui n'achète
+ * que du social n'en aura jamais.
+ *
+ * « Factures », en revanche, reste toujours là, même vide. Tout client finit
+ * par être facturé, et un onglet qui n'apparaît qu'au dépôt de la première
+ * facture n'apprend à personne que l'endroit existe — ni au client, qui ira
+ * fouiller ses mails, ni à nous, qui le croirons absent.
  */
 export function NavPortail({
   accent,
@@ -37,16 +42,14 @@ export function NavPortail({
   factures: number;
 }) {
   const chemin = usePathname();
-  const compte: Record<string, number> = { aValider, projets };
+  // La pastille des factures ne compte que ce qui reste à régler : un client
+  // n'a pas à voir « 34 » sur un onglet dont tout est payé depuis trois ans.
+  const compte: Record<string, number> = { aValider, projets, factures };
 
   return (
     <nav className="mx-auto w-full max-w-[1100px] overflow-x-auto px-4 sm:px-6">
       <ul className="flex list-none gap-1 pb-0">
-        {ONGLETS.filter(
-          (o) =>
-            (o.href !== "/portail/projets" || projets > 0) &&
-            (o.href !== "/portail/factures" || factures > 0),
-        ).map((o) => {
+        {ONGLETS.filter((o) => o.href !== "/portail/projets" || projets > 0).map((o) => {
           // « Accueil » ne s'allume que sur sa propre adresse : sans quoi il
           // resterait actif partout, puisque tout commence par /portail.
           const actif = o.href === "/portail" ? chemin === "/portail" : chemin.startsWith(o.href);

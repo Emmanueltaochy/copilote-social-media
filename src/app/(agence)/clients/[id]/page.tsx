@@ -11,6 +11,7 @@ import { CONTENT_KIND, networksLabel } from "@/data/content";
 import { BRIEF_STATUS, PROJECT_TYPE, WEB_PHASE } from "@/data/web";
 import { listBriefs, listWebProjects, recapWeb } from "@/db/web-queries";
 import { BriefLauncher } from "../../web/BriefLauncher";
+import { ProjectForm } from "../../web/ProjectForm";
 import { CharteClient } from "@/app/portail/EspaceWeb";
 import { brands } from "@/db/schema";
 import { db } from "@/db";
@@ -311,12 +312,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   </Link>
                 ))}
               </div>
-            ) : (
-              <p className="text-base text-ink-2">
-                Aucun projet web pour ce client. Le montant d&apos;un site se saisit sur son
-                projet — <Link href="/web">ouvre le tableau web</Link> pour en créer un.
+            ) : null}
+
+            {/* La création du projet se fait ici, pas ailleurs.
+                Un client peut porter « web » dans son contrat sans avoir
+                aucun projet ouvert : c'est alors un client web sur le papier
+                et rien du tout dans l'outil — pas de jalons, pas de
+                livrables, et un onglet « Projets » absent de son portail.
+                Renvoyer vers le tableau web pour créer la ligne manquante
+                supposait de comprendre qu'elle manquait. */}
+            <div className="rounded-card border border-line p-[14px]">
+              <p className="mb-3 text-base text-ink-2">
+                {projetsWeb.length > 0
+                  ? "Ouvrir un autre projet pour ce client."
+                  : "Aucun projet ouvert pour ce client. Tant qu'il n'y en a pas, son portail n'affiche pas d'onglet Projets et le montant du site n'est comptabilisé nulle part."}
               </p>
-            )}
+              <ProjectForm client={{ id: client.id, name: client.shortName }} />
+            </div>
 
             {briefsDuClient.length > 0 ? (
               <div className="overflow-hidden rounded-card border border-line">

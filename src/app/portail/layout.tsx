@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/connexion/actions";
 import { compteursPortail } from "@/db/web-queries";
-import { compteFactures } from "@/db/queries";
+import { facturesAregler } from "@/db/queries";
 import { contextePortail } from "@/lib/portail";
 import { NavPortail } from "./Nav";
 
@@ -23,7 +23,7 @@ export default async function PortailLayout({ children }: { children: React.Reac
   const { user, client, config } = await contextePortail();
   const [compteurs, factures] = await Promise.all([
     compteursPortail(client.id),
-    compteFactures(client.id),
+    facturesAregler(client.id),
   ]);
 
   /*

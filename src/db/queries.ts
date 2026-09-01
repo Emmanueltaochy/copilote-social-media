@@ -52,12 +52,18 @@ export async function facturesDuClient(clientId: string) {
     .orderBy(desc(invoices.issuedOn), desc(invoices.createdAt));
 }
 
-/** Combien de factures un client a, pour savoir s'il faut lui montrer l'onglet. */
-export async function compteFactures(clientId: string): Promise<number> {
+/**
+ * Combien de factures restent à régler, pour la pastille de l'onglet.
+ *
+ * On ne compte pas les factures déjà payées : elles restent consultables, mais
+ * un chiffre sur un onglet est un appel à agir, et il n'y a rien à faire d'une
+ * facture soldée. Un compteur qui grandit à vie finit ignoré.
+ */
+export async function facturesAregler(clientId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(invoices)
-    .where(eq(invoices.clientId, clientId));
+    .where(and(eq(invoices.clientId, clientId), isNull(invoices.paidOn)));
   return row?.n ?? 0;
 }
 
