@@ -1,8 +1,21 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
-import { clients, contents, db, users, type ApiKey } from "@/db";
+import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
+import {
+  clients,
+  comments,
+  contents,
+  contentVersions,
+  contractLines,
+  db,
+  shootCrew,
+  shootDeliverables,
+  shoots,
+  users,
+  type ApiKey,
+} from "@/db";
 import { perimetreDeLaCle } from "./api-auth";
+import { departmentsOf, type Department } from "./auth";
 
 /**
  * Le seul chemin par lequel l'API des agents atteint la base.
@@ -222,4 +235,358 @@ export async function listerContenus(cle: ApiKey, filtres: FiltresContenus) {
       ? { id: l.responsableId, nom: l.responsableNom, initiales: l.responsableInitiales }
       : null,
   }));
+}
+
+/* -------------------------------------------------------------- les clients -- */
+
+/**
+ * Le portefeuille d'une clé.
+ *
+ * La projection est la partie sensible : `clients` porte `monthlyFeeCents`,
+ * `hoursSold`, `webMaintenanceCents`, `webHourlyRateCents` et `webHoursSold`.
+ * Un agent chef de projet n'a aucun usage des conditions commerciales, et un
+ * `select()` nu les lui livrerait toutes en un appel.
+ *
+ * Les lignes de contrat viennent avec : sans elles, un agent voit ce qui existe
+ * mais pas ce qui *devrait* exister, et ne peut donc pas repérer ce qui manque.
+ * Elles ne portent aucun montant, seulement des volumes et des formats.
+ */
+export async function listerClients(cle: ApiKey) {
+  exige("clients", "client");
+
+  const lignes = await db
+    .select({
+      id: clients.id,
+      nom: clients.name,
+      nomCourt: clients.shortName,
+      secteur: clients.sector,
+      contenusParMois: clients.contentTarget,
+      poles: clients.departments,
+      responsableId: users.id,
+      responsableNom: users.name,
+      responsableInitiales: users.initials,
+    })
+    .from(clients)
+    .leftJoin(users, eq(users.id, clients.projectManagerId))
+    .where(perimetreDeLaCle(cle))
+    .orderBy(asc(clients.shortName));
+
+  if (lignes.length === 0) return [];
+
+  const contrats = await db
+    .select({
+      clientId: contractLines.clientId,
+      id: contractLines.id,
+      libelle: contractLines.label,
+      parMois: contractLines.monthlyTarget,
+      format: contractLines.kind,
+      reseau: contractLines.network,
+      reseaux: contractLines.networks,
+    })
+    .from(contractLines)
+    .where(inArray(contractLines.clientId, clientsAutorises(cle)))
+    .orderBy(asc(contractLines.position));
+
+  return lignes.map((c) => ({
+    id: c.id,
+    nom: c.nom,
+    nomCourt: c.nomCourt,
+    secteur: c.secteur,
+    contenusParMois: c.contenusParMois,
+    poles: c.poles,
+    responsable: c.responsableId
+      ? { id: c.responsableId, nom: c.responsableNom, initiales: c.responsableInitiales }
+      : null,
+    contrat: contrats
+      .filter((l) => l.clientId === c.id)
+      .map((l) => ({
+        id: l.id,
+        libelle: l.libelle,
+        parMois: l.parMois,
+        format: l.format,
+        reseaux: l.reseaux.length > 0 ? l.reseaux : [l.reseau],
+      })),
+  }));
+}
+
+/* ------------------------------------------------------- un contenu, en détail -- */
+
+/**
+ * Un contenu avec ses versions et ses commentaires, ou `null`.
+ *
+ * `null` et non une erreur d'autorisation : un contenu hors périmètre doit être
+ * indiscernable d'un contenu qui n'existe pas. Répondre « il existe mais pas
+ * pour toi » confirmerait son existence, ce qui est déjà une fuite.
+ */
+export async function lireContenu(cle: ApiKey, id: string) {
+  exige("contenus", "client");
+
+  const [contenu] = await db
+    .select({
+      id: contents.id,
+      titre: contents.title,
+      statut: contents.status,
+      format: contents.kind,
+      reseau: contents.network,
+      reseaux: contents.networks,
+      consignes: contents.instructions,
+      legende: contents.caption,
+      hashtags: contents.hashtags,
+      prevuLe: contents.scheduledAt,
+      echeanceLe: contents.dueAt,
+      soumisLe: contents.submittedAt,
+      publieLe: contents.publishedAt,
+      publieUrl: contents.publishedUrl,
+      creeLe: contents.createdAt,
+      majLe: contents.updatedAt,
+      clientId: clients.id,
+      clientNom: clients.name,
+      clientNomCourt: clients.shortName,
+      responsableId: users.id,
+      responsableNom: users.name,
+      responsableInitiales: users.initials,
+    })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .leftJoin(users, eq(users.id, contents.ownerId))
+    .where(and(eq(contents.id, id), inArray(contents.id, contenusAutorises(cle))))
+    .limit(1);
+
+  if (!contenu) return null;
+
+  exige("versions", "client");
+  const versions = await db
+    .select({
+      id: contentVersions.id,
+      numero: contentVersions.number,
+      note: contentVersions.note,
+      valideeLe: contentVersions.approvedAt,
+      refuseeLe: contentVersions.rejectedAt,
+      motifDuRefus: contentVersions.rejectionReason,
+      creeLe: contentVersions.createdAt,
+      auteurNom: users.name,
+      auteurInitiales: users.initials,
+    })
+    .from(contentVersions)
+    .leftJoin(users, eq(users.id, contentVersions.createdById))
+    // Deux conditions, et les deux comptent : celle du contenu demandé, sinon
+    // la requête remonte les versions de tout ce que la clé peut voir ; et le
+    // verrou de périmètre, reposé sur chaque table fille, sinon connaître un
+    // identifiant suffirait à lire par une porte dérobée.
+    .where(and(eq(contentVersions.contentId, id), inArray(contentVersions.contentId, contenusAutorises(cle))))
+    .orderBy(asc(contentVersions.number));
+
+  exige("commentaires", "client");
+  const fil = await db
+    .select({
+      id: comments.id,
+      versionId: comments.versionId,
+      texte: comments.body,
+      pastille: comments.pinNumber,
+      resoluLe: comments.resolvedAt,
+      creeLe: comments.createdAt,
+      auteurNom: users.name,
+      auteurInitiales: users.initials,
+    })
+    .from(comments)
+    .leftJoin(users, eq(users.id, comments.authorId))
+    .where(and(eq(comments.contentId, id), inArray(comments.contentId, contenusAutorises(cle))))
+    .orderBy(asc(comments.createdAt));
+
+  return {
+    id: contenu.id,
+    titre: contenu.titre,
+    statut: contenu.statut,
+    format: contenu.format,
+    reseaux: contenu.reseaux.length > 0 ? contenu.reseaux : [contenu.reseau],
+    consignes: contenu.consignes,
+    legende: contenu.legende,
+    hashtags: contenu.hashtags,
+    prevuLe: contenu.prevuLe,
+    echeanceLe: contenu.echeanceLe,
+    soumisLe: contenu.soumisLe,
+    publieLe: contenu.publieLe,
+    publieUrl: contenu.publieUrl,
+    creeLe: contenu.creeLe,
+    majLe: contenu.majLe,
+    client: { id: contenu.clientId, nom: contenu.clientNom, nomCourt: contenu.clientNomCourt },
+    responsable: contenu.responsableId
+      ? {
+          id: contenu.responsableId,
+          nom: contenu.responsableNom,
+          initiales: contenu.responsableInitiales,
+        }
+      : null,
+    versions,
+    commentaires: fil,
+  };
+}
+
+/* ------------------------------------------------------------ les tournages -- */
+
+export type FiltresTournages = { debut?: string; fin?: string; limite: number };
+
+/**
+ * Les tournages d'une clé, avec leur équipe et ce qu'ils doivent livrer.
+ *
+ * En lecture seule, et ce n'est pas une prudence excessive : déplacer un
+ * tournage, c'est déplacer l'agenda de plusieurs personnes et parfois celui
+ * d'un client. Savoir qu'un tournage a lieu jeudi explique en revanche
+ * pourquoi rien n'est prêt mercredi — c'est le contexte qui manque le plus à
+ * qui suit un pipeline.
+ */
+export async function listerTournages(cle: ApiKey, filtres: FiltresTournages) {
+  exige("tournages", "client");
+
+  const bornes: SQL[] = [inArray(shoots.clientId, clientsAutorises(cle))];
+  // Par défaut, ce qui reste à venir : un chef de projet arbitre sur la suite,
+  // pas sur ce qui est déjà tourné.
+  bornes.push(
+    filtres.debut
+      ? gte(shoots.startsAt, new Date(`${filtres.debut}T00:00:00Z`))
+      : gte(shoots.startsAt, new Date()),
+  );
+  if (filtres.fin) bornes.push(lte(shoots.startsAt, new Date(`${filtres.fin}T23:59:59.999Z`)));
+
+  const lignes = await db
+    .select({
+      id: shoots.id,
+      titre: shoots.title,
+      lieu: shoots.place,
+      debuteLe: shoots.startsAt,
+      finitLe: shoots.endsAt,
+      statut: shoots.status,
+      note: shoots.note,
+      clientId: clients.id,
+      clientNom: clients.name,
+      clientNomCourt: clients.shortName,
+    })
+    .from(shoots)
+    .innerJoin(clients, eq(clients.id, shoots.clientId))
+    .where(and(...bornes))
+    .orderBy(asc(shoots.startsAt))
+    .limit(filtres.limite);
+
+  if (lignes.length === 0) return [];
+  const ids = lignes.map((l) => l.id);
+
+  const equipes = await db
+    .select({
+      shootId: shootCrew.shootId,
+      role: shootCrew.roleLabel,
+      etat: shootCrew.state,
+      nom: users.name,
+      initiales: users.initials,
+    })
+    .from(shootCrew)
+    .innerJoin(users, eq(users.id, shootCrew.userId))
+    .where(inArray(shootCrew.shootId, ids));
+
+  const livrables = await db
+    .select({
+      shootId: shootDeliverables.shootId,
+      id: shootDeliverables.id,
+      libelle: shootDeliverables.label,
+      attenduLe: shootDeliverables.dueOn,
+      livre: shootDeliverables.delivered,
+    })
+    .from(shootDeliverables)
+    .where(inArray(shootDeliverables.shootId, ids))
+    .orderBy(asc(shootDeliverables.position));
+
+  return lignes.map((t) => ({
+    id: t.id,
+    titre: t.titre,
+    lieu: t.lieu,
+    debuteLe: t.debuteLe,
+    finitLe: t.finitLe,
+    statut: t.statut,
+    note: t.note,
+    client: { id: t.clientId, nom: t.clientNom, nomCourt: t.clientNomCourt },
+    equipe: equipes
+      .filter((e) => e.shootId === t.id)
+      .map((e) => ({ nom: e.nom, initiales: e.initiales, role: e.role, etat: e.etat })),
+    livrables: livrables
+      .filter((l) => l.shootId === t.id)
+      .map((l) => ({ id: l.id, libelle: l.libelle, attenduLe: l.attenduLe, livre: l.livre })),
+  }));
+}
+
+/* --------------------------------------------------------------- l'équipe -- */
+
+/**
+ * Les personnes du pôle de la clé, et ce qu'elles ont sur les bras.
+ *
+ * Première ressource bornée par `pole` et non par `client` : quelqu'un de
+ * l'agence n'est rattaché à aucun client, et le borner par client le rendrait
+ * invisible partout. Le pôle reste une frontière réelle — l'équipe web n'a
+ * rien à faire dans une API sociale.
+ *
+ * Le tri se fait avec `departmentsOf()`, la fonction qui sert déjà aux écrans :
+ * elle porte deux règles qu'on oublierait en les réécrivant — la direction a
+ * les deux pôles quoi qu'il arrive, et un compte sans pôle renseigné retombe
+ * sur le social, ce qu'étaient tous les comptes avant que le web n'existe. Une
+ * seconde version de cette règle finirait par diverger de la première.
+ *
+ * Le filtrage se fait donc en mémoire, après une lecture large. C'est tenable
+ * ici et seulement ici : l'agence compte quelques personnes, et il s'agit
+ * d'une lecture — aucune écriture ne dépend de cet intervalle.
+ */
+export async function listerEquipe(cle: ApiKey) {
+  exige("equipe", "pole");
+
+  const poles = (cle.departments ?? []).filter(
+    (d): d is Department => d === "social" || d === "web",
+  );
+  // Une clé sans pôle ne voit personne, comme elle ne voit aucun client.
+  if (poles.length === 0) return [];
+
+  const membres = await db
+    .select({
+      id: users.id,
+      nom: users.name,
+      initiales: users.initials,
+      poles: users.departments,
+      role: users.role,
+      actif: users.active,
+    })
+    .from(users)
+    .where(eq(users.active, true))
+    .orderBy(asc(users.name));
+
+  const duPole = membres.filter((m) =>
+    departmentsOf({ role: m.role, departments: m.poles }).some((d) => poles.includes(d)),
+  );
+  if (duPole.length === 0) return [];
+
+  // La charge est un agrégat : il doit passer par le même verrou que les
+  // listes, sinon il compterait juste sur le mauvais ensemble — et un compte
+  // juste sur le mauvais ensemble ressemble à un compte juste.
+  exige("contenus", "client");
+  const charges = await db
+    .select({
+      responsableId: contents.ownerId,
+      statut: contents.status,
+      combien: count(),
+    })
+    .from(contents)
+    .where(inArray(contents.id, contenusAutorises(cle)))
+    .groupBy(contents.ownerId, contents.status);
+
+  return duPole.map((m) => {
+    const parStatut: Record<string, number> = {};
+    for (const c of charges) {
+      if (c.responsableId === m.id) parStatut[c.statut] = c.combien;
+    }
+    return {
+      id: m.id,
+      nom: m.nom,
+      initiales: m.initiales,
+      // `departmentsOf` plutôt que la colonne brute : c'est ce que l'outil
+      // considère réellement, colonne vide comprise.
+      poles: departmentsOf({ role: m.role, departments: m.poles }),
+      charge: parStatut,
+      total: Object.values(parStatut).reduce((n, v) => n + v, 0),
+    };
+  });
 }

@@ -100,6 +100,13 @@ const clientWeb = un(`
   values ('Boutique Web ${idJeu}', 'Boutique Web ${idJeu}', '["web"]'::jsonb)
   returning id
 `);
+// Un second client social : la clé nominative n'en voit qu'un, la clé de pôle
+// les deux. Sans cet écart, comparer leurs agrégats ne prouverait rien.
+const clientSocial2 = un(`
+  insert into clients (name, short_name, departments)
+  values ('Voisin Social ${idJeu}', 'Voisin Social ${idJeu}', '["social"]'::jsonb)
+  returning id
+`);
 
 un(`
   insert into contents (client_id, title, status, scheduled_at)
@@ -116,6 +123,62 @@ un(`
 un(`
   insert into contents (client_id, title, status, scheduled_at, published_at)
   values ('${clientSocial}', 'Post publié ${idJeu}', 'publie', now() - interval '3 days', now() - interval '3 days')
+  returning id
+`);
+
+// Un tournage et une personne de chaque côté de la frontière : sans eux, les
+// routes /shoots et /team se vérifieraient sur des listes vides.
+const membreSocial = un(`
+  insert into users (email, name, initials, role, departments)
+  values ('lea-${idJeu}@taochy.re', 'Lea Social ${idJeu}', 'LS', 'equipe', '["social"]'::jsonb)
+  returning id
+`);
+un(`
+  insert into users (email, name, initials, role, departments)
+  values ('nina-${idJeu}@taochy.re', 'Nina Web ${idJeu}', 'NW', 'equipe', '["web"]'::jsonb)
+  returning id
+`);
+un(`
+  insert into contents (client_id, title, status, scheduled_at)
+  values ('${clientSocial2}', 'Post voisin ${idJeu}', 'creation', now() + interval '2 days')
+  returning id
+`);
+un(`
+  update contents set owner_id = '${membreSocial}'
+  where client_id in ('${clientSocial}', '${clientSocial2}')
+`);
+
+const tournageSocial = un(`
+  insert into shoots (client_id, title, starts_at)
+  values ('${clientSocial}', 'Tournage social ${idJeu}', now() + interval '5 days')
+  returning id
+`);
+un(`
+  insert into shoots (client_id, title, starts_at)
+  values ('${clientWeb}', 'Tournage web ${idJeu}', now() + interval '5 days')
+  returning id
+`);
+un(`
+  insert into shoot_deliverables (shoot_id, label) values ('${tournageSocial}', 'Rushes ${idJeu}')
+  returning id
+`);
+un(`
+  insert into contract_lines (client_id, label, monthly_target)
+  values ('${clientSocial}', 'Posts feed ${idJeu}', 8) returning id
+`);
+
+const contenuSocial = un(
+  `select id from contents where title = 'Post social ${idJeu}'`,
+);
+const contenuWeb = un(`select id from contents where title = 'Post web ${idJeu}'`);
+un(`
+  insert into content_versions (content_id, number, note)
+  values ('${contenuSocial}', 1, 'V1 sociale ${idJeu}'), ('${contenuWeb}', 1, 'V1 web ${idJeu}')
+  returning id
+`);
+un(`
+  insert into comments (content_id, body)
+  values ('${contenuSocial}', 'Remarque sociale ${idJeu}'), ('${contenuWeb}', 'Remarque web ${idJeu}')
   returning id
 `);
 
@@ -228,21 +291,33 @@ ok(
     !publies.some((c) => c.titre === `Post social ${idJeu}`),
 );
 
-const deuxStatuts = await appel("/api/agent/contents?statut=creation,publie", bonne.jeton);
+// Vérifié sur le décor de ce passage, jamais sur un total absolu : le script
+// doit pouvoir tourner contre un serveur qui porte déjà des données.
+const deuxStatuts = await appel("/api/agent/contents?statut=creation,publie&limite=200", bonne.jeton);
+const titresDeux = (deuxStatuts.corps?.contenus ?? []).map((c) => c.titre);
 ok(
   `plusieurs statuts se demandent d'un coup (${deuxStatuts.corps?.contenus?.length ?? "?"})`,
-  deuxStatuts.statut === 200 && deuxStatuts.corps.contenus.length === 2,
+  deuxStatuts.statut === 200 &&
+    titresDeux.includes(`Post social ${idJeu}`) &&
+    titresDeux.includes(`Post publié ${idJeu}`),
+);
+ok(
+  "… et rien d'un autre statut ne s'y glisse",
+  (deuxStatuts.corps?.contenus ?? []).every((c) => ["creation", "publie"].includes(c.statut)),
 );
 
 // Les dates portent sur la publication prévue : le publié d'il y a trois jours
 // doit sortir d'une fenêtre qui commence aujourd'hui.
 const demain = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-const fenetre = await appel(`/api/agent/contents?debut=${demain}`, bonne.jeton);
+const fenetre = await appel(`/api/agent/contents?debut=${demain}&limite=200`, bonne.jeton);
+const titresFenetre = (fenetre.corps?.contenus ?? []).map((c) => c.titre);
 ok(
-  `le filtre de date écarte ce qui précède la fenêtre (${fenetre.corps?.contenus?.length ?? "?"})`,
-  fenetre.statut === 200 &&
-    fenetre.corps.contenus.length === 1 &&
-    fenetre.corps.contenus[0].titre === `Post social ${idJeu}`,
+  `le filtre de date garde ce qui vient (${fenetre.corps?.contenus?.length ?? "?"})`,
+  fenetre.statut === 200 && titresFenetre.includes(`Post social ${idJeu}`),
+);
+ok(
+  "… et écarte ce qui précède la fenêtre",
+  !titresFenetre.includes(`Post publié ${idJeu}`),
 );
 
 const statutInconnu = await appel("/api/agent/contents?statut=nimportequoi", bonne.jeton);
@@ -263,6 +338,122 @@ ok(`un identifiant de client mal formé est refusé (${clientPasUuid.statut})`, 
 ok(
   "l'usage de la clé est horodaté en base",
   un(`select last_used_at is not null from api_keys where id = '${bonne.id}'`) === "t",
+);
+
+/* ------------------------------------------- les autres routes de lecture -- */
+
+/**
+ * Le même contrôle pour chaque route : rien du pôle voisin, et aucune donnée
+ * commerciale ni personnelle dans la réponse. Un module d'accès cloisonné
+ * empêche la requête trop large ; il n'empêche pas la projection trop large,
+ * et c'est le seul filet contre celle-ci.
+ */
+const propre = (corps) => {
+  const brut = JSON.stringify(corps);
+  return !/monthlyFee|hoursSold|webMaintenance|webHourlyRate|_cents/i.test(brut) && !/@/.test(brut);
+};
+
+console.log("\n— /clients —");
+
+const surClients = await appel("/api/agent/clients", bonne.jeton);
+ok(`le portefeuille se lit (${surClients.statut})`, surClients.statut === 200);
+const nomsPortefeuille = (surClients.corps?.clients ?? []).map((c) => c.nomCourt);
+ok("le client social est là", nomsPortefeuille.includes(`Cap Marine ${idJeu}`));
+ok("le client hors pôle est absent des résultats", !nomsPortefeuille.includes(`Boutique Web ${idJeu}`));
+ok("aucun _cents ni @ ne traverse la réponse", propre(surClients.corps));
+ok(
+  "les lignes de contrat suivent le client",
+  (surClients.corps.clients.find((c) => c.nomCourt === `Cap Marine ${idJeu}`)?.contrat ?? []).some(
+    (l) => l.libelle === `Posts feed ${idJeu}`,
+  ),
+);
+
+console.log("\n— /contents/[id] —");
+
+const detail = await appel(`/api/agent/contents/${contenuSocial}`, bonne.jeton);
+ok(`un contenu du périmètre se lit (${detail.statut})`, detail.statut === 200);
+ok("… avec ses versions", detail.corps?.contenu?.versions?.some((v) => v.note === `V1 sociale ${idJeu}`));
+ok(
+  "… et seulement les siennes",
+  (detail.corps?.contenu?.versions ?? []).every((v) => v.note !== `V1 web ${idJeu}`),
+);
+ok(
+  "… avec son fil de commentaires",
+  detail.corps?.contenu?.commentaires?.some((c) => c.texte === `Remarque sociale ${idJeu}`),
+);
+ok("aucun _cents ni @ ne traverse la réponse", propre(detail.corps));
+
+const detailVole = await appel(`/api/agent/contents/${contenuWeb}`, bonne.jeton);
+ok(
+  `un contenu hors pôle répond 404, pas 403 (${detailVole.statut})`,
+  detailVole.statut === 404,
+);
+ok(
+  "… avec le même message qu'un contenu inexistant",
+  detailVole.corps?.error ===
+    (await appel(`/api/agent/contents/00000000-0000-4000-8000-000000000000`, bonne.jeton)).corps
+      ?.error,
+);
+
+const detailPasUuid = await appel("/api/agent/contents/bonjour", bonne.jeton);
+ok(`un identifiant mal formé est refusé (${detailPasUuid.statut})`, detailPasUuid.statut === 400);
+
+console.log("\n— /shoots —");
+
+const surTournages = await appel("/api/agent/shoots", bonne.jeton);
+ok(`les tournages se lisent (${surTournages.statut})`, surTournages.statut === 200);
+const titresTournages = (surTournages.corps?.tournages ?? []).map((t) => t.titre);
+ok("le tournage social est là", titresTournages.includes(`Tournage social ${idJeu}`));
+ok("le tournage hors pôle est absent des résultats", !titresTournages.includes(`Tournage web ${idJeu}`));
+ok(
+  "… avec ses livrables attendus",
+  (surTournages.corps.tournages.find((t) => t.titre === `Tournage social ${idJeu}`)?.livrables ?? [])
+    .some((l) => l.libelle === `Rushes ${idJeu}`),
+);
+ok("aucun _cents ni @ ne traverse la réponse", propre(surTournages.corps));
+
+console.log("\n— /team —");
+
+const surEquipe = await appel("/api/agent/team", bonne.jeton);
+ok(`l'équipe se lit (${surEquipe.statut})`, surEquipe.statut === 200);
+const nomsEquipe = (surEquipe.corps?.equipe ?? []).map((m) => m.nom);
+ok("le membre du pôle social est là", nomsEquipe.includes(`Lea Social ${idJeu}`));
+ok("le membre du pôle voisin est absent", !nomsEquipe.includes(`Nina Web ${idJeu}`));
+ok("aucun _cents ni @ ne traverse la réponse", propre(surEquipe.corps));
+
+/*
+ * L'agrégat est le point sensible de toute cette couche : un COUNT juste sur le
+ * mauvais ensemble ressemble trait pour trait à un COUNT juste. La réponse ne
+ * porte aucune trace de ce qu'il a compté.
+ *
+ * Comparer l'agrégat d'une clé à ses propres listes ne suffit pas : si le
+ * périmètre fuyait, il fuirait des deux côtés et les chiffres coïncideraient
+ * quand même. Il faut confronter deux clés de portées différentes — la clé de
+ * pôle voit deux clients sociaux, la clé nominative un seul.
+ */
+const chargeDe = async (jeton) => {
+  const equipe = (await appel("/api/agent/team", jeton)).corps.equipe;
+  const liste = (await appel("/api/agent/contents?limite=200", jeton)).corps.contenus;
+  return {
+    agrege: equipe.find((m) => m.nom === `Lea Social ${idJeu}`)?.total ?? 0,
+    listable: liste.filter((c) => c.responsable?.nom === `Lea Social ${idJeu}`).length,
+  };
+};
+
+const large = await chargeDe(bonne.jeton);
+const restreinte = await chargeDe(nominative.jeton);
+
+ok(
+  `clé de pôle : l'agrégat égale ce qu'elle peut lister (${large.agrege} vs ${large.listable})`,
+  large.agrege === large.listable && large.listable > 0,
+);
+ok(
+  `clé nominative : l'agrégat égale ce qu'elle peut lister (${restreinte.agrege} vs ${restreinte.listable})`,
+  restreinte.agrege === restreinte.listable && restreinte.listable > 0,
+);
+ok(
+  `l'agrégat suit le périmètre au lieu d'être constant (${restreinte.agrege} < ${large.agrege})`,
+  restreinte.agrege < large.agrege,
 );
 
 /* ------------------------------------------------------------ la cadence -- */
