@@ -21,6 +21,18 @@ export async function register() {
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
     console.log("[pilot] schéma à jour");
+
+    // Après le schéma, les données. La conversion des briefs hérités ne lève
+    // jamais : un brief non converti garde ses `brief_fields` intactes, ce qui
+    // ne justifie pas de refuser de démarrer.
+    try {
+      const { convertirBriefsHerites, journaliserConversion } = await import(
+        "@/lib/brief-migration"
+      );
+      journaliserConversion(await convertirBriefsHerites());
+    } catch (error) {
+      console.error("[pilot] conversion des briefs impossible", error);
+    }
   } catch (error) {
     // Un échec de migration doit arrêter le démarrage : servir l'application
     // sur un schéma qui ne correspond pas au code produirait des erreurs

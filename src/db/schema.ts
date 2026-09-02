@@ -1,6 +1,9 @@
+import { sql as raw } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import type { ReponsesBrief, StructureBrief } from "@/data/brief-structure";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -1067,10 +1070,48 @@ export const briefs = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    /*
+     * Le modèle dont ce brief est issu — et la copie figée de sa structure.
+     *
+     * `templateId` ne sert qu'à la traçabilité : savoir quel modèle a produit
+     * quels briefs, et lesquels méritent d'être revus. Il ne sert **jamais** à
+     * l'affichage.
+     *
+     * Ce qui s'affiche, c'est `structureSnapshot` : une copie prise à la
+     * création. Sans elle, corriger une faute dans un modèle changerait sous
+     * les yeux du client un questionnaire qu'il est en train de remplir, et
+     * supprimer une question effacerait sa réponse. Un brief envoyé est un
+     * document, pas une vue sur autre chose.
+     */
+    templateId: uuid("template_id").references(() => briefTemplates.id, { onDelete: "set null" }),
+    templateVersion: integer("template_version"),
+    structureSnapshot: jsonb("structure_snapshot").$type<StructureBrief>(),
+    /** Les réponses, rangées par identifiant de champ. */
+    answers: jsonb("answers").$type<ReponsesBrief>().notNull().default({}),
+    /**
+     * Renseigné pour les briefs convertis depuis `brief_fields`, vide pour
+     * ceux nés en JSON. Distinguer les deux permet de vérifier la conversion
+     * après coup, et de savoir ce qui disparaîtra le jour où l'ancienne table
+     * sera supprimée.
+     */
+    legacyMigratedAt: timestamp("legacy_migrated_at", { withTimezone: true }),
   },
-  (t) => [index("briefs_client_idx").on(t.clientId)],
+  (t) => [index("briefs_client_idx").on(t.clientId), index("briefs_template_idx").on(t.templateId)],
 );
 
+/**
+ * ⚠️ TABLE GELÉE — plus aucune écriture depuis la migration 0020.
+ *
+ * Les briefs vivent désormais dans `briefs.structure_snapshot` et
+ * `briefs.answers`. Cette table n'est conservée que le temps de pouvoir
+ * vérifier la conversion sur des données réelles.
+ *
+ * **À SUPPRIMER TROIS MOIS APRÈS LA MISE EN PRODUCTION.** Sans cette date
+ * écrite ici, elle sera encore là dans deux ans, et plus personne ne saura si
+ * quelque chose la lit. Avant de la supprimer : vérifier qu'aucun brief n'a
+ * `legacy_migrated_at` renseigné sans `structure_snapshot`.
+ */
 export const briefFields = pgTable(
   "brief_fields",
   {
@@ -1300,6 +1341,96 @@ export const webDeliverables = pgTable(
   },
   (t) => [index("web_deliverables_project_idx").on(t.projectId)],
 );
+
+/* ------------------------------------------------ modèles de brief -- */
+
+/**
+ * Un modèle de brief : la structure réutilisable d'un questionnaire.
+ *
+ * Ces modèles existaient déjà, mais écrits en dur dans `data/web.ts` : ajouter
+ * une question demandait un déploiement. Les sortir en base, c'est permettre
+ * de les écrire un jour de terrain, quand on découvre la question qui
+ * manquait.
+ */
+export const briefTemplates = pgTable(
+  "brief_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** L'adresse du modèle, et sa clé d'upsert au démarrage. */
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    /** Une phrase, affichée sous le nom dans la galerie. */
+    description: text("description"),
+    category: text("category"),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    /** Émoji ou nom d'icône. Vide = la carte s'en passe. */
+    icon: text("icon"),
+    structure: jsonb("structure").$type<StructureBrief>().notNull(),
+    /**
+     * À qui s'adresse ce modèle — dit explicitement, jamais déduit d'un vide.
+     *
+     * `global` : visible partout, `departments` reste vide.
+     * `department` : réservé aux pôles listés, qui ne peuvent pas être vides.
+     *
+     * Deux colonnes plutôt qu'une, parce qu'un tableau vide portait sinon deux
+     * sens opposés : « tous les pôles » ici, « le pôle social » sur
+     * `users.departments`, où c'est la valeur des comptes antérieurs au pôle
+     * web. Même nom, sens contraire — de quoi se tromper une fois, tard. La
+     * contrainte plus bas rend la combinaison incohérente impossible à écrire.
+     */
+    scope: text("scope").notNull().default("global"),
+    departments: jsonb("departments").$type<string[]>().notNull().default([]),
+    /** Fourni avec le produit : duplicable, jamais supprimable. */
+    isSystem: boolean("is_system").notNull().default(false),
+    /** Archiver plutôt que supprimer : les briefs déjà créés gardent leur lien. */
+    isActive: boolean("is_active").notNull().default(true),
+    version: integer("version").notNull().default(1),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("brief_templates_slug_key").on(t.slug),
+    index("brief_templates_active_idx").on(t.isActive),
+    /*
+     * La cohérence est tenue par la base, pas par la bonne volonté du code.
+     *
+     * Un seul CHECK couvre tout : les valeurs admises de `scope`, et l'accord
+     * entre `scope` et `departments`. Aucune ligne ne peut dire « réservé à
+     * des pôles » sans en nommer un, ni « global » en portant une liste que
+     * personne ne lira.
+     */
+    check(
+      "brief_templates_scope_coherent",
+      raw`(${t.scope} = 'global' and jsonb_array_length(${t.departments}) = 0)
+          or (${t.scope} = 'department' and jsonb_array_length(${t.departments}) > 0)`,
+    ),
+  ],
+);
+
+/**
+ * L'historique des versions d'un modèle.
+ *
+ * Une ligne archivée à chaque modification, avant écrasement. Un modèle se
+ * remanie souvent au début, et se casse parfois : sans cette table, la seule
+ * façon de revenir en arrière serait de réécrire de mémoire.
+ */
+export const briefTemplateVersions = pgTable(
+  "brief_template_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => briefTemplates.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    structure: jsonb("structure").$type<StructureBrief>().notNull(),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("brief_template_versions_key").on(t.templateId, t.version)],
+);
+
+export type BriefTemplate = typeof briefTemplates.$inferSelect;
 
 /* --------------------------------------------------------- clés d'API -- */
 
