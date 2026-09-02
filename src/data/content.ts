@@ -16,17 +16,47 @@ export const CONTENT_STAGES = [
 export type ContentStatus = (typeof CONTENT_STAGES)[number] | "manque";
 
 /**
- * Les étapes qu'un contenu peut sauter sans que ce soit une anomalie.
+ * Les étapes qu'un contenu peut sauter.
  *
- * Un carrousel ou une actualité ne se tourne pas : exiger qu'il passe par un
- * tournage et un dérush à vide obligerait à mentir au pipeline pour le
- * satisfaire, et un pipeline auquel on ment cesse d'être un état des lieux.
+ * Déclarées ici plutôt que codées en dur dans la règle de transition : le jour
+ * où une étape change de nature, c'est une ligne à déplacer, à l'endroit où le
+ * pipeline est décrit.
  *
- * Déclaré ici plutôt que codé en dur dans la règle de transition : le jour où
- * une étape devient facultative — ou cesse de l'être — c'est cette ligne qu'on
- * change, à l'endroit où le pipeline est décrit.
+ * Deux listes, et la distinction compte — voir plus bas.
  */
-export const ETAPES_FACULTATIVES: ReadonlySet<ContentStatus> = new Set(["tournage", "derush"]);
+
+/**
+ * Facultatives par nature.
+ *
+ * Un carrousel ou une actualité ne se tourne pas, et n'a rien à dérusher :
+ * exiger qu'il traverse un tournage à vide obligerait à mentir au pipeline
+ * pour le satisfaire, et un pipeline auquel on ment cesse d'être un état des
+ * lieux. Le brief suit la même logique — on le saute souvent pour un carrousel
+ * ou une actualité, où il n'y a rien à briefer.
+ */
+const SAUTABLES_PAR_NATURE = ["brief", "tournage", "derush"] as const;
+
+/**
+ * Facultatives **faute de modèle**, et non par nature. C'est une dette, pas
+ * une décision.
+ *
+ * La révision interne est obligatoire chez certains clients et inutile chez
+ * d'autres. Aucune colonne ne dit lesquels : la contrainte est réelle, elle
+ * n'est simplement pas modélisée. La rendre obligatoire pour tous ferait
+ * refuser un geste légitime — et une règle qui refuse un geste légitime se
+ * fait contourner, ce qui coûte la règle entière, pas seulement ce cas-là.
+ *
+ * Le jour où `clients` porte un « révision interne exigée », c'est cette
+ * liste-ci qu'il faut vider, et la règle de transition qui doit consulter le
+ * client plutôt qu'une constante. Ne pas confondre avec la liste au-dessus :
+ * celle-là restera vraie.
+ */
+const SAUTABLES_FAUTE_DE_MODELE = ["revision"] as const;
+
+export const ETAPES_FACULTATIVES: ReadonlySet<ContentStatus> = new Set([
+  ...SAUTABLES_PAR_NATURE,
+  ...SAUTABLES_FAUTE_DE_MODELE,
+]);
 
 export const CONTENT_STATUS: Record<
   ContentStatus,

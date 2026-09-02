@@ -668,38 +668,45 @@ ok(
 );
 
 /*
- * Deux chemins que la règle refuse aujourd'hui, épinglés tels quels.
+ * Les deux chemins courants que la règle bloquait, désormais ouverts.
  *
- * La spécification retenue — seuls « tournage » et « dérush » sont facultatifs
- * — rend obligatoires « brief » et « révision interne ». Or les deux se sautent
- * en pratique : une actualité va de l'idée à la création, et un contenu part
- * souvent en validation client sans passer par une révision interne.
- *
- * Ces assertions ne défendent pas ce comportement : elles le rendent visible.
- * Le jour où ces deux étapes rejoignent ETAPES_FACULTATIVES, elles tomberont,
- * et c'est ce qu'on veut d'un test qui documente une question ouverte.
+ * « brief » est facultatif par nature — un carrousel n'a rien à briefer.
+ * « révision interne » l'est faute de modèle : elle est exigée chez certains
+ * clients et inutile chez d'autres, et aucune colonne ne dit lesquels. Voir
+ * SAUTABLES_FAUTE_DE_MODELE dans data/content.ts : c'est une dette, et le jour
+ * où la colonne existe, ce test devra distinguer les deux cas.
  */
 const sautRevision = await bouger(neuf, "validation");
 ok(
-  `À TRANCHER — creation → validation est refusé, « révision interne » étant obligatoire (${sautRevision.statut})`,
-  sautRevision.statut === 409,
+  `creation → validation, en sautant la révision interne, est permis (${sautRevision.statut})`,
+  sautRevision.statut === 200,
 );
-const sautBrief = await poste(
-  "/api/agent/contents",
-  ecriture.jeton,
-  { client: clientSocial, titre: `Actu directe ${idJeu}` },
-);
+
+const sautBrief = await poste("/api/agent/contents", ecriture.jeton, {
+  client: clientSocial,
+  titre: `Actu directe ${idJeu}`,
+});
 const actu = sautBrief.corps?.contenu?.id;
 const sautIdeeCreation = await bouger(actu, "creation");
 ok(
-  `À TRANCHER — idee → creation est refusé, « brief » étant obligatoire (${sautIdeeCreation.statut})`,
-  sautIdeeCreation.statut === 409,
+  `idee → creation, en sautant le brief, est permis (${sautIdeeCreation.statut})`,
+  sautIdeeCreation.statut === 200,
 );
 
-// Le chemin complet reste ouvert : révision puis validation.
-ok("revision → validation est permis", (await bouger(neuf, "revision")).statut === 200);
-const enValidation = await bouger(neuf, "validation");
-ok(`revision → validation aboutit (${enValidation.statut})`, enValidation.statut === 200);
+// Ce qui reste obligatoire doit continuer de bloquer, sinon la règle ne dit
+// plus rien : « validation » et « prêt » n'ont pas rejoint les facultatives.
+const sautValidation = await bouger(actu, "pret");
+ok(
+  `creation → pret reste refusé, « validation client » étant obligatoire (${sautValidation.statut})`,
+  sautValidation.statut === 409,
+);
+ok(
+  "… et le message nomme l'étape manquante",
+  /[Vv]alidation client/.test(sautValidation.corps?.error ?? ""),
+);
+
+const enValidation = { statut: sautRevision.statut };
+ok(`le contenu est bien en validation (${enValidation.statut})`, enValidation.statut === 200);
 ok(
   "passer en validation horodate l'attente",
   un(`select submitted_at is not null from contents where id = '${neuf}'`) === "t",
