@@ -1300,3 +1300,73 @@ export const webDeliverables = pgTable(
   },
   (t) => [index("web_deliverables_project_idx").on(t.projectId)],
 );
+
+/* --------------------------------------------------------- clés d'API -- */
+
+/**
+ * Les clés qui ouvrent l'API des agents.
+ *
+ * Une table à part des sessions, et non une colonne de plus sur celles-ci.
+ * `currentUser()` interroge `sessions` sans autre filtre que l'expiration :
+ * une clé rangée là deviendrait une session de navigateur valide dès qu'on
+ * présenterait son jeton dans le cookie. Les deux chemins d'accès
+ * partageraient une même table de vérité, et un oubli de filtre dans l'un
+ * ouvrirait l'autre.
+ *
+ * Les cycles de vie n'ont d'ailleurs rien en commun : une session dure trente
+ * jours, naît à chaque connexion et s'efface à la déconnexion ; une clé est
+ * peu nombreuse, nommée, longue à vivre, et doit laisser une trace après sa
+ * mort.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** « Agent chef de projet — social ». Sert à savoir laquelle révoquer. */
+    name: text("name").notNull(),
+    /**
+     * Empreinte SHA-256 du jeton, jamais le jeton.
+     *
+     * SHA-256 et non scrypt, contrairement aux mots de passe : le jeton fait
+     * 256 bits d'aléa, aucun dictionnaire ne l'atteint. scrypt ajouterait une
+     * centaine de millisecondes à chaque appel pour rien.
+     */
+    tokenHash: text("token_hash").notNull(),
+    /**
+     * Les premiers caractères du jeton, en clair.
+     *
+     * Sans eux, l'écran de gestion afficherait une liste de clés
+     * indistinguables et un journal ne dirait pas laquelle a appelé.
+     */
+    prefix: text("prefix").notNull(),
+    /** ["pipeline:read", "pipeline:write"] — même forme que users.departments. */
+    scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
+    /** Le périmètre métier, lu comme requireDepartment() le lit pour un humain. */
+    departments: jsonb("departments").$type<string[]>().notNull().default([]),
+    /**
+     * Nul = toute la clientèle du pôle. Renseigné = un seul client.
+     *
+     * La colonne est branchée dans le `where` de chaque requête dès
+     * maintenant, y compris quand elle est nulle. Une colonne prévue mais
+     * jamais lue est une colonne qu'on oublie de brancher le jour où elle
+     * sert.
+     */
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    /**
+     * Dernier usage constaté, réécrit avec parcimonie : sans cela, chaque
+     * lecture coûterait une écriture sur une réserve de dix connexions.
+     */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    /**
+     * Révoquer sans effacer : qui l'a créée, quand elle a servi et quand elle
+     * est morte restent lisibles. Une ligne supprimée emporte son enquête.
+     */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("api_keys_token_key").on(t.tokenHash)],
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;

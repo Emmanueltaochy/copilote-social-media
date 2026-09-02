@@ -22,6 +22,13 @@ export function proxy(request: NextRequest) {
     // un chemin dans l'adresse — elle relit celui des réglages — et ne peut
     // donc servir que ces deux images.
     pathname.startsWith("/api/branding") ||
+    // L'API des agents s'authentifie par clé, pas par cookie. Sans cette
+    // exception, une requête porteuse d'une clé mais sans cookie recevrait une
+    // redirection vers /connexion — que `fetch` suivrait pour obtenir la page
+    // de connexion en 200, et que l'appelant lirait comme un succès. C'est le
+    // défaut déjà corrigé dans currentDirection() : une route répond, elle ne
+    // renvoie pas ailleurs. La vérification a lieu dans withApiKey().
+    pathname.startsWith("/api/agent") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();

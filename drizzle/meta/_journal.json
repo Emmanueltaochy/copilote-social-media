@@ -134,6 +134,13 @@
       "when": 1788252426207,
       "tag": "0018_chemical_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788269931685,
+      "tag": "0019_equal_magus",
+      "breakpoints": true
     }
   ]
 }

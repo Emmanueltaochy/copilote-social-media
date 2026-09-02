@@ -1,11 +1,12 @@
 import "server-only";
 
-import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, gt } from "drizzle-orm";
 import { db, sessions, users, type User } from "@/db";
+import { hashToken, newToken } from "./tokens";
 
 const scryptAsync = promisify(scrypt);
 
@@ -40,15 +41,13 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 /* -------------------------------------------------------------- sessions -- */
 
-const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
-
 /**
  * Sessions en base plutôt que jetons signés : révoquer un accès doit être
  * immédiat, et un jeton signé reste valable jusqu'à son expiration.
  * Seule l'empreinte est stockée — un vol de base ne donne pas les sessions.
  */
 export async function createSession(userId: string): Promise<void> {
-  const token = randomBytes(32).toString("base64url");
+  const token = newToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
 
   await db.insert(sessions).values({ tokenHash: hashToken(token), userId, expiresAt });

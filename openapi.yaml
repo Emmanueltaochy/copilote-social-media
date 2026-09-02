@@ -1,0 +1,674 @@
+openapi: 3.1.0
+
+info:
+  title: Taochy Pilot — API des agents
+  version: "1.0.0"
+  description: |
+    Lecture et pilotage du pipeline de contenus par un agent externe.
+
+    Cette API ne donne accès ni à la facturation, ni aux comptes, ni aux
+    conditions commerciales. Une clé porte un pôle — et parfois un seul client —
+    et ne voit rien au-delà.
+
+    **Une route répond, elle ne redirige jamais.** Un `302` serait suivi par le
+    client HTTP, qui recevrait une page en `200` et la lirait comme un succès.
+  contact:
+    name: Taochy Consulting
+    url: https://marketing.taochyconsulting.fr
+
+servers:
+  - url: https://marketing.taochyconsulting.fr
+    description: Production
+
+security:
+  - cleDAgent: []
+
+tags:
+  - name: Contenus
+    description: Le pipeline éditorial — lecture, création, avancement, remarques.
+  - name: Contexte
+    description: "Ce qu'il faut savoir pour arbitrer : clients, tournages, équipe."
+  - name: Pilotage
+    description: L'état d'ensemble et ses anomalies.
+
+paths:
+  /api/agent/contents:
+    get:
+      tags: [Contenus]
+      summary: Lister le pipeline
+      operationId: listerContenus
+      parameters:
+        - name: client
+          in: query
+          description: Restreindre à un client. Hors périmètre, la liste revient vide — jamais une erreur, qui confirmerait son existence.
+          schema: { type: string, format: uuid }
+        - name: statut
+          in: query
+          description: Un ou plusieurs statuts, séparés par des virgules.
+          example: validation,pret
+          schema: { type: string }
+        - name: debut
+          in: query
+          description: Publication prévue à partir de cette date incluse.
+          schema: { type: string, format: date }
+        - name: fin
+          in: query
+          description: Publication prévue jusqu'à cette date incluse.
+          schema: { type: string, format: date }
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Le pipeline visible par la clé.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contenus, nombre, limite]
+                properties:
+                  contenus:
+                    type: array
+                    items: { $ref: "#/components/schemas/Contenu" }
+                  nombre: { type: integer }
+                  limite: { type: integer }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+    post:
+      tags: [Contenus]
+      summary: Créer un contenu
+      description: |
+        Le contenu naît toujours au statut `idee`. Le statut n'est pas un
+        paramètre : un contenu créé « prêt à publier » n'aurait traversé aucune
+        des étapes qui font qu'il est prêt.
+      operationId: creerContenu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NouveauContenu" }
+      responses:
+        "201":
+          description: Créé.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contenu:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "404":
+          description: Client introuvable, ou hors du périmètre de la clé.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erreur" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/contents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contenus]
+      summary: Lire un contenu, ses versions et son fil
+      operationId: lireContenu
+      responses:
+        "200":
+          description: Le contenu en détail.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contenu: { $ref: "#/components/schemas/ContenuDetaille" }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "404": { $ref: "#/components/responses/Introuvable" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+    patch:
+      tags: [Contenus]
+      summary: Modifier un contenu
+      description: |
+        Seules les colonnes listées ici sont modifiables. `publieLe`,
+        `publieUrl` et le publiant n'en font pas partie et n'en feront pas :
+        ce sont les trois colonnes qui attestent qu'une personne a vu le post
+        en ligne, et le suivi calcule les retards dessus.
+
+        Un changement de statut suit la règle d'ordre du pipeline. Un
+        changement refusé rend `409` : la demande est bien formée, c'est l'état
+        actuel qui s'y oppose.
+      operationId: modifierContenu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModifsContenu" }
+      responses:
+        "200":
+          description: Modifié.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contenu:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      statut: { $ref: "#/components/schemas/Statut" }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "404": { $ref: "#/components/responses/Introuvable" }
+        "409":
+          description: |
+            Transition interdite par la règle d'ordre. Le message nomme
+            l'étape obligatoire sautée, ou explique pourquoi `publie` ne
+            s'atteint pas par l'API.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erreur" }
+              examples:
+                etapeSautee:
+                  value:
+                    error: "On ne passe pas de « En création » à « Prêt à publier » : l'étape « Validation client » est obligatoire. Prochaine étape possible : « Révision interne »."
+                publication:
+                  value:
+                    error: "« Publié » se constate, il ne se décide pas : seule une personne qui a vu le post en ligne peut le poser, avec son lien."
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/contents/{id}/comments:
+    post:
+      tags: [Contenus]
+      summary: Ajouter une remarque au fil d'un contenu
+      description: |
+        La remarque n'est attribuée à personne de l'équipe — l'attribuer à
+        quelqu'un serait un faux. Elle apparaît dans le fil du contenu, et la
+        trace au journal porte le nom de la clé.
+      operationId: commenterContenu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [texte]
+              properties:
+                texte: { type: string, minLength: 2, maxLength: 5000 }
+      responses:
+        "201":
+          description: Publiée.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commentaire:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "404": { $ref: "#/components/responses/Introuvable" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/clients:
+    get:
+      tags: [Contexte]
+      summary: Le portefeuille et les engagements contractuels
+      description: |
+        Les lignes de contrat disent ce que le mois **devrait** contenir. Sans
+        elles, un agent voit ce qui existe mais jamais ce qui manque.
+
+        Aucune condition commerciale ne sort : ni forfait mensuel, ni heures
+        vendues, ni tarif horaire.
+      operationId: listerClients
+      responses:
+        "200":
+          description: Les clients visibles par la clé.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clients:
+                    type: array
+                    items: { $ref: "#/components/schemas/Client" }
+                  nombre: { type: integer }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/shoots:
+    get:
+      tags: [Contexte]
+      summary: Les tournages à venir, leur équipe et leurs livrables
+      description: |
+        En lecture seule. Savoir qu'un tournage a lieu jeudi explique pourquoi
+        rien n'est prêt mercredi ; le déplacer reviendrait à déplacer l'agenda
+        de plusieurs personnes.
+
+        Sans `debut`, seuls les tournages à venir sont rendus.
+      operationId: listerTournages
+      parameters:
+        - name: debut
+          in: query
+          schema: { type: string, format: date }
+        - name: fin
+          in: query
+          schema: { type: string, format: date }
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Les tournages visibles par la clé.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tournages:
+                    type: array
+                    items: { $ref: "#/components/schemas/Tournage" }
+                  nombre: { type: integer }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/team:
+    get:
+      tags: [Contexte]
+      summary: Les personnes du pôle et leur charge
+      description: |
+        Bornée au pôle et non au client : quelqu'un de l'agence n'est rattaché
+        à aucun client. La charge, elle, reste bornée au périmètre de la clé.
+
+        Ni courriel, ni rôle, ni jeton : de quoi savoir à qui parler, pas qui
+        sont les gens.
+      operationId: listerEquipe
+      responses:
+        "200":
+          description: L'équipe du pôle.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipe:
+                    type: array
+                    items: { $ref: "#/components/schemas/Membre" }
+                  nombre: { type: integer }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+  /api/agent/pipeline:
+    get:
+      tags: [Pilotage]
+      summary: L'état du pipeline et ses anomalies
+      description: |
+        Trois anomalies plutôt qu'un état des lieux neutre :
+
+        - **retards** — échéance dépassée, jamais publié. Mesuré sur les dates,
+          pas sur le statut : un contenu marqué « prêt » depuis trois semaines
+          est en retard.
+        - **manques** — prévu, jamais publié. Aucune écriture ne pose ce statut
+          aujourd'hui ; il est donc toujours vide en pratique.
+        - **attentesDeValidation** — en validation client depuis plus de
+          `jours` jours.
+
+        Les compteurs par client sont plafonnés par `limite`, comme les listes
+        dont ils sont tirés.
+      operationId: agregatPipeline
+      parameters:
+        - name: jours
+          in: query
+          description: Au-delà de combien de jours une validation client devient une relance.
+          schema: { type: integer, minimum: 1, maximum: 90, default: 3 }
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: L'état d'ensemble.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pipeline" }
+        "400": { $ref: "#/components/responses/Invalide" }
+        "401": { $ref: "#/components/responses/NonAuthentifie" }
+        "403": { $ref: "#/components/responses/DroitManquant" }
+        "429": { $ref: "#/components/responses/TropDAppels" }
+
+components:
+  securitySchemes:
+    cleDAgent:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer tpk_…`
+
+        Le jeton ne se lit que dans cette en-tête. Aucun repli sur le cookie de
+        session : un navigateur déjà connecté pourrait sinon piloter l'API à
+        l'insu de son utilisateur.
+
+        Deux droits : `pipeline:read` pour les lectures, `pipeline:write` pour
+        les trois écritures.
+
+  responses:
+    Invalide:
+      description: Requête mal formée. Le message dit quoi corriger.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erreur" }
+    NonAuthentifie:
+      description: Clé absente, inconnue, révoquée ou expirée.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erreur" }
+    DroitManquant:
+      description: La clé est valide mais ne porte pas le droit demandé.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erreur" }
+          example:
+            error: "Cette clé ne porte pas le droit « pipeline:write »."
+    Introuvable:
+      description: |
+        Inexistant, ou hors du périmètre de la clé — les deux cas rendent le
+        même message. Distinguer confirmerait l'existence de la ressource.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erreur" }
+    TropDAppels:
+      description: |
+        Plafond dépassé : 120 lectures et 20 écritures par minute et par clé.
+      headers:
+        Retry-After:
+          description: Secondes à attendre.
+          schema: { type: integer }
+        X-RateLimit-Limit:
+          schema: { type: integer }
+        X-RateLimit-Remaining:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erreur" }
+
+  schemas:
+    Erreur:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Message en français, destiné à être lu tel quel.
+
+    Statut:
+      type: string
+      description: |
+        L'étape du pipeline. `manque` est un constat, pas une étape : aucune
+        écriture ne le pose.
+      enum: [idee, brief, tournage, derush, creation, revision, validation, pret, publie, manque]
+
+    Format:
+      type: string
+      enum: [feed, story, reel, carrousel, autre]
+
+    ClientBref:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        nomCourt: { type: string }
+
+    Personne:
+      type: object
+      nullable: true
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        initiales: { type: string }
+
+    Contenu:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        titre: { type: string }
+        statut: { $ref: "#/components/schemas/Statut" }
+        format: { $ref: "#/components/schemas/Format" }
+        reseaux:
+          type: array
+          items: { type: string }
+        consignes: { type: [string, "null"] }
+        legende: { type: [string, "null"] }
+        hashtags:
+          type: array
+          items: { type: string }
+        prevuLe: { type: [string, "null"], format: date-time }
+        echeanceLe: { type: [string, "null"], format: date-time }
+        soumisLe: { type: [string, "null"], format: date-time }
+        publieLe: { type: [string, "null"], format: date-time }
+        publieUrl: { type: [string, "null"] }
+        creeLe: { type: string, format: date-time }
+        majLe: { type: string, format: date-time }
+        client: { $ref: "#/components/schemas/ClientBref" }
+        responsable: { $ref: "#/components/schemas/Personne" }
+
+    ContenuDetaille:
+      allOf:
+        - $ref: "#/components/schemas/Contenu"
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  numero: { type: integer }
+                  note: { type: [string, "null"] }
+                  valideeLe: { type: [string, "null"], format: date-time }
+                  refuseeLe: { type: [string, "null"], format: date-time }
+                  motifDuRefus: { type: [string, "null"] }
+                  creeLe: { type: string, format: date-time }
+                  auteurNom: { type: [string, "null"] }
+                  auteurInitiales: { type: [string, "null"] }
+            commentaires:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  versionId: { type: [string, "null"], format: uuid }
+                  texte: { type: string }
+                  pastille: { type: [integer, "null"] }
+                  resoluLe: { type: [string, "null"], format: date-time }
+                  creeLe: { type: string, format: date-time }
+                  auteurNom: { type: [string, "null"] }
+                  auteurInitiales: { type: [string, "null"] }
+
+    NouveauContenu:
+      type: object
+      required: [client, titre]
+      properties:
+        client: { type: string, format: uuid }
+        titre: { type: string, minLength: 2, maxLength: 200 }
+        format: { $ref: "#/components/schemas/Format" }
+        reseaux:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        consignes: { type: string, maxLength: 5000 }
+        legende: { type: string, maxLength: 5000 }
+        hashtags:
+          type: array
+          maxItems: 50
+          items: { type: string }
+        prevuLe: { type: string, format: date-time }
+        echeanceLe: { type: string, format: date-time }
+        responsable: { type: string, format: uuid }
+
+    ModifsContenu:
+      type: object
+      minProperties: 1
+      description: |
+        `null` se distingue de l'absence : effacer une échéance se dit
+        `{"echeanceLe": null}`, ne pas y toucher se dit en n'écrivant rien.
+      properties:
+        titre: { type: string, minLength: 2, maxLength: 200 }
+        statut: { $ref: "#/components/schemas/Statut" }
+        format: { $ref: "#/components/schemas/Format" }
+        reseaux:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        consignes: { type: string, maxLength: 5000 }
+        legende: { type: string, maxLength: 5000 }
+        hashtags:
+          type: array
+          maxItems: 50
+          items: { type: string }
+        prevuLe: { type: [string, "null"], format: date-time }
+        echeanceLe: { type: [string, "null"], format: date-time }
+        responsable: { type: [string, "null"], format: uuid }
+
+    Client:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        nomCourt: { type: string }
+        secteur: { type: [string, "null"] }
+        contenusParMois: { type: integer }
+        poles:
+          type: array
+          items: { type: string }
+        responsable: { $ref: "#/components/schemas/Personne" }
+        contrat:
+          type: array
+          description: Ce que le mois devrait contenir, ligne par ligne.
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              libelle: { type: string }
+              parMois: { type: integer }
+              format: { $ref: "#/components/schemas/Format" }
+              reseaux:
+                type: array
+                items: { type: string }
+
+    Tournage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        titre: { type: string }
+        lieu: { type: [string, "null"] }
+        debuteLe: { type: string, format: date-time }
+        finitLe: { type: [string, "null"], format: date-time }
+        statut: { type: string }
+        note: { type: [string, "null"] }
+        client: { $ref: "#/components/schemas/ClientBref" }
+        equipe:
+          type: array
+          items:
+            type: object
+            properties:
+              nom: { type: string }
+              initiales: { type: string }
+              role: { type: [string, "null"] }
+              etat: { type: string }
+        livrables:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              libelle: { type: string }
+              attenduLe: { type: [string, "null"], format: date }
+              livre: { type: boolean }
+
+    Membre:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        initiales: { type: string }
+        poles:
+          type: array
+          items: { type: string }
+        charge:
+          type: object
+          description: Nombre de contenus par statut, borné au périmètre de la clé.
+          additionalProperties: { type: integer }
+        total: { type: integer }
+
+    Pipeline:
+      type: object
+      properties:
+        total: { type: integer }
+        parStatut:
+          type: object
+          additionalProperties: { type: integer }
+        parClient:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              nom: { type: string }
+              nomCourt: { type: string }
+              parStatut:
+                type: object
+                additionalProperties: { type: integer }
+              total: { type: integer }
+              retards: { type: integer }
+              manques: { type: integer }
+              attentesDeValidation: { type: integer }
+        anomalies:
+          type: object
+          properties:
+            retards:
+              type: array
+              items: { $ref: "#/components/schemas/Anomalie" }
+            manques:
+              type: array
+              items: { $ref: "#/components/schemas/Anomalie" }
+            attentesDeValidation:
+              type: array
+              items: { $ref: "#/components/schemas/Anomalie" }
+            seuilEnJours: { type: integer }
+
+    Anomalie:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        titre: { type: string }
+        statut: { $ref: "#/components/schemas/Statut" }
+        echeanceLe: { type: [string, "null"], format: date-time }
+        prevuLe: { type: [string, "null"], format: date-time }
+        soumisLe: { type: [string, "null"], format: date-time }
+        clientNomCourt: { type: string }
