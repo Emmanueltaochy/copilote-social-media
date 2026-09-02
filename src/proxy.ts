@@ -29,6 +29,12 @@ export function proxy(request: NextRequest) {
     // défaut déjà corrigé dans currentDirection() : une route répond, elle ne
     // renvoie pas ailleurs. La vérification a lieu dans withApiKey().
     pathname.startsWith("/api/agent") ||
+    // Même raison pour les modèles de brief : ce sont des routes d'API, pas
+    // des pages. Un appel sans session doit recevoir un 401 en JSON, pas une
+    // redirection vers l'écran de connexion — que `fetch` suivrait pour rendre
+    // une page en 200. La session est vérifiée dans la route, par exigeEquipe().
+    pathname.startsWith("/api/brief-templates") ||
+    pathname.startsWith("/api/briefs") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();

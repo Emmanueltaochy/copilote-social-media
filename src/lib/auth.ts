@@ -173,6 +173,20 @@ export async function currentDirection(): Promise<User | null> {
   return user && user.role === "direction" ? user : null;
 }
 
+/**
+ * L'équipe, pour une route d'API.
+ *
+ * Même raison que `currentDirection` : `requireStaff` redirige un compte
+ * client vers son portail, ce qui convient à une page mais trompe un appel
+ * programmé — la redirection est suivie, une page revient en 200, et
+ * l'appelant croit avoir réussi. Une route répond, elle ne renvoie pas
+ * ailleurs.
+ */
+export async function currentStaff(): Promise<User | null> {
+  const user = await currentUser();
+  return user && user.role !== "client" ? user : null;
+}
+
 /** Les montants et les marges ne s'affichent pas pour toute l'équipe. */
 export const canSeeMoney = (user: Pick<User, "role">) => user.role === "direction";
 
