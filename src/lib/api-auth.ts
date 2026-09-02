@@ -79,6 +79,11 @@ export const hasScope = (cle: ApiKey, scope: ApiScope): boolean =>
  * Le périmètre d'une clé, à poser dans le `where` de **chaque** requête qui
  * touche aux clients.
  *
+ * **Les conditions rendues portent sur la table `clients` : toute requête qui
+ * l'utilise doit joindre `clients`, faute de quoi PostgreSQL refusera la
+ * requête.** Rien dans la signature ne le signale — c'est une contrainte
+ * implicite, et c'est ce qui la rend fragile.
+ *
  * Deux bornes, toujours appliquées ensemble :
  *
  * - le pôle, lu comme `requireDepartment()` le lit pour un humain. Sans lui,
