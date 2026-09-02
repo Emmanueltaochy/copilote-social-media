@@ -30,6 +30,15 @@ paramétrer répertoire / base / port par variables d'environnement, et réécri
 `stack.sh` pour monter sa propre base. **Ce n'est pas prévu.** Ce fichier existe
 justement pour le cas où ça n'arrive jamais.
 
+> **À faire le jour du portage : retirer `"tests/e2e/**"` de `globalIgnores`
+> dans `eslint.config.mjs`.**
+>
+> L'exclusion se justifie tant que rien n'exécute ce code — la linter n'a rien à
+> dire d'un fichier mort, et ses avertissements masqueraient les vrais. Une fois
+> la suite portée et lancée, elle devient du code vivant, et une exclusion
+> oubliée la laisserait dériver sans que personne ne le voie. C'est le genre de
+> ligne à laquelle on ne repense jamais : elle est écrite ici pour ça.
+
 ---
 
 ## Comment c'était organisé
