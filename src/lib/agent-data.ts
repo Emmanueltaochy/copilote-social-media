@@ -14,6 +14,9 @@ import {
   users,
   type ApiKey,
 } from "@/db";
+import { activity } from "@/db";
+import { transitionPermise } from "./pipeline";
+import type { ContentStatus } from "@/data/content";
 import { perimetreDeLaCle } from "./api-auth";
 import { departmentsOf, type Department } from "./auth";
 
@@ -730,4 +733,251 @@ export async function agregatPipeline(cle: ApiKey, filtres: FiltresPipeline) {
       seuilEnJours: filtres.jours,
     },
   };
+}
+
+/* ------------------------------------------------------------ les écritures -- */
+
+/**
+ * Le refus d'une écriture, tel qu'une route le rendra.
+ *
+ * Un type de retour plutôt qu'une exception : une écriture refusée n'est pas
+ * un incident, c'est une réponse. L'exception reste pour ce qui ne devrait
+ * jamais arriver.
+ */
+export type Refus = { ok: false; statut: 400 | 404 | 409; message: string };
+export type Succes<T> = { ok: true; valeur: T };
+export type Resultat<T> = Succes<T> | Refus;
+
+/**
+ * La trace d'une écriture faite par une clé.
+ *
+ * `actorLabel` porte le nom de la clé, `actorId` reste vide : la colonne est
+ * prévue pour ça — « vide quand l'action vient du système ». Sans cette ligne,
+ * rien ne distinguerait dans l'historique une modification de l'agent d'une
+ * modification humaine, et personne ne pourrait revenir sur ce qu'il a fait.
+ *
+ * Elle est écrite dans la même transaction que la mutation, jamais après. Une
+ * écriture qui réussit sans sa trace est pire qu'une écriture refusée : le
+ * pipeline aurait changé et l'historique dirait que personne ne l'a touché.
+ */
+type Journal = { clientId: string; contentId: string; texte: string };
+
+const tracer = (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], cle: ApiKey, j: Journal) =>
+  tx.insert(activity).values({
+    clientId: j.clientId,
+    contentId: j.contentId,
+    actorId: null,
+    actorLabel: cle.name,
+    text: j.texte,
+  });
+
+export type NouveauContenu = {
+  clientId: string;
+  titre: string;
+  format?: "feed" | "story" | "reel" | "carrousel" | "autre";
+  reseaux?: string[];
+  consignes?: string;
+  legende?: string;
+  hashtags?: string[];
+  prevuLe?: string;
+  echeanceLe?: string;
+  responsableId?: string;
+};
+
+/**
+ * Crée un contenu, toujours au statut « idée ».
+ *
+ * Le statut n'est pas un paramètre : un contenu qui naîtrait « prêt à
+ * publier » n'aurait traversé aucune des étapes qui font qu'il est prêt. On
+ * crée, puis on fait avancer — et chaque avancée laisse sa trace.
+ */
+export async function creerContenu(
+  cle: ApiKey,
+  v: NouveauContenu,
+): Promise<Resultat<{ id: string }>> {
+  exige("contenus", "client");
+
+  return db.transaction(async (tx) => {
+    // Le périmètre est vérifié dans la transaction. Un client qui changerait de
+    // pôle pendant ces quelques millisecondes laisserait un contenu créé chez
+    // lui — invisible à la clé dès l'instant d'après, donc sans conséquence.
+    const [client] = await tx
+      .select({ id: clients.id })
+      .from(clients)
+      .where(and(eq(clients.id, v.clientId), perimetreDeLaCle(cle)))
+      .limit(1);
+
+    // Introuvable plutôt que « pas pour toi » : la seconde formule confirmerait
+    // l'existence du client.
+    if (!client) return { ok: false, statut: 404, message: "Client introuvable." } as Refus;
+
+    if (v.responsableId) {
+      const [personne] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, v.responsableId), eq(users.active, true)))
+        .limit(1);
+      if (!personne) {
+        return { ok: false, statut: 400, message: "Responsable introuvable." } as Refus;
+      }
+    }
+
+    const [contenu] = await tx
+      .insert(contents)
+      .values({
+        clientId: v.clientId,
+        title: v.titre,
+        status: "idee",
+        kind: v.format ?? "feed",
+        networks: v.reseaux ?? [],
+        instructions: v.consignes,
+        caption: v.legende,
+        hashtags: v.hashtags ?? [],
+        scheduledAt: v.prevuLe ? new Date(v.prevuLe) : null,
+        dueAt: v.echeanceLe ? new Date(v.echeanceLe) : null,
+        ownerId: v.responsableId ?? null,
+      })
+      .returning({ id: contents.id });
+
+    await tracer(tx, cle, {
+      clientId: v.clientId,
+      contentId: contenu.id,
+      texte: `Contenu « ${v.titre} » créé`,
+    });
+
+    return { ok: true, valeur: { id: contenu.id } } as Succes<{ id: string }>;
+  });
+}
+
+export type ModifsContenu = {
+  titre?: string;
+  statut?: ContentStatus;
+  format?: "feed" | "story" | "reel" | "carrousel" | "autre";
+  reseaux?: string[];
+  consignes?: string;
+  legende?: string;
+  hashtags?: string[];
+  prevuLe?: string | null;
+  echeanceLe?: string | null;
+  responsableId?: string | null;
+};
+
+/**
+ * Modifie un contenu, dans les seules colonnes autorisées.
+ *
+ * `publishedAt`, `publishedUrl` et `publishedById` n'y figurent pas et n'y
+ * figureront pas : ce sont les trois colonnes qui attestent qu'une personne a
+ * constaté une publication réelle, et le suivi calcule les retards dessus.
+ */
+export async function modifierContenu(
+  cle: ApiKey,
+  id: string,
+  modifs: ModifsContenu,
+): Promise<Resultat<{ id: string; statut: string }>> {
+  exige("contenus", "client");
+
+  return db.transaction(async (tx) => {
+    const [avant] = await tx
+      .select({ id: contents.id, titre: contents.title, statut: contents.status, clientId: contents.clientId })
+      .from(contents)
+      .where(and(eq(contents.id, id), inArray(contents.id, contenusAutorises(cle))))
+      .limit(1);
+
+    if (!avant) return { ok: false, statut: 404, message: "Contenu introuvable." } as Refus;
+
+    if (modifs.statut) {
+      const verdict = transitionPermise(avant.statut as ContentStatus, modifs.statut);
+      if (!verdict.permise) {
+        // 409 et non 400 : la demande est bien formée, c'est l'état actuel qui
+        // s'y oppose. Un agent qui distingue les deux sait s'il doit corriger
+        // son appel ou relire le pipeline.
+        return { ok: false, statut: 409, message: verdict.raison } as Refus;
+      }
+    }
+
+    if (modifs.responsableId) {
+      const [personne] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, modifs.responsableId), eq(users.active, true)))
+        .limit(1);
+      if (!personne) {
+        return { ok: false, statut: 400, message: "Responsable introuvable." } as Refus;
+      }
+    }
+
+    const champs: Record<string, unknown> = { updatedAt: new Date() };
+    if (modifs.titre !== undefined) champs.title = modifs.titre;
+    if (modifs.statut !== undefined) champs.status = modifs.statut;
+    if (modifs.format !== undefined) champs.kind = modifs.format;
+    if (modifs.reseaux !== undefined) champs.networks = modifs.reseaux;
+    if (modifs.consignes !== undefined) champs.instructions = modifs.consignes;
+    if (modifs.legende !== undefined) champs.caption = modifs.legende;
+    if (modifs.hashtags !== undefined) champs.hashtags = modifs.hashtags;
+    if (modifs.prevuLe !== undefined) {
+      champs.scheduledAt = modifs.prevuLe ? new Date(modifs.prevuLe) : null;
+    }
+    if (modifs.echeanceLe !== undefined) {
+      champs.dueAt = modifs.echeanceLe ? new Date(modifs.echeanceLe) : null;
+    }
+    if (modifs.responsableId !== undefined) champs.ownerId = modifs.responsableId;
+    // Passer en validation, c'est demander une réponse à quelqu'un : la date
+    // sert à compter les jours d'attente, et le suivi s'en sert pour relancer.
+    if (modifs.statut === "validation" && avant.statut !== "validation") {
+      champs.submittedAt = new Date();
+    }
+
+    const [apres] = await tx
+      .update(contents)
+      .set(champs)
+      // Le périmètre est reposé dans le `where` de l'update lui-même, et non
+      // déduit de la lecture ci-dessus : entre les deux, un contenu peut
+      // changer de client.
+      .where(and(eq(contents.id, id), inArray(contents.id, contenusAutorises(cle))))
+      .returning({ id: contents.id, statut: contents.status });
+
+    if (!apres) return { ok: false, statut: 404, message: "Contenu introuvable." } as Refus;
+
+    const dit =
+      modifs.statut && modifs.statut !== avant.statut
+        ? `« ${avant.titre} » déplacé vers ${modifs.statut}`
+        : `« ${avant.titre} » modifié`;
+    await tracer(tx, cle, { clientId: avant.clientId, contentId: id, texte: dit });
+
+    return { ok: true, valeur: apres } as Succes<{ id: string; statut: string }>;
+  });
+}
+
+/** Ajoute un commentaire au fil d'un contenu. */
+export async function ajouterCommentaire(
+  cle: ApiKey,
+  contentId: string,
+  texte: string,
+): Promise<Resultat<{ id: string }>> {
+  exige("commentaires", "client");
+
+  return db.transaction(async (tx) => {
+    const [contenu] = await tx
+      .select({ id: contents.id, titre: contents.title, clientId: contents.clientId })
+      .from(contents)
+      .where(and(eq(contents.id, contentId), inArray(contents.id, contenusAutorises(cle))))
+      .limit(1);
+
+    if (!contenu) return { ok: false, statut: 404, message: "Contenu introuvable." } as Refus;
+
+    const [commentaire] = await tx
+      .insert(comments)
+      // `authorId` reste vide comme `actorId` du journal : ce n'est personne de
+      // l'équipe qui parle, et l'attribuer à quelqu'un serait un faux.
+      .values({ contentId, authorId: null, body: texte })
+      .returning({ id: comments.id });
+
+    await tracer(tx, cle, {
+      clientId: contenu.clientId,
+      contentId,
+      texte: `Remarque ajoutée sur « ${contenu.titre} »`,
+    });
+
+    return { ok: true, valeur: { id: commentaire.id } } as Succes<{ id: string }>;
+  });
 }

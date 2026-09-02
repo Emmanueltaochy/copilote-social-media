@@ -212,6 +212,11 @@ un(`
   returning id
 `);
 
+const ecriture = poserCle({
+  nom: `Agent scribe ${idJeu}`,
+  scopes: ["pipeline:read", "pipeline:write"],
+  poles: ["social"],
+});
 const bonne = poserCle({ nom: `fumigène lecture ${idJeu}`, scopes: ["pipeline:read"], poles: ["social"] });
 const sansDroit = poserCle({ nom: `fumigène sans droit ${idJeu}`, scopes: ["pipeline:write"], poles: ["social"] });
 const revoquee = poserCle({ nom: `fumigène révoquée ${idJeu}`, scopes: ["pipeline:read"], poles: ["social"], revoquee: true });
@@ -562,6 +567,245 @@ ok(
 
 const joursFous = await appel("/api/agent/pipeline?jours=999", bonne.jeton);
 ok(`un seuil hors bornes est refusé (${joursFous.statut})`, joursFous.statut === 400);
+
+/* ------------------------------------------------------------ l'écriture -- */
+
+console.log("\n— écriture : les refus —");
+
+const poste = (chemin, jeton, corps, methode = "POST") =>
+  fetch(`${BASE}${chemin}`, {
+    method: methode,
+    headers: { Authorization: `Bearer ${jeton}`, "Content-Type": "application/json" },
+    body: JSON.stringify(corps),
+    redirect: "manual",
+  }).then(async (r) => ({ statut: r.status, corps: await r.json().catch(() => null) }));
+
+const sansDroitEcrire = await poste("/api/agent/contents", bonne.jeton, {
+  client: clientSocial,
+  titre: "Ne doit pas exister",
+});
+ok(
+  `une clé de lecture seule ne crée rien (${sansDroitEcrire.statut})`,
+  sansDroitEcrire.statut === 403,
+);
+ok(
+  "… et rien n'est arrivé en base",
+  un(`select count(*)::int from contents where title = 'Ne doit pas exister'`) === "0",
+);
+
+const chezLeVoisin = await poste("/api/agent/contents", ecriture.jeton, {
+  client: clientWeb,
+  titre: `Intrusion ${idJeu}`,
+});
+ok(`créer chez un client hors pôle répond 404 (${chezLeVoisin.statut})`, chezLeVoisin.statut === 404);
+ok(
+  "… et rien n'est arrivé en base",
+  un(`select count(*)::int from contents where title = 'Intrusion ${idJeu}'`) === "0",
+);
+
+const corpsVide = await poste("/api/agent/contents", ecriture.jeton, { client: clientSocial });
+ok(`un titre manquant est refusé (${corpsVide.statut})`, corpsVide.statut === 400);
+
+console.log("\n— écriture : créer —");
+
+const cree = await poste("/api/agent/contents", ecriture.jeton, {
+  client: clientSocial,
+  titre: `Carrousel agent ${idJeu}`,
+  format: "carrousel",
+  reseaux: ["instagram", "facebook"],
+  consignes: "Trois vues, ton chaleureux",
+});
+ok(`la création répond 201 (${cree.statut})`, cree.statut === 201);
+const neuf = cree.corps?.contenu?.id;
+ok(
+  "le contenu naît au statut « idee », jamais ailleurs",
+  un(`select status from contents where id = '${neuf}'`) === "idee",
+);
+ok(
+  "la trace porte le nom de la clé, pas celui d'une personne",
+  un(`select actor_label from activity where content_id = '${neuf}'`) === `Agent scribe ${idJeu}`,
+);
+ok(
+  "… et n'est attribuée à aucun compte humain",
+  un(`select actor_id is null from activity where content_id = '${neuf}'`) === "t",
+);
+
+console.log("\n— écriture : la règle d'ordre, dans les deux sens —");
+
+const bouger = (id, statut) => poste(`/api/agent/contents/${id}`, ecriture.jeton, { statut }, "PATCH");
+
+const saut = await bouger(neuf, "publie");
+ok(`« publié » est refusé à l'agent (${saut.statut})`, saut.statut === 409);
+ok(
+  "… avec la raison : seule une personne le constate",
+  /constate/.test(saut.corps?.error ?? ""),
+);
+
+const sautLoin = await bouger(neuf, "pret");
+ok(`sauter jusqu'à « prêt » est refusé (${sautLoin.statut})`, sautLoin.statut === 409);
+ok(
+  "… et le message nomme l'étape obligatoire sautée",
+  /obligatoire/.test(sautLoin.corps?.error ?? ""),
+);
+
+// La marche avant normale, étape par étape.
+ok("idee → brief est permis", (await bouger(neuf, "brief")).statut === 200);
+
+// Le cas que tu as décrit : un carrousel ne se tourne pas.
+const sautTournage = await bouger(neuf, "creation");
+ok(
+  `brief → creation en sautant tournage et dérush est permis (${sautTournage.statut})`,
+  sautTournage.statut === 200,
+);
+
+// La marche arrière, qui est le geste d'une correction demandée.
+ok("creation → revision est permis", (await bouger(neuf, "revision")).statut === 200);
+const retour = await bouger(neuf, "creation");
+ok(`revision → creation, le retour en arrière, est permis (${retour.statut})`, retour.statut === 200);
+ok(
+  "… et le contenu est bien redescendu",
+  un(`select status from contents where id = '${neuf}'`) === "creation",
+);
+
+/*
+ * Deux chemins que la règle refuse aujourd'hui, épinglés tels quels.
+ *
+ * La spécification retenue — seuls « tournage » et « dérush » sont facultatifs
+ * — rend obligatoires « brief » et « révision interne ». Or les deux se sautent
+ * en pratique : une actualité va de l'idée à la création, et un contenu part
+ * souvent en validation client sans passer par une révision interne.
+ *
+ * Ces assertions ne défendent pas ce comportement : elles le rendent visible.
+ * Le jour où ces deux étapes rejoignent ETAPES_FACULTATIVES, elles tomberont,
+ * et c'est ce qu'on veut d'un test qui documente une question ouverte.
+ */
+const sautRevision = await bouger(neuf, "validation");
+ok(
+  `À TRANCHER — creation → validation est refusé, « révision interne » étant obligatoire (${sautRevision.statut})`,
+  sautRevision.statut === 409,
+);
+const sautBrief = await poste(
+  "/api/agent/contents",
+  ecriture.jeton,
+  { client: clientSocial, titre: `Actu directe ${idJeu}` },
+);
+const actu = sautBrief.corps?.contenu?.id;
+const sautIdeeCreation = await bouger(actu, "creation");
+ok(
+  `À TRANCHER — idee → creation est refusé, « brief » étant obligatoire (${sautIdeeCreation.statut})`,
+  sautIdeeCreation.statut === 409,
+);
+
+// Le chemin complet reste ouvert : révision puis validation.
+ok("revision → validation est permis", (await bouger(neuf, "revision")).statut === 200);
+const enValidation = await bouger(neuf, "validation");
+ok(`revision → validation aboutit (${enValidation.statut})`, enValidation.statut === 200);
+ok(
+  "passer en validation horodate l'attente",
+  un(`select submitted_at is not null from contents where id = '${neuf}'`) === "t",
+);
+
+ok(
+  "chaque déplacement a laissé sa trace",
+  Number(un(`select count(*)::int from activity where content_id = '${neuf}'`)) >= 6,
+);
+
+console.log("\n— écriture : ce qui reste interdit —");
+
+const volPublication = await poste(
+  `/api/agent/contents/${neuf}`,
+  ecriture.jeton,
+  { publieLe: new Date().toISOString(), publieUrl: "https://exemple.re/post" },
+  "PATCH",
+);
+ok(
+  `écrire la publication n'est pas une colonne acceptée (${volPublication.statut})`,
+  volPublication.statut === 400,
+);
+ok(
+  "… et la base n'a pas bougé",
+  un(`select published_at is null from contents where id = '${neuf}'`) === "t",
+);
+
+const chezLeVoisinPatch = await poste(
+  `/api/agent/contents/${contenuWeb}`,
+  ecriture.jeton,
+  { titre: `Volé ${idJeu}` },
+  "PATCH",
+);
+ok(
+  `modifier un contenu hors pôle répond 404 (${chezLeVoisinPatch.statut})`,
+  chezLeVoisinPatch.statut === 404,
+);
+ok(
+  "… et son titre est intact",
+  un(`select title from contents where id = '${contenuWeb}'`) === `Post web ${idJeu}`,
+);
+
+console.log("\n— écriture : commenter —");
+
+const remarque = await poste(`/api/agent/contents/${neuf}/comments`, ecriture.jeton, {
+  texte: `Relance agent ${idJeu}`,
+});
+ok(`la remarque est postée (${remarque.statut})`, remarque.statut === 201);
+ok(
+  "… et se lit dans le fil du contenu",
+  (await appel(`/api/agent/contents/${neuf}`, ecriture.jeton)).corps?.contenu?.commentaires?.some(
+    (c) => c.texte === `Relance agent ${idJeu}`,
+  ),
+);
+ok(
+  "… avec sa trace au nom de la clé",
+  Number(
+    un(
+      `select count(*)::int from activity where content_id = '${neuf}' and text like 'Remarque%' and actor_label = 'Agent scribe ${idJeu}'`,
+    ),
+  ) === 1,
+);
+
+const remarqueVoisine = await poste(
+  `/api/agent/contents/${contenuWeb}/comments`,
+  ecriture.jeton,
+  { texte: "Intrusion" },
+);
+ok(
+  `commenter hors pôle répond 404 (${remarqueVoisine.statut})`,
+  remarqueVoisine.statut === 404,
+);
+ok(
+  "… et rien n'est arrivé en base",
+  un(`select count(*)::int from comments where body = 'Intrusion'`) === "0",
+);
+
+console.log("\n— écriture : la transaction —");
+
+/*
+ * Le point que rien d'autre ne prouve : la mutation et sa trace tiennent
+ * ensemble. On casse l'insertion dans `activity` par une contrainte, on tente
+ * une modification, et on vérifie que le contenu n'a pas bougé — si la
+ * transaction n'enveloppait pas les deux, le titre aurait changé et
+ * l'historique dirait que personne ne l'a fait.
+ */
+const avantTitre = un(`select title from contents where id = '${neuf}'`);
+// « NOT VALID » s'applique aux écritures nouvelles sans exiger que les lignes
+// déjà là s'y conforment — c'est exactement ce qu'il faut pour casser la trace
+// sans toucher à l'historique du décor.
+sql(`alter table activity add constraint smoke_refuse check (text is null) not valid`);
+
+const pendantPanne = await poste(
+  `/api/agent/contents/${neuf}`,
+  ecriture.jeton,
+  { titre: `Titre qui ne doit pas rester ${idJeu}` },
+  "PATCH",
+);
+ok(`une trace impossible fait échouer l'écriture (${pendantPanne.statut})`, pendantPanne.statut === 500);
+
+sql(`alter table activity drop constraint smoke_refuse`);
+
+ok(
+  "… et le contenu n'a pas bougé : pas de mutation sans sa trace",
+  un(`select title from contents where id = '${neuf}'`) === avantTitre,
+);
 
 /* ------------------------------------------------------------ la cadence -- */
 

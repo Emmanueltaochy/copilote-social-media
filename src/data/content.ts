@@ -15,6 +15,19 @@ export const CONTENT_STAGES = [
 
 export type ContentStatus = (typeof CONTENT_STAGES)[number] | "manque";
 
+/**
+ * Les étapes qu'un contenu peut sauter sans que ce soit une anomalie.
+ *
+ * Un carrousel ou une actualité ne se tourne pas : exiger qu'il passe par un
+ * tournage et un dérush à vide obligerait à mentir au pipeline pour le
+ * satisfaire, et un pipeline auquel on ment cesse d'être un état des lieux.
+ *
+ * Déclaré ici plutôt que codé en dur dans la règle de transition : le jour où
+ * une étape devient facultative — ou cesse de l'être — c'est cette ligne qu'on
+ * change, à l'endroit où le pipeline est décrit.
+ */
+export const ETAPES_FACULTATIVES: ReadonlySet<ContentStatus> = new Set(["tournage", "derush"]);
+
 export const CONTENT_STATUS: Record<
   ContentStatus,
   { label: string; tone: Tone; solidDot: boolean }
