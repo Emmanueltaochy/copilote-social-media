@@ -33,8 +33,15 @@ export function proxy(request: NextRequest) {
     // des pages. Un appel sans session doit recevoir un 401 en JSON, pas une
     // redirection vers l'écran de connexion — que `fetch` suivrait pour rendre
     // une page en 200. La session est vérifiée dans la route, par exigeEquipe().
-    pathname.startsWith("/api/brief-templates") ||
-    pathname.startsWith("/api/briefs") ||
+    //
+    // Chemins exacts plutôt que préfixe pour « /api/briefs » : un préfixe
+    // dispenserait de garde toute route future placée dessous, y compris celle
+    // que quelqu'un ajoutera sans savoir que cette ligne existe. Le défaut
+    // penche du bon côté — une nouvelle route reçoit la redirection du proxy,
+    // ce qui se remarque tout de suite, au lieu d'être servie sans contrôle.
+    pathname === "/api/briefs" ||
+    pathname === "/api/brief-templates" ||
+    pathname.startsWith("/api/brief-templates/") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();

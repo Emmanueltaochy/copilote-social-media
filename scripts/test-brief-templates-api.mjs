@@ -251,6 +251,50 @@ ok(
   copie2.corps?.modele?.slug !== copie.corps?.modele?.slug,
 );
 
+/* ================= 5 bis. LA SUPPRESSION SELON L'USAGE ================= */
+
+console.log("\n— supprimer un modèle —");
+
+const jamaisServi = poserModele("jamais-servi", { scope: "department", departments: ["web"] });
+const supprNeuf = await appel(`/api/brief-templates/${jamaisServi}`, {
+  methode: "DELETE",
+  cookie: equipeWeb.cookie,
+});
+ok(`un modèle jamais utilisé se supprime (${supprNeuf.statut})`, supprNeuf.statut === 200);
+ok(
+  "… et il a bien disparu",
+  un(`select count(*)::int from brief_templates where id='${jamaisServi}'`) === "0",
+);
+
+// Un modèle qui a servi : on lui fabrique un brief, puis on tente.
+const dejaServi = poserModele("deja-servi", { scope: "department", departments: ["web"] });
+un(`insert into briefs (client_id, title, template_id, template_version, structure_snapshot)
+    values ('${clientId}', 'Brief issu du modèle', '${dejaServi}', 1,
+            '${JSON.stringify(STRUCTURE)}'::jsonb) returning id`);
+
+const supprServi = await appel(`/api/brief-templates/${dejaServi}`, {
+  methode: "DELETE",
+  cookie: equipeWeb.cookie,
+});
+ok(`un modèle déjà utilisé n'est pas supprimé → 409 (${supprServi.statut})`, supprServi.statut === 409);
+ok(`… et le message donne le nombre de briefs (${supprServi.corps?.briefsCrees})`, supprServi.corps?.briefsCrees === 1);
+ok("… et invite à archiver", /archive/i.test(supprServi.corps?.error ?? ""));
+ok(
+  "… le modèle est toujours là",
+  un(`select count(*)::int from brief_templates where id='${dejaServi}'`) === "1",
+);
+
+const archive = await patch(dejaServi, equipeWeb.cookie, { isActive: false });
+ok(`archiver fonctionne, lui (${archive.statut})`, archive.statut === 200);
+ok(
+  "… et le modèle quitte la galerie",
+  !(await vuPar(equipeWeb)).includes(`deja-servi-${jeu}`),
+);
+ok(
+  "… sans toucher au brief qu'il a produit",
+  un(`select count(*)::int from briefs where template_id='${dejaServi}'`) === "1",
+);
+
 /* ================= 6. VERSIONNEMENT =================================== */
 
 console.log("\n— le versionnement —");

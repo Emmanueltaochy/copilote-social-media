@@ -147,9 +147,30 @@ export async function DELETE(_request: Request, ctx: Contexte) {
     return Response.json({ error: "Ce modèle appartient à un autre pôle." }, { status: 403 });
   }
 
+  /*
+   * Un modèle qui a déjà servi ne se supprime pas.
+   *
+   * Les briefs qu'il a produits gardent leur `structure_snapshot` — le
+   * questionnaire ne disparaît jamais — mais leur `template_id` passerait à
+   * vide, et l'on perdrait définitivement de quoi savoir d'où ils viennent.
+   * Irréversible, pour un gain nul : archiver retire déjà le modèle de la
+   * galerie.
+   *
+   * Un modèle qui n'a jamais servi se supprime, lui : on doit pouvoir effacer
+   * une erreur.
+   */
+  const usage = (await usageDesModeles([modele.id])).get(modele.id) ?? 0;
+  if (usage > 0) {
+    return Response.json(
+      {
+        error: `Ce modèle a déjà produit ${usage} brief${usage > 1 ? "s" : ""} : le supprimer effacerait leur origine. Archive-le plutôt — il quittera la galerie sans rien casser.`,
+        briefsCrees: usage,
+        remede: { methode: "PATCH", corps: { isActive: false } },
+      },
+      { status: 409 },
+    );
+  }
+
   await supprimerModele(modele.id);
-  // Les briefs déjà créés ne bougent pas : leur `template_id` passe à vide,
-  // leur `structure_snapshot` reste intact. On perd la traçabilité, jamais le
-  // questionnaire.
   return Response.json({ ok: true });
 }
