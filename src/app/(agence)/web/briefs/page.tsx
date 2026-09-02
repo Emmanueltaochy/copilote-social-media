@@ -5,6 +5,8 @@ import { Dot, StatusPill } from "@/components/ui/primitives";
 import { requireDepartment } from "@/lib/auth";
 import { listBriefs } from "@/db/web-queries";
 import { BRIEF_STATUS } from "@/data/web";
+import { listUnconvertedBriefs } from "@/lib/brief-migration";
+import { BriefsNonConvertis } from "./BriefsNonConvertis";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function BriefsPage() {
   await requireDepartment("web");
-  const rows = await listBriefs();
+  const [rows, nonConvertis] = await Promise.all([listBriefs(), listUnconvertedBriefs()]);
 
   const attendus = rows.filter((r) => r.brief.status === "envoye" || r.brief.status === "en_cours");
   const autres = rows.filter((r) => !attendus.includes(r));
@@ -34,6 +36,17 @@ export default async function BriefsPage() {
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+          <BriefsNonConvertis briefs={nonConvertis} />
+
+          <div className="flex justify-end">
+            <Link
+              href="/web/briefs/templates"
+              className="rounded-control border border-line bg-paper px-3 py-[6px] text-base no-underline hover:bg-canvas hover:no-underline"
+            >
+              Modèles de brief
+            </Link>
+          </div>
+
           {rows.length === 0 ? (
             <Card className="p-5">
               <p className="text-base text-ink-2">
