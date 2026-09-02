@@ -182,6 +182,36 @@ un(`
   returning id
 `);
 
+// Une anomalie de chaque nature, de chaque côté du périmètre : sans jumeau
+// hors pôle, un agrégat qui déborde compterait pareil et paraîtrait juste.
+for (const [client, suffixe] of [
+  [clientSocial, "social"],
+  [clientWeb, "web"],
+]) {
+  un(`
+    insert into contents (client_id, title, status, due_at)
+    values ('${client}', 'Retard ${suffixe} ${idJeu}', 'creation', now() - interval '4 days')
+    returning id
+  `);
+  un(`
+    insert into contents (client_id, title, status)
+    values ('${client}', 'Manque ${suffixe} ${idJeu}', 'manque')
+    returning id
+  `);
+  un(`
+    insert into contents (client_id, title, status, submitted_at)
+    values ('${client}', 'Attente ${suffixe} ${idJeu}', 'validation', now() - interval '9 days')
+    returning id
+  `);
+}
+// Un contenu publié et pourtant en retard d'échéance : il ne doit pas compter
+// comme retard, sinon toute publication tardive resterait signalée à vie.
+un(`
+  insert into contents (client_id, title, status, due_at, published_at)
+  values ('${clientSocial}', 'Publie tard ${idJeu}', 'publie', now() - interval '9 days', now())
+  returning id
+`);
+
 const bonne = poserCle({ nom: `fumigène lecture ${idJeu}`, scopes: ["pipeline:read"], poles: ["social"] });
 const sansDroit = poserCle({ nom: `fumigène sans droit ${idJeu}`, scopes: ["pipeline:write"], poles: ["social"] });
 const revoquee = poserCle({ nom: `fumigène révoquée ${idJeu}`, scopes: ["pipeline:read"], poles: ["social"], revoquee: true });
@@ -455,6 +485,83 @@ ok(
   `l'agrégat suit le périmètre au lieu d'être constant (${restreinte.agrege} < ${large.agrege})`,
   restreinte.agrege < large.agrege,
 );
+
+console.log("\n— /pipeline —");
+
+const surPipeline = await appel("/api/agent/pipeline", bonne.jeton);
+ok(`l'agrégat se lit (${surPipeline.statut})`, surPipeline.statut === 200);
+ok("aucun _cents ni @ ne traverse la réponse", propre(surPipeline.corps));
+
+const nomsAnomalies = (liste) => (liste ?? []).map((c) => c.titre);
+const retards = nomsAnomalies(surPipeline.corps?.anomalies?.retards);
+const manques = nomsAnomalies(surPipeline.corps?.anomalies?.manques);
+const attentes = nomsAnomalies(surPipeline.corps?.anomalies?.attentesDeValidation);
+
+ok("le retard du pôle est signalé", retards.includes(`Retard social ${idJeu}`));
+ok("celui du pôle voisin est absent", !retards.includes(`Retard web ${idJeu}`));
+ok(
+  "un contenu publié n'est pas en retard, même hors délai",
+  !retards.includes(`Publie tard ${idJeu}`),
+);
+ok("le contenu manquant est signalé", manques.includes(`Manque social ${idJeu}`));
+ok("celui du pôle voisin est absent", !manques.includes(`Manque web ${idJeu}`));
+ok("l'attente de validation est signalée", attentes.includes(`Attente social ${idJeu}`));
+ok("celle du pôle voisin est absente", !attentes.includes(`Attente web ${idJeu}`));
+
+ok(
+  "le seuil est rappelé avec le compte",
+  surPipeline.corps?.anomalies?.seuilEnJours === 3,
+);
+const attenteCourte = await appel("/api/agent/pipeline?jours=30", bonne.jeton);
+ok(
+  "un seuil plus large écarte l'attente de neuf jours",
+  !nomsAnomalies(attenteCourte.corps?.anomalies?.attentesDeValidation).includes(
+    `Attente social ${idJeu}`,
+  ),
+);
+
+const nomsClientsPipeline = (surPipeline.corps?.parClient ?? []).map((c) => c.nomCourt);
+ok("le pôle voisin n'apparaît pas dans la ventilation par client",
+   !nomsClientsPipeline.includes(`Boutique Web ${idJeu}`));
+
+/*
+ * Le même motif que pour /team, et pour la même raison : comparer un agrégat à
+ * ses propres listes ne prouve rien, une fuite fuirait des deux côtés. Deux
+ * clés de portées différentes, confrontées.
+ */
+const pipelineDe = async (jeton) => {
+  const agg = (await appel("/api/agent/pipeline", jeton)).corps;
+  const liste = (await appel("/api/agent/contents?limite=200", jeton)).corps.contenus;
+  return { total: agg.total, listable: liste.length, retards: agg.anomalies.retards.length };
+};
+
+const largePipe = await pipelineDe(bonne.jeton);
+const restreintePipe = await pipelineDe(nominative.jeton);
+
+ok(
+  `clé de pôle : le total agrégé égale ce qu'elle peut lister (${largePipe.total} vs ${largePipe.listable})`,
+  largePipe.total === largePipe.listable && largePipe.listable > 0,
+);
+ok(
+  `clé nominative : le total agrégé égale ce qu'elle peut lister (${restreintePipe.total} vs ${restreintePipe.listable})`,
+  restreintePipe.total === restreintePipe.listable && restreintePipe.listable > 0,
+);
+ok(
+  `le total agrégé suit le périmètre au lieu d'être constant (${restreintePipe.total} < ${largePipe.total})`,
+  restreintePipe.total < largePipe.total,
+);
+ok(
+  "la somme des ventilations par client égale le total",
+  (surPipeline.corps?.parClient ?? []).reduce((n, c) => n + c.total, 0) === surPipeline.corps.total,
+);
+ok(
+  "la somme des ventilations par statut égale le total",
+  Object.values(surPipeline.corps?.parStatut ?? {}).reduce((n, v) => n + v, 0) ===
+    surPipeline.corps.total,
+);
+
+const joursFous = await appel("/api/agent/pipeline?jours=999", bonne.jeton);
+ok(`un seuil hors bornes est refusé (${joursFous.statut})`, joursFous.statut === 400);
 
 /* ------------------------------------------------------------ la cadence -- */
 

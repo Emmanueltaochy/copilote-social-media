@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, lte, ne, type SQL } from "drizzle-orm";
 import {
   clients,
   comments,
@@ -589,4 +589,145 @@ export async function listerEquipe(cle: ApiKey) {
       total: Object.values(parStatut).reduce((n, v) => n + v, 0),
     };
   });
+}
+
+/* ------------------------------------------------------------ l'agrégat -- */
+
+export type FiltresPipeline = { jours: number; limite: number };
+
+/**
+ * L'état du pipeline en un appel : ce qu'il y a, et ce qui cloche.
+ *
+ * Tout passe par `contenusAutorises()`, y compris les comptages. C'est le
+ * point le plus délicat de cette couche : un COUNT juste sur le mauvais
+ * ensemble ressemble trait pour trait à un COUNT juste, et la réponse ne porte
+ * aucune trace de ce qu'il a compté. Une liste qui fuit se voit à l'œil nu
+ * dans le JSON ; un agrégat qui fuit ne se voit jamais.
+ *
+ * Trois anomalies plutôt qu'un état des lieux neutre :
+ *
+ * - le **retard** se mesure sur `dueAt` et l'absence de publication, jamais sur
+ *   le statut seul : un contenu marqué « prêt » depuis trois semaines est en
+ *   retard, même si son statut a l'air sain.
+ * - le **manque** est un statut à part entière — prévu, jamais publié. C'est ce
+ *   qu'un calendrier ordinaire ne montre pas, puisqu'il n'affiche que ce qui
+ *   existe.
+ * - l'**attente de validation** se compte en jours depuis `submittedAt` : la
+ *   question utile n'est pas « combien attendent » mais « depuis quand », et
+ *   c'est celle-là qui déclenche une relance.
+ */
+export async function agregatPipeline(cle: ApiKey, filtres: FiltresPipeline) {
+  exige("contenus", "client");
+
+  const autorises = () => inArray(contents.id, contenusAutorises(cle));
+  const maintenant = new Date();
+  const seuil = new Date(maintenant.getTime() - filtres.jours * 86_400_000);
+
+  // Un contenu publié n'est jamais en retard, quelle que soit son échéance.
+  const enRetard = and(
+    autorises(),
+    lt(contents.dueAt, maintenant),
+    isNull(contents.publishedAt),
+    ne(contents.status, "publie"),
+  ) as SQL;
+
+  const enManque = and(autorises(), eq(contents.status, "manque")) as SQL;
+
+  const enAttente = and(
+    autorises(),
+    eq(contents.status, "validation"),
+    lt(contents.submittedAt, seuil),
+  ) as SQL;
+
+  const parClientEtStatut = await db
+    .select({
+      clientId: clients.id,
+      clientNom: clients.name,
+      clientNomCourt: clients.shortName,
+      statut: contents.status,
+      combien: count(),
+    })
+    .from(contents)
+    .innerJoin(clients, eq(clients.id, contents.clientId))
+    .where(autorises())
+    .groupBy(clients.id, clients.name, clients.shortName, contents.status);
+
+  /** Les contenus d'une anomalie, nommés — un compteur seul n'indique pas quoi faire. */
+  const lister = (ou: SQL) =>
+    db
+      .select({
+        id: contents.id,
+        titre: contents.title,
+        statut: contents.status,
+        echeanceLe: contents.dueAt,
+        prevuLe: contents.scheduledAt,
+        soumisLe: contents.submittedAt,
+        clientNomCourt: clients.shortName,
+      })
+      .from(contents)
+      .innerJoin(clients, eq(clients.id, contents.clientId))
+      .where(ou)
+      .orderBy(asc(contents.dueAt), asc(contents.scheduledAt))
+      .limit(filtres.limite);
+
+  const [retards, manques, attentes] = await Promise.all([
+    lister(enRetard),
+    lister(enManque),
+    lister(enAttente),
+  ]);
+
+  const parStatut: Record<string, number> = {};
+  const clientsVus = new Map<
+    string,
+    { id: string; nom: string; nomCourt: string; parStatut: Record<string, number>; total: number }
+  >();
+
+  for (const ligne of parClientEtStatut) {
+    parStatut[ligne.statut] = (parStatut[ligne.statut] ?? 0) + ligne.combien;
+
+    const vu = clientsVus.get(ligne.clientId) ?? {
+      id: ligne.clientId,
+      nom: ligne.clientNom,
+      nomCourt: ligne.clientNomCourt,
+      parStatut: {},
+      total: 0,
+    };
+    vu.parStatut[ligne.statut] = ligne.combien;
+    vu.total += ligne.combien;
+    clientsVus.set(ligne.clientId, vu);
+  }
+
+  const compter = (liste: { clientNomCourt: string }[], nomCourt: string) =>
+    liste.filter((l) => l.clientNomCourt === nomCourt).length;
+
+  return {
+    total: Object.values(parStatut).reduce((n, v) => n + v, 0),
+    parStatut,
+    parClient: [...clientsVus.values()]
+      .sort((a, b) => b.total - a.total)
+      .map((c) => ({
+        ...c,
+        // Comptés sur les listes déjà bornées, pour deux raisons : recompter
+        // en base ouvrirait une seconde occasion de se tromper de périmètre,
+        // et ces compteurs doivent s'accorder avec ce que l'agent lit juste
+        // au-dessus.
+        //
+        // Conséquence à connaître : ils sont plafonnés par `limite` comme les
+        // listes. Au-delà de 50 anomalies d'une même nature, ils sous-comptent.
+        // À l'échelle d'une agence qui produit quelques dizaines de contenus
+        // par mois, le plafond ne mord pas — mais il existe, et le jour où il
+        // mordra, c'est `limite` qu'il faudra monter, pas ces lignes.
+        retards: compter(retards, c.nomCourt),
+        manques: compter(manques, c.nomCourt),
+        attentesDeValidation: compter(attentes, c.nomCourt),
+      })),
+    anomalies: {
+      retards,
+      manques,
+      attentesDeValidation: attentes,
+      // Le seuil est rappelé : « 3 en attente » ne veut rien dire sans « depuis
+      // plus de combien de jours ».
+      seuilEnJours: filtres.jours,
+    },
+  };
 }
