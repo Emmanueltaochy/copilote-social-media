@@ -171,7 +171,12 @@ console.log("\n— la bannière —");
 ok("la bannière est présente", accueil.html.includes(`Offre ${jeu}`));
 ok(
   "son image porte un plafond de hauteur",
-  /h-\[96px\][^"]*sm:h-\[132px\]/.test(accueil.html),
+  /max-h-\[200px\][^"]*sm:max-h-\[260px\]/.test(accueil.html),
+);
+ok(
+  "… sans rogner : ni recadrage, ni bandes vides",
+  !/promo\/[^"]*"[^>]*object-(cover|contain)/.test(accueil.html) &&
+    /promo\/[^"]*"[^>]*w-auto/.test(accueil.html),
 );
 ok("son texte est borné à deux lignes", accueil.html.includes("line-clamp-2"));
 ok(

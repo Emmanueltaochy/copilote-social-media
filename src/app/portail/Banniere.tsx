@@ -21,6 +21,11 @@ type Banniere = {
  * exportée d'un outil de création occupait tout l'écran : le client faisait
  * défiler une publicité pour retrouver ses contenus. Une offre se remarque, elle
  * ne s'impose pas.
+ *
+ * Bornée, mais jamais rognée. Une affiche porte un texte, un prix, un logo —
+ * en couper les bords revient à publier une offre illisible. L'image garde donc
+ * ses proportions et se contente de rétrécir : c'est la hauteur qui plafonne,
+ * pas le cadre qui découpe.
  */
 export function BanniereClient({
   banniere,
@@ -43,7 +48,11 @@ export function BanniereClient({
         <img
           src={`/api/promo/${id}`}
           alt=""
-          className="block h-[96px] w-full object-cover sm:h-[132px]"
+          /* `max-h` + `w-auto` : l'image entière, réduite jusqu'à tenir sous le
+             plafond. `object-cover` remplissait le cadre en coupant les bords ;
+             `object-contain` aurait laissé des bandes vides autour. Ici il n'y
+             a ni coupe ni bande — l'image fait simplement sa taille. */
+          className="mx-auto block max-h-[200px] w-auto max-w-full sm:max-h-[260px]"
         />
       ) : null}
 
