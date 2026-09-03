@@ -8,7 +8,9 @@ import { CONTENT_STATUS } from "@/data/content";
 import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
 import { actionsDuClient, compteursPortail } from "@/db/web-queries";
-import { promosPourClient } from "@/db/queries";
+import { coversFor, promosPourClient } from "@/db/queries";
+import { Cover } from "@/components/ui/Cover";
+import { CONTENT_KIND } from "@/data/content";
 import { BanniereClient } from "./Banniere";
 import { contextePortail } from "@/lib/portail";
 
@@ -26,7 +28,7 @@ export default async function PortailPage() {
 
   const poles = client.departments?.length ? client.departments : ["social"];
 
-  const [published, upcoming, answers, actions, compteurs, bannieres] = await Promise.all([
+  const [published, upcoming, aValider, answers, actions, compteurs, bannieres] = await Promise.all([
     db
       .select({ content: contents })
       .from(contents)
@@ -45,6 +47,14 @@ export default async function PortailPage() {
       .where(and(eq(contents.clientId, client.id), gte(contents.scheduledAt, new Date())))
       .orderBy(contents.scheduledAt)
       .limit(6),
+    // Ce qui attend une réponse, en entier et non seulement compté : un
+    // bandeau qui dit « 3 éléments attendent » oblige à cliquer pour savoir
+    // lesquels, et c'est justement ce qu'on vient voir.
+    db
+      .select({ content: contents })
+      .from(contents)
+      .where(and(eq(contents.clientId, client.id), eq(contents.status, "validation")))
+      .orderBy(desc(contents.submittedAt)),
     // Les réponses déjà données. Une confirmation qui disparaît avec la carte
     // ne prouve rien : passé le clic, le client doit pouvoir vérifier que sa
     // réponse est bien arrivée, même après avoir rechargé la page.
@@ -59,6 +69,9 @@ export default async function PortailPage() {
     promosPourClient(poles),
   ]);
 
+  // Les vignettes de ce qui attend : on ne juge pas un post sur son titre.
+  const couvertures = await coversFor(aValider.map((a) => a.content.id));
+
   const p = pace(published.length, client.contentTarget);
 
   return (
@@ -71,32 +84,69 @@ export default async function PortailPage() {
       </div>
 
       {/* Ce qui attend une réponse passe devant tout le reste : c'est la seule
-          raison pour laquelle un client ouvre son espace un mardi matin. */}
+          raison pour laquelle un client ouvre son espace un mardi matin. Les
+          contenus sont montrés, pas comptés — avec leur visuel, puisque c'est
+          sur lui que porte la réponse.
+
+          Un `section` explicite plutôt que `Card` : celle-ci ne transmet pas
+          `style`, et la bordure doit prendre la couleur de l'agence. */}
       {compteurs.aValider > 0 ? (
-        <Link
-          href="/portail/valider"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-card border px-5 py-4 no-underline hover:no-underline"
-          style={{ borderColor: config.primaryColor, background: `${config.primaryColor}12` }}
+        <section
+          className="flex-none overflow-hidden rounded-card border bg-paper"
+          style={{ borderColor: config.primaryColor }}
         >
-          <span className="flex flex-col">
-            <span className="text-title font-semibold text-ink">
-              {compteurs.aValider} élément{compteurs.aValider > 1 ? "s attendent" : " attend"} votre
-              validation
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6"
+            style={{ borderColor: config.primaryColor, background: `${config.primaryColor}12` }}
+          >
+            <span className="flex flex-col">
+              <span className="text-title font-semibold text-ink">
+                {compteurs.aValider} élément{compteurs.aValider > 1 ? "s attendent" : " attend"}{" "}
+                votre validation
+              </span>
+              {compteurs.livrables > 0 ? (
+                <span className="text-base text-ink-2">
+                  dont {compteurs.livrables} maquette{compteurs.livrables > 1 ? "s" : ""}
+                </span>
+              ) : null}
             </span>
-            <span className="text-base text-ink-2">
-              {compteurs.contenus > 0
-                ? `${compteurs.contenus} contenu${compteurs.contenus > 1 ? "s" : ""}`
-                : ""}
-              {compteurs.contenus > 0 && compteurs.livrables > 0 ? " · " : ""}
-              {compteurs.livrables > 0
-                ? `${compteurs.livrables} maquette${compteurs.livrables > 1 ? "s" : ""}`
-                : ""}
-            </span>
-          </span>
-          <span className="text-base font-medium" style={{ color: config.primaryColor }}>
-            Ouvrir →
-          </span>
-        </Link>
+            <Link
+              href="/portail/valider"
+              className="flex-none text-base font-medium no-underline hover:underline"
+              style={{ color: config.primaryColor }}
+            >
+              Tout voir →
+            </Link>
+          </div>
+
+          {aValider.map(({ content }) => (
+            <Link
+              key={content.id}
+              href={`/portail/contenu/${content.id}`}
+              data-a-valider={content.id}
+              className="flex items-center gap-3 border-b border-line px-4 py-3 no-underline last:border-b-0 hover:bg-canvas hover:no-underline sm:px-6"
+            >
+              <Cover
+                asset={couvertures.get(content.id)}
+                ratio="1/1"
+                className="w-[56px] flex-none sm:w-[64px]"
+                label=""
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="clip text-lead font-medium text-ink">{content.title}</span>
+                <span className="clip text-small text-ink-3">
+                  {CONTENT_KIND[content.kind] ?? content.kind}
+                  {content.scheduledAt
+                    ? ` · prévu le ${content.scheduledAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
+                    : ""}
+                </span>
+              </span>
+              <span className="flex-none text-base" style={{ color: config.primaryColor }}>
+                Voir →
+              </span>
+            </Link>
+          ))}
+        </section>
       ) : null}
 
       {actions.length > 0 ? (

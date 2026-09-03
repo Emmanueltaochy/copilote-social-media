@@ -16,6 +16,11 @@ type Banniere = {
  * promotion : le portail est un prolongement de la marque, pas une régie
  * publicitaire. Et elle se place après ce qu'on attend du client — une offre
  * qui passerait devant une validation en retard ferait manquer la validation.
+ *
+ * Sa hauteur est bornée, et c'est le point. Sans plafond, une affiche verticale
+ * exportée d'un outil de création occupait tout l'écran : le client faisait
+ * défiler une publicité pour retrouver ses contenus. Une offre se remarque, elle
+ * ne s'impose pas.
  */
 export function BanniereClient({
   banniere,
@@ -35,20 +40,26 @@ export function BanniereClient({
       {imagePath ? (
         /* eslint-disable-next-line @next/next/no-img-element -- servi par
            une route maison, hors du pipeline d'images. */
-        <img src={`/api/promo/${id}`} alt="" className="block w-full object-cover" />
+        <img
+          src={`/api/promo/${id}`}
+          alt=""
+          className="block h-[96px] w-full object-cover sm:h-[132px]"
+        />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <span className="flex min-w-[220px] flex-1 flex-col gap-[2px]">
-          <span className="text-title font-semibold text-ink">{title}</span>
-          {body ? <span className="text-base text-ink-2">{body}</span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <span className="flex min-w-[200px] flex-1 flex-col">
+          <span className="text-lead font-medium text-ink">{title}</span>
+          {/* Deux lignes au plus : le détail d'une offre vit sur la page vers
+              laquelle elle mène, pas dans le bandeau. */}
+          {body ? <span className="line-clamp-2 text-small text-ink-2">{body}</span> : null}
         </span>
         {ctaLabel && ctaUrl ? (
           <a
             href={ctaUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex-none rounded-control px-4 py-2 text-base font-medium text-paper no-underline hover:no-underline"
+            className="flex-none rounded-control px-3 py-[6px] text-base font-medium text-paper no-underline hover:no-underline"
             style={{ background: accent }}
           >
             {ctaLabel}
