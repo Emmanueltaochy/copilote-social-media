@@ -269,19 +269,82 @@ export async function createClientAccess(
   const email = String(formData.get("contactEmail") ?? "").trim().toLowerCase();
   if (!clientId || !name || !email) return { error: "Nom et adresse du contact sont nécessaires." };
 
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-  if (existing.length) return { error: "Un compte utilise déjà cette adresse." };
+  // Une invitation qui traîne est une porte ouverte : elle expire.
+  const invitation = {
+    inviteToken: randomBytes(32).toString("base64url"),
+    inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+  };
 
-  const token = randomBytes(32).toString("base64url");
+  // Révoquer désactive la ligne, il ne l'efface pas : les validations du
+  // contact restent rattachées à quelqu'un. L'adresse reste donc prise, et
+  // l'écran ne montre plus la ligne qui la retient — d'où un refus que rien
+  // ne permettait de comprendre quand on avait mis un contact sur la
+  // mauvaise fiche. On la retrouve ici pour la rouvrir au bon endroit.
+  const [existant] = await db
+    .select({
+      id: users.id,
+      active: users.active,
+      role: users.role,
+      clientId: users.clientId,
+      nomDuClient: clients.name,
+    })
+    .from(users)
+    .leftJoin(clients, eq(clients.id, users.clientId))
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (existant?.active) {
+    // Le compte est vivant : le déplacer d'office retirerait son accès à
+    // quelqu'un sans que personne ne l'ait demandé. On dit où il est.
+    return {
+      error:
+        existant.role === "client"
+          ? `Cette adresse ouvre déjà le portail de ${existant.nomDuClient ?? "un autre client"}. Révoque cet accès sur sa fiche avant de le recréer ici.`
+          : "Cette adresse est celle d'un compte de l'agence. Un même contact ne peut pas être à la fois dans l'équipe et sur un portail client.",
+    };
+  }
+
+  if (existant && existant.role !== "client") {
+    return {
+      error:
+        "Cette adresse appartient à un ancien compte de l'agence, désactivé. Utilise une autre adresse, ou réactive-le depuis Équipe.",
+    };
+  }
+
+  if (existant) {
+    await db
+      .update(users)
+      .set({
+        name,
+        initials: initialsFrom(name),
+        // La fiche demandée, qui n'est pas forcément celle d'où il vient.
+        clientId,
+        active: true,
+        // Le mot de passe ne revient pas avec l'accès : la nouvelle
+        // invitation en fait choisir un. Sans cela, un accès révoqué puis
+        // rouvert se serait rouvert avec l'ancien.
+        passwordHash: null,
+        accessExpiresAt: null,
+        ...invitation,
+      })
+      .where(eq(users.id, existant.id));
+
+    // La fiche d'origine perdait déjà la ligne à la révocation, mais son
+    // écran peut être en cache avec l'ancien nom.
+    if (existant.clientId && existant.clientId !== clientId) {
+      revalidatePath(`/clients/${existant.clientId}`);
+    }
+    revalidatePath(`/clients/${clientId}`);
+    return {};
+  }
+
   await db.insert(users).values({
     name,
     email,
     initials: initialsFrom(name),
     role: "client",
     clientId,
-    inviteToken: token,
-    // Une invitation qui traîne est une porte ouverte : elle expire.
-    inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+    ...invitation,
   });
 
   revalidatePath(`/clients/${clientId}`);

@@ -2,7 +2,7 @@
 set -u
 SP=/tmp/claude-0/-home-claude/956d6f17-f290-5e1d-9e91-839fdc4ed875/scratchpad
 total=0; rouges=0
-for s in final chat preparer mobile quatre web livrables poles-clients contrat dossiers documents connexion portail suivi banniere devis factures; do
+for s in final chat preparer mobile quatre web livrables poles-clients contrat dossiers documents connexion portail acces-client suivi banniere devis factures; do
   bash $SP/stack.sh > /dev/null 2>&1
   node $SP/e2e-$s.mjs > $SP/out-$s.log 2>&1
   code=$?

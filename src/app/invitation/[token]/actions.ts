@@ -18,7 +18,16 @@ export async function acceptInvitation(
   const rows = await db
     .select()
     .from(users)
-    .where(and(eq(users.inviteToken, token), gt(users.inviteExpiresAt, new Date())))
+    // Le compte actif est dans la condition : révoquer un accès doit éteindre
+    // le lien d'invitation encore en circulation, pas seulement le retirer de
+    // l'écran.
+    .where(
+      and(
+        eq(users.inviteToken, token),
+        gt(users.inviteExpiresAt, new Date()),
+        eq(users.active, true),
+      ),
+    )
     .limit(1);
   const user = rows[0];
   if (!user) return { error: "Cette invitation n'est plus valable." };

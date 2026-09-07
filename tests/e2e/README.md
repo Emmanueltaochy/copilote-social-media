@@ -7,6 +7,11 @@
 Dernier passage complet : **489 assertions vertes, 0 rouge, aucune erreur JS**,
 sur 17 suites, contre le build `standalone` réel et un PostgreSQL réel.
 
+`acces-client` s'y est ajoutée depuis (24 assertions), avec `portail` et
+`connexion` rejouées en même temps : **87 vertes, 0 rouge**. Le bac à sable
+avait la même adresse de répertoire ; les fixtures images, elles, ont dû être
+regénérées — c'est exactement la fragilité décrite plus bas.
+
 ---
 
 ## Ce qui empêche de la lancer
@@ -118,6 +123,26 @@ Le plus gros bloc, et le plus riche en règles métier.
   distinctes.
 - Un client ne voit **rien** du client voisin.
 - Un compte de l'agence n'entre pas dans le portail d'un client.
+
+### `acces-client` — 24 assertions · ouvrir, révoquer, rouvrir un accès
+
+Écrite après un incident en production : une adresse posée sur la mauvaise fiche
+client, révoquée, puis refusée sur la bonne.
+
+- Créer un accès pose une ligne **sans mot de passe** et un lien d'invitation.
+- **Révoquer désactive sans effacer** — l'écran ne montre plus la ligne, la base
+  la garde, et les validations du contact gardent leur auteur.
+- Le lien d'invitation d'un accès révoqué **ne donne plus rien**, même s'il est
+  encore dans une boîte mail.
+- La même adresse sur une autre fiche **rouvre la ligne existante** au lieu
+  d'être refusée : un seul compte, la bonne fiche, une invitation neuve, et
+  l'ancien mot de passe ne revient pas avec l'accès.
+- Le contact entre effectivement dans le portail de la **bonne** fiche.
+- Restent refusés : une adresse **active ailleurs** (le message nomme la fiche
+  qui la détient), l'adresse d'un **compte de l'agence** — qui garde son rôle et
+  ne se retrouve pas rattaché à un client — et celle d'un ancien compte interne
+  désactivé.
+- Une adresse jamais vue crée toujours un accès, sur la fiche demandée.
 
 ### `preparer` — 30 assertions · fabriquer le mois
 
