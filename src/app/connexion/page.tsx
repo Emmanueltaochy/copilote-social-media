@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/AuthForm";
@@ -20,11 +21,15 @@ export default async function ConnexionPage() {
     <AuthShell
       titre="Connexion"
       sous="Votre espace : contenus à valider, médias et projets."
-      bas="Mot de passe oublié ? Écrivez à votre interlocuteur habituel, nous vous renverrons un lien."
     >
       <Suspense>
         <AuthForm action={login} submitLabel="Se connecter" />
       </Suspense>
+      <p className="mt-4 text-center text-small">
+        <Link href="/connexion/oubli" className="text-ink-2 underline hover:text-ink">
+          Mot de passe oublié ?
+        </Link>
+      </p>
     </AuthShell>
   );
 }

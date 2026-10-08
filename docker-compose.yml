@@ -43,6 +43,9 @@ services:
       APP_VERSION: ${APP_VERSION:-dev}
       DATABASE_URL: postgres://pilot:${DB_PASSWORD}@db:5432/pilot
       MEDIA_ROOT: /data/assets
+      # L'adresse publique, pour les liens « mot de passe oublié » : l'en-tête
+      # Host d'une requête anonyme ne mérite pas qu'on lui confie un lien.
+      APP_DOMAIN: ${APP_DOMAIN:-}
       # Messagerie : les identifiants viennent du .env du serveur, jamais du
       # dépôt. Un mot de passe de boîte mail commité y reste pour toujours,
       # y compris après l'avoir changé.
