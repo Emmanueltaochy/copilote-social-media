@@ -1370,3 +1370,29 @@ export const apiKeys = pgTable(
 );
 
 export type ApiKey = typeof apiKeys.$inferSelect;
+
+/**
+ * Demandes de réinitialisation de mot de passe.
+ *
+ * Une table à part plutôt que de recycler le jeton d'invitation : l'invitation
+ * sert à qui n'a pas encore de mot de passe, et sa page renvoie vers la
+ * connexion dès qu'il en existe un. Mélanger les deux ferait d'une invitation
+ * encore ouverte un moyen de remplacer le mot de passe d'un compte actif.
+ *
+ * Seule l'empreinte du jeton est stockée, comme pour les sessions : une fuite
+ * de la base ne donne aucun lien utilisable.
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Renseigné à l'usage : un lien ne sert qu'une fois. */
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId)],
+);
