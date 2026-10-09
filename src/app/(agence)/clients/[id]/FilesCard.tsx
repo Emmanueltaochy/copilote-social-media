@@ -87,7 +87,22 @@ export function FilesCard({
 
   return (
     <Card>
-      <CardHead title="Pièces jointes" meta={files.length > 0 ? `${files.length}` : undefined} />
+      <CardHead title="Pièces jointes">
+        {files.length > 0 ? (
+          <span className="flex items-center gap-3">
+            <span className="text-small text-ink-3 tabular-nums">{files.length}</span>
+            {/* Un lien et non un bouton : le navigateur gère le téléchargement,
+                sa barre de progression comprise, même pour plusieurs gigaoctets. */}
+            <a
+              href={`/api/client-files/archive?clientId=${encodeURIComponent(clientId)}`}
+              download
+              className="rounded-control border border-line bg-paper px-[10px] py-[4px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink"
+            >
+              Tout télécharger (.zip)
+            </a>
+          </span>
+        ) : null}
+      </CardHead>
 
       {files.length === 0 ? (
         <p className="px-[14px] py-4 text-base text-ink-2">
@@ -139,6 +154,14 @@ export function FilesCard({
                 {partagé ? "Partagé" : "Interne"}
               </button>
             </form>
+            <a
+              href={`/api/client-files/${f.id}?telecharger`}
+              download
+              title={`Télécharger ${f.filename}`}
+              className="flex-none rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 no-underline hover:border-line-strong hover:text-ink"
+            >
+              Télécharger
+            </a>
             <SendByEmail kind="fichier" id={f.id} />
             <form action={onDelete} className="flex-none">
               <input type="hidden" name="id" value={f.id} />

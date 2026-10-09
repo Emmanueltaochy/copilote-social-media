@@ -42,6 +42,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return new Response("Fichier absent du disque", { status: 404 });
   }
 
+  // « ?telecharger » : le navigateur enregistre le fichier au lieu de l'ouvrir
+  // dans un onglet. Sans cela, une photo s'affiche et il faut encore faire
+  // « enregistrer sous » — un geste de trop, multiplié par le nombre de photos.
+  const telecharger = new URL(request.url).searchParams.has("telecharger");
+
   const stream = Readable.toWeb(createReadStream(absolute)) as ReadableStream;
   return new Response(stream, {
     headers: {
@@ -49,8 +54,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       "Content-Length": String(size),
       // Le nom d'origine est proposé au téléchargement : « contrat-2026.pdf »
       // se retrouve dans un dossier, pas un identifiant de trente caractères.
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+      // Les deux formes : `filename*` porte les accents, `filename` sert de
+      // repli aux navigateurs qui ne lisent que lui.
+      "Content-Disposition": `${telecharger ? "attachment" : "inline"}; filename="${asciiName(file.filename)}"; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
       "Cache-Control": "private, max-age=600",
     },
   });
 }
+
+/** Le nom sans accents ni guillemets, pour la forme `filename` historique. */
+const asciiName = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7e]|["\\]/g, "_");
