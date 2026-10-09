@@ -57,10 +57,17 @@ export const mailConfigured = (pole: Pole = "social") => {
   return Boolean(b.host && b.user && b.password);
 };
 
-/** Deux boîtes, donc deux connexions gardées en cache. */
-const cached = new Map<Pole, nodemailer.Transporter>();
+/**
+ * Le type se déduit de la fonction plutôt que de s'importer : nodemailer 10
+ * publie ses propres déclarations, sans l'espace de noms qu'exposait
+ * @types/nodemailer.
+ */
+type Transporter = ReturnType<typeof nodemailer.createTransport>;
 
-function transporter(pole: Pole): nodemailer.Transporter {
+/** Deux boîtes, donc deux connexions gardées en cache. */
+const cached = new Map<Pole, Transporter>();
+
+function transporter(pole: Pole): Transporter {
   const existant = cached.get(pole);
   if (existant) return existant;
 
