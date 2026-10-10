@@ -1130,6 +1130,12 @@ export const settings = pgTable("settings", {
    */
   coverPath: text("cover_path"),
   portalWelcome: text("portal_welcome"),
+  /**
+   * La vidéo d'accueil du portail client, montrée en haut de l'accueil dès
+   * l'arrivée. Stockée telle quelle (MP4 conseillé) : le serveur n'a pas de
+   * quoi la réencoder, et une vidéo déjà montée n'a pas à l'être.
+   */
+  portalVideoPath: text("portal_video_path"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

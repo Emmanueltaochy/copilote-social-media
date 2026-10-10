@@ -13,6 +13,8 @@ import { Cover } from "@/components/ui/Cover";
 import { CONTENT_KIND } from "@/data/content";
 import { BanniereClient } from "./Banniere";
 import { contextePortail } from "@/lib/portail";
+import { versionVideo } from "@/lib/portail-video";
+import { VideoAccueil } from "./VideoAccueil";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +84,15 @@ export default async function PortailPage() {
         </Eyebrow>
         <h1 className="text-display font-semibold tracking-[-0.01em]">Bonjour {user.name}</h1>
       </div>
+
+      {/* La vidéo d'accueil, avant tout le reste : c'est la première chose que
+          l'agence veut montrer à qui arrive. Le client peut la replier. */}
+      {versionVideo(config.portalVideoPath) ? (
+        <VideoAccueil
+          version={versionVideo(config.portalVideoPath)!}
+          couleur={config.primaryColor}
+        />
+      ) : null}
 
       {/* Ce qui attend une réponse passe devant tout le reste : c'est la seule
           raison pour laquelle un client ouvre son espace un mardi matin. Les

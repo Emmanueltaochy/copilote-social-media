@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "portal_video_path" text;

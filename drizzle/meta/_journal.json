@@ -148,6 +148,13 @@
       "when": 1791462975655,
       "tag": "0020_password_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791640762104,
+      "tag": "0021_portal_video",
+      "breakpoints": true
     }
   ]
 }
