@@ -756,3 +756,75 @@ export async function storePromoImage(file: IncomingFile): Promise<string> {
     await unlink(tmpPath).catch(() => {});
   }
 }
+
+/* ------------------------------------------------ vidéo d'accueil -------- */
+
+export const MAX_PORTAL_VIDEO_BYTES = 1024 * 1024 * 1024; // 1 Go
+
+/**
+ * Les formats qu'un navigateur lit sans extension : MP4 partout, WebM hors
+ * Safari, MOV seulement chez Apple. Un MKV s'enregistrerait mais resterait un
+ * cadre noir chez le client — on le refuse plutôt que de le laisser croire en
+ * ligne.
+ */
+const PORTAL_VIDEO_EXT: Record<string, string> = {
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/quicktime": ".mov",
+};
+
+export const portalVideoMime = (storagePath: string): string =>
+  storagePath.endsWith(".webm") ? "video/webm" : storagePath.endsWith(".mov") ? "video/quicktime" : "video/mp4";
+
+/**
+ * Enregistre la vidéo d'accueil du portail, sans la transformer.
+ *
+ * Écrite d'abord dans un fichier temporaire puis renommée : un envoi coupé ne
+ * laisse jamais une vidéo à moitié écrite à la place de la précédente.
+ */
+export async function storePortalVideo(file: IncomingFile): Promise<string> {
+  const mime = resolveMime(file.mimeType, file.filename);
+  const ext = PORTAL_VIDEO_EXT[mime];
+  if (!ext) throw new UploadError("Une vidéo MP4 (conseillé), WebM ou MOV.");
+  if (file.declaredBytes !== null && file.declaredBytes > MAX_PORTAL_VIDEO_BYTES) {
+    throw new UploadError(
+      `Vidéo trop lourde (${formatBytes(file.declaredBytes)}). Maximum ${formatBytes(MAX_PORTAL_VIDEO_BYTES)}.`,
+    );
+  }
+
+  const dir = "marque";
+  await mkdir(path.join(MEDIA_ROOT, dir), { recursive: true });
+  const tmpDir = path.join(MEDIA_ROOT, ".tmp");
+  await mkdir(tmpDir, { recursive: true });
+
+  const tmpPath = path.join(tmpDir, randomUUID());
+  let received = 0;
+  const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
+
+  try {
+    await pipeline(
+      source,
+      async function* (chunks: AsyncIterable<Buffer>) {
+        for await (const chunk of chunks) {
+          received += chunk.length;
+          if (received > MAX_PORTAL_VIDEO_BYTES) {
+            throw new UploadError(`Vidéo trop lourde (plus de ${formatBytes(MAX_PORTAL_VIDEO_BYTES)}).`);
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(tmpPath),
+    );
+
+    if (received === 0) throw new UploadError("Fichier vide.");
+    if (file.declaredBytes !== null && received !== file.declaredBytes) {
+      throw new UploadError("Envoi interrompu. Rien n'a été enregistré, relance la vidéo.");
+    }
+
+    const storagePath = path.join(dir, `video-portail-${randomUUID().slice(0, 8)}${ext}`);
+    await rename(tmpPath, path.join(MEDIA_ROOT, storagePath));
+    return storagePath;
+  } finally {
+    await unlink(tmpPath).catch(() => {});
+  }
+}

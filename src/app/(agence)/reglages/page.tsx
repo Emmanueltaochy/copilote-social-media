@@ -7,6 +7,8 @@ import { FormulaireReglages } from "./Formulaire";
 import { ImagesDeMarque } from "./Images";
 import { Bannieres } from "./Bannieres";
 import { listPromos } from "@/db/queries";
+import { versionVideo } from "@/lib/portail-video";
+import { VideoPortail } from "./VideoPortail";
 import { basculerPromo, creerPromo, supprimerPromo } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +51,13 @@ export default async function ReglagesPage() {
                 logoWeb={Boolean(config.logoWebPath)}
                 cover={Boolean(config.coverPath)}
               />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead title="Vidéo d'accueil du portail client" />
+            <div className="p-[14px]">
+              <VideoPortail version={versionVideo(config.portalVideoPath)} />
             </div>
           </Card>
 
