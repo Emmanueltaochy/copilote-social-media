@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { choisirClient } from "@/app/(agence)/scope-actions";
 import { NAV_MAIN, NAV_MORE, type NavItem } from "@/data/nav";
 import { NAV_WEB_MAIN, NAV_WEB_MORE } from "@/data/nav-web";
 import { changerDePole } from "@/app/(agence)/pole-actions";
@@ -183,22 +184,22 @@ function ScopePicker() {
   const { scope, setScope, clients } = useApp();
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
-  // Ces écrans filtrent côté serveur : l'adresse (?client=) fait foi.
-  const parLURL = ["/", "/assets", "/statistiques", "/calendrier", "/boite", "/veille"].includes(pathname);
-  const affiché = parLURL
-    ? (clients.find((c) => c.id === params.get("client"))?.name ?? ALL_CLIENTS)
-    : scope;
+  // Le choix est mémorisé côté serveur (cookie) : chaque écran ne montre plus
+  // que ce client. Un ?client= dans l'adresse est remplacé par le nouveau choix.
+  const affiché = scope;
 
   function choisir(client: { id: string; name: string } | null) {
     setScope(client?.name ?? ALL_CLIENTS);
     setOpen(false);
-    if (parLURL) {
-      const q = new URLSearchParams(params.toString());
-      if (client) q.set("client", client.id);
-      else q.delete("client");
-      const qs = q.toString();
-      router.push(qs ? `${pathname}?${qs}` : pathname);
-    }
+    void choisirClient(client?.id ?? null).then(() => {
+      if (params.has("client")) {
+        const q = new URLSearchParams(params.toString());
+        q.delete("client");
+        const qs = q.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname);
+      }
+      router.refresh();
+    });
   }
 
   return (
@@ -351,7 +352,7 @@ function AccountMenu() {
 
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const { clients, user, setScope } = useApp();
+  const { clients, user } = useApp();
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -393,10 +394,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
       label: c.name,
       sub: "Fiche client",
       icon: "users" as const,
-      go: () => {
-        setScope(c.name);
-        router.push(`/clients/${c.id}`);
-      },
+      go: () => router.push(`/clients/${c.id}`),
     }));
     const all = [...actions, ...pages, ...cl];
     const n = q
@@ -412,7 +410,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         .replace(/\p{Diacritic}/gu, "")
         .includes(n),
     );
-  }, [q, clients, user, router, setScope]);
+  }, [q, clients, user, router]);
 
   return (
     <div

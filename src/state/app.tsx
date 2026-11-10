@@ -49,12 +49,15 @@ export function AppProvider({
   children,
   user,
   clients,
+  initialScope,
 }: {
   children: ReactNode;
   user: SessionUser;
   clients: ScopeClient[];
+  /** Le client mémorisé (cookie), pour que le sélecteur l'affiche dès le premier rendu. */
+  initialScope?: string | null;
 }) {
-  const [scope, setScope] = useState<string>(ALL_CLIENTS);
+  const [scope, setScope] = useState<string>(initialScope ?? ALL_CLIENTS);
   const [portalOpen, setPortalOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
 

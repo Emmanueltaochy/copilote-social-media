@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { choisirClient } from "../scope-actions";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
 import { ClientChip, NetworkDot } from "@/components/home/bits";
@@ -30,9 +32,9 @@ function ago(iso: string) {
   return d < 30 ? `${d} j` : new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-export function InboxApp({ clients, initialClient, draftOnly }: { clients: ClientRef[]; initialClient: string | null; draftOnly: boolean }) {
+export function InboxApp({ clients, scoped, draftOnly }: { clients: ClientRef[]; scoped: boolean; draftOnly: boolean }) {
+  const router = useRouter();
   const [byClient, setByClient] = useState<Record<string, { state: State; threads: InboxThread[]; errors: string[] }>>({});
-  const [only, setOnly] = useState<string | null>(initialClient);
   const [filter, setFilter] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const started = useRef(false);
@@ -68,11 +70,10 @@ export function InboxApp({ clients, initialClient, draftOnly }: { clients: Clien
 
   const all = useMemo(
     () =>
-      Object.entries(byClient)
-        .filter(([id]) => !only || id === only)
-        .flatMap(([, v]) => v.threads)
+      Object.values(byClient)
+        .flatMap((v) => v.threads)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [byClient, only],
+    [byClient],
   );
   const shown = all.filter((t) =>
     filter === "repondre" ? waiting(t) : filter === "messages" ? t.kind === "message" : filter === "commentaires" ? t.kind === "commentaire" : true,
@@ -125,11 +126,14 @@ export function InboxApp({ clients, initialClient, draftOnly }: { clients: Clien
             <button
               key={c.id}
               type="button"
-              title={`${c.name}${st === "loading" ? " (chargement…)" : st === "error" ? " (erreur)" : ""}`}
-              onClick={() => setOnly(only === c.id ? null : c.id)}
+              title={`${scoped ? "Revenir à tous les clients" : `Voir seulement ${c.name}`}${st === "loading" ? " (chargement…)" : st === "error" ? " (erreur)" : ""}`}
+              onClick={() => {
+                // Même effet que le sélecteur en haut à droite : tout Pilot passe sur ce client.
+                void choisirClient(scoped ? null : c.id).then(() => router.refresh());
+              }}
               className={cn(
                 "relative cursor-pointer rounded-full border-none bg-transparent p-[2px]",
-                only === c.id ? "ring-2 ring-ink" : "opacity-80 hover:opacity-100",
+                scoped ? "ring-2 ring-ink" : "opacity-80 hover:opacity-100",
                 st === "loading" && "animate-pulse",
               )}
             >

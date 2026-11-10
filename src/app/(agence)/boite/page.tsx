@@ -5,6 +5,7 @@ import { requireDepartment } from "@/lib/auth";
 import { metricoolStatus } from "@/lib/metricool";
 import { Panel } from "@/components/home/bits";
 import { InboxApp } from "./InboxApp";
+import { scopeClientId } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,28 @@ export default async function BoitePage({ searchParams }: { searchParams: Promis
     );
   }
 
+  // Le client choisi en haut à droite : seuls ses messages sont chargés.
+  const scopeId = await scopeClientId(sp.client);
+  const scoped = linked.find((c) => c.id === scopeId) ?? null;
+  if (scopeId && !scoped) {
+    return (
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <h1 className="mb-5 text-[34px] font-bold tracking-[-0.03em] lg:text-[40px]">Réception</h1>
+        <Panel title="Ce client n'est pas relié à Metricool">
+          <p className="text-base text-ink-2">Ses messages et commentaires ne peuvent pas être lus tant qu&apos;il n&apos;est pas relié à sa marque Metricool.</p>
+          <Link href="/reglages" className="mt-4 w-fit rounded-full bg-night px-4 py-2 text-base font-medium text-white no-underline hover:no-underline">
+            Réglages → Metricool
+          </Link>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <InboxApp
-      clients={linked}
-      initialClient={linked.some((c) => c.id === sp.client) ? sp.client! : null}
+      key={scoped?.id ?? "tous"}
+      clients={scoped ? [scoped] : linked}
+      scoped={Boolean(scoped)}
       draftOnly={process.env.METRICOOL_DRAFT_ONLY === "1"}
     />
   );

@@ -9,6 +9,7 @@ import { unreadTotal } from "@/lib/chat";
 import { departmentsOf } from "@/lib/auth";
 import { polActif } from "@/lib/pole";
 import { countUnread, recent } from "@/lib/notify";
+import { scopeClientId } from "@/lib/scope";
 
 /**
  * La coquille de l'agence. Le contrôle d'accès est ici, au plus près du
@@ -24,6 +25,8 @@ export default async function AgenceLayout({ children }: { children: React.React
     unreadTotal(user.id),
     shellCounts(),
   ]);
+  const scopeId = await scopeClientId();
+  const scoped = clients.find((c) => c.id === scopeId);
 
   const shellNotices = notices.map((n) => ({
     id: n.id,
@@ -52,6 +55,7 @@ export default async function AgenceLayout({ children }: { children: React.React
         target: c.contentTarget,
         tone: c.pace.tone,
       }))}
+      initialScope={scoped?.name ?? null}
     >
       <AppShell notices={shellNotices} unreadCount={unreadCount} counts={counts}>
         {children}
