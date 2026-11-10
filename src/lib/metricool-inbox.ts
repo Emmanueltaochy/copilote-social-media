@@ -60,7 +60,7 @@ const cache = new Map<
   string,
   { at: number; threads: InboxThread[]; errors: string[] }
 >();
-const TTL = 3 * 60_000;
+const TTL = 5 * 60_000;
 
 async function get<T>(token: string, userId: string, path: string, params: Record<string, string>): Promise<T> {
   const url = new URL(BASE + path);
@@ -70,7 +70,7 @@ async function get<T>(token: string, userId: string, path: string, params: Recor
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, {
       headers: { "X-Mc-Auth": token, Accept: "application/json" },
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(15_000),
       cache: "no-store",
     });
     if (res.ok) return (await res.json()) as T;

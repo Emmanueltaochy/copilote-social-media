@@ -13,6 +13,7 @@ import {
   topPostThisMonth,
 } from "@/db/home-queries";
 import { AudiencePanel } from "@/components/home/AudiencePanel";
+import { TopPostCard } from "@/components/home/TopPostCard";
 import { devisNouveaux } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
 import { networksOf } from "@/data/content";
@@ -40,10 +41,12 @@ import {
  * Une seule question : qu'est-ce qui part, qu'est-ce qui attend quelqu'un,
  * et où en est le mois ? Tout le reste est à un clic.
  */
-export default async function AujourdhuiPage() {
+export default async function AujourdhuiPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const user = await requireDepartment("social");
+  // Le sélecteur de client (en haut à droite) filtre l'audience et la meilleure publication.
+  const scopeId = (await searchParams).client || undefined;
   const now = new Date();
-  const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis, aud, top] =
+  const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis, aud, topReach, topViews, topInter] =
     await Promise.all([
       upNext(now),
       missedRecently(now),
@@ -55,11 +58,14 @@ export default async function AujourdhuiPage() {
       shootsSoon(now),
       listClientsWithPace(now, "social"),
       devisNouveaux(),
-      audience(90),
-      topPostThisMonth(now),
+      audience(90, scopeId),
+      topPostThisMonth(now, scopeId, "reach"),
+      topPostThisMonth(now, scopeId, "views"),
+      topPostThisMonth(now, scopeId, "interactions"),
     ]);
   const covers = await coversFor([...next.map((c) => c.id), ...approvals.map((a) => a.content.id)]);
 
+  const scopeName = scopeId ? (portfolio.find((c) => c.id === scopeId)?.shortName ?? null) : null;
   const hour = now.getHours();
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
   const firstName = user.name.split(" ")[0];
@@ -255,7 +261,10 @@ export default async function AujourdhuiPage() {
 
       {/* Audience et meilleure publication (relevés Metricool) */}
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <Panel title="Croissance de l'audience" action={{ href: "/rapports", label: "Rapports", icon: "chart" }}>
+        <Panel
+          title={scopeName ? `Croissance de l'audience · ${scopeName}` : "Croissance de l'audience"}
+          action={{ href: scopeId ? `/statistiques?client=${scopeId}` : "/statistiques", label: "Statistiques", icon: "chart" }}
+        >
           {aud && aud.points.length ? (
             <AudiencePanel data={aud} />
           ) : (
@@ -266,41 +275,8 @@ export default async function AujourdhuiPage() {
             />
           )}
         </Panel>
-        <Panel title="Meilleure publication du mois">
-          {top ? (
-            <a
-              href={top.url ?? "#"}
-              target="_blank"
-              rel="noreferrer"
-              className="group relative flex min-h-[300px] flex-1 flex-col justify-end overflow-hidden rounded-[22px] bg-night p-4 text-white no-underline hover:no-underline"
-            >
-              {top.imageUrl ? (
-                // Image hébergée par le réseau social : pas d'optimisation Next possible.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={top.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-90" referrerPolicy="no-referrer" />
-              ) : null}
-              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_30%,rgba(0,0,0,.82))]" />
-              {top.multiple && top.multiple >= 1.5 ? (
-                <span className="absolute top-4 left-4 rounded-full bg-accent px-3 py-[3px] text-small font-semibold text-accent-ink">
-                  {top.multiple.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}× la portée habituelle
-                </span>
-              ) : null}
-              <span className="relative flex items-center gap-2 text-small">
-                <ClientChip name={top.clientName} size={22} /> {top.clientName}
-                <span className="ml-auto">
-                  <NetworkDot network={top.network} size={22} />
-                </span>
-              </span>
-              <p className="relative mt-2 mb-3 line-clamp-2 max-h-[2.9em] overflow-hidden text-base leading-[1.45] font-medium break-words">{top.text || "Publication sans texte"}</p>
-              <span className="relative flex gap-6">
-                <TopStat value={compact(Math.max(top.reach, top.views))} label={top.reach >= top.views ? "portée" : "vues"} />
-                <TopStat value={compact(top.interactions)} label="interactions" />
-                {top.saves ? <TopStat value={compact(top.saves)} label="enregistrements" /> : null}
-              </span>
-            </a>
-          ) : (
-            <Empty text="Aucune publication relevée ce mois-ci pour l'instant." />
-          )}
+        <Panel title={scopeName ? `Meilleure publication du mois · ${scopeName}` : "Meilleure publication du mois"}>
+          <TopPostCard posts={{ reach: topReach, views: topViews, interactions: topInter }} />
         </Panel>
       </div>
 
@@ -554,11 +530,3 @@ function compact(n: number) {
   return n.toLocaleString("fr-FR");
 }
 
-function TopStat({ value, label }: { value: string; label: string }) {
-  return (
-    <span className="flex flex-col">
-      <span className="text-[22px] leading-none font-bold tracking-[-0.02em]">{value}</span>
-      <span className="text-micro text-white/70">{label}</span>
-    </span>
-  );
-}

@@ -28,6 +28,8 @@ import { sendMail } from "@/lib/mail";
 import { scheduleContent } from "@/lib/metricool-schedule";
 import { estimate as abbyEstimate, signedEstimates } from "@/lib/abby";
 import { importDriveFile, newDriveFiles } from "@/lib/drive";
+import { competitorPosts } from "@/lib/metricool-competitors";
+import { trendReports } from "@/db";
 
 /*
  * Les gestes que l'assistant IA peut faire dans Pilot.
@@ -262,6 +264,25 @@ const TOOLS: ToolDef[] = [
         : [];
       const nm = new Map(media.map((m) => [m.id, m.n]));
       return rows.map((r) => ({ ...r, date: fmt(r.date), legende: r.legende?.slice(0, 120) ?? null, medias: nm.get(r.id) ?? 0, metricool: Boolean(r.metricool) }));
+    },
+  },
+
+  {
+    name: "tendances_concurrents",
+    description:
+      "Ce qui marche chez les concurrents d'un client (veille Metricool, 30 jours) : leurs publications les plus engageantes et la dernière analyse de tendances de l'IA. À utiliser pour s'inspirer (reprendre un mécanisme, un format, un angle — jamais copier le texte).",
+    schema: z.object({ client_id: z.string() }),
+    roles: ["directeur", "community_manager"],
+    run: async ({ client_id }: { client_id: string }) => {
+      const c = await clientOrThrow(client_id);
+      if (!c.metricoolBrandId) throw new Error(`${c.shortName} n'est pas relié à Metricool : pas de veille possible.`);
+      const { posts } = await competitorPosts(c.metricoolBrandId, 30);
+      const [report] = await db.select().from(trendReports).where(eq(trendReports.clientId, client_id)).orderBy(desc(trendReports.createdAt)).limit(1);
+      return {
+        publications: posts.slice(0, 15).map((p) => ({ auteur: p.author, reseau: p.network, type: p.type, url: p.url, texte: p.text.slice(0, 300), likes: p.likes, commentaires: p.comments, vues: p.views })),
+        analyse: report ? { date: report.createdAt.toISOString().slice(0, 10), resume: report.summary, tendances: report.trends, idees: report.ideas } : null,
+        info: posts.length ? undefined : "Aucune publication concurrente relevée (concurrents à ajouter dans Veille, ou première collecte en cours).",
+      };
     },
   },
 

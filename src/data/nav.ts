@@ -27,6 +27,7 @@ export const NAV_MAIN: NavItem[] = [
   { label: "Réception", href: "/boite", icon: "inbox", hint: "Messages et commentaires de tous les comptes" },
   { label: "À valider", href: "/approbations", icon: "check", badge: "validation" },
   { label: "Statistiques", href: "/statistiques", icon: "chart", hint: "Audience, publications et meilleurs moments" },
+  { label: "Veille", href: "/veille", icon: "eye", hint: "Les concurrents de chaque client et ce qui marche chez eux" },
   { label: "Tournages", href: "/tournages", icon: "camera" },
 ];
 

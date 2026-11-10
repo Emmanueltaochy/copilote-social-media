@@ -169,6 +169,13 @@
       "when": 1794342281405,
       "tag": "0023_jarvis",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794344873236,
+      "tag": "0024_veille",
+      "breakpoints": true
     }
   ]
 }

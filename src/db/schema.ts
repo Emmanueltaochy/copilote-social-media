@@ -1521,3 +1521,28 @@ export const agentThreads = pgTable(
   },
   (t) => [index("agent_threads_user_idx").on(t.userId)],
 );
+
+/* --------------------------------------------------------------- veille -- */
+
+/**
+ * Les analyses de tendances faites par l'IA à partir des publications des
+ * concurrents d'un client : ce qui marche chez eux, et comment l'adapter.
+ */
+export const trendReports = pgTable(
+  "trend_reports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    summary: text("summary").notNull(),
+    trends: jsonb("trends").$type<{ titre: string; pourquoi: string; exemples: string[] }[]>().notNull().default([]),
+    ideas: jsonb("ideas")
+      .$type<{ titre: string; format: string; reseau: string; accroche: string; legende: string; consignes: string; inspiration?: string }[]>()
+      .notNull()
+      .default([]),
+    postsAnalysed: integer("posts_analysed").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("trend_reports_client_idx").on(t.clientId)],
+);

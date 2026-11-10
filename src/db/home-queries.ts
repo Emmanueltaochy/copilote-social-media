@@ -158,7 +158,16 @@ export async function shootsSoon(now: Date) {
 
 /* --------------------------------------------------- audience (Metricool) -- */
 
-export type AudiencePoint = { day: string; total: number; byNetwork: Record<string, number> };
+export type DayMetrics = { gained: number; followers: number; views: number; reach: number; interactions: number };
+export type AudiencePoint = {
+  day: string;
+  /** Nouveaux abonnés du jour, tous réseaux. */
+  total: number;
+  byNetwork: Record<string, number>;
+  /** Toutes les mesures du jour, au total et par réseau (vues, portée, interactions : par date de publication). */
+  m: DayMetrics;
+  mByNetwork: Record<string, DayMetrics>;
+};
 export type AudienceData = {
   points: AudiencePoint[];
   networks: { network: string; current: number; gained30: number }[];
@@ -190,7 +199,7 @@ export async function audience(days = 90, clientId?: string): Promise<AudienceDa
     series.set(k, s);
   }
 
-  const byDay = new Map<string, AudiencePoint>();
+  const byDay = new Map<string, { day: string; total: number; byNetwork: Record<string, number> }>();
   const cutoff30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const nets = new Map<string, { current: number; gained30: number }>();
   let current = 0;
@@ -215,7 +224,66 @@ export async function audience(days = 90, clientId?: string): Promise<AudienceDa
   }
 
   const start = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const points = [...byDay.values()].filter((p) => p.day >= start).sort((a, b) => a.day.localeCompare(b.day));
+  const today = new Date().toISOString().slice(0, 10);
+  const zero = (): DayMetrics => ({ gained: 0, followers: 0, views: 0, reach: 0, interactions: 0 });
+  const axis: string[] = [];
+  for (let t = new Date(start + "T12:00:00Z").getTime(); ; t += 86_400_000) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    if (d > today) break;
+    axis.push(d);
+  }
+  const full = new Map<string, AudiencePoint>(
+    axis.map((d) => [d, { day: d, total: 0, byNetwork: {}, m: zero(), mByNetwork: {} }]),
+  );
+  const at = (p: AudiencePoint, net: string) => (p.mByNetwork[net] ??= zero());
+
+  // Nouveaux abonnés (écarts entre relevés consécutifs).
+  for (const p of byDay.values()) {
+    const f = full.get(p.day);
+    if (!f) continue;
+    f.total = p.total;
+    f.byNetwork = p.byNetwork;
+    f.m.gained = p.total;
+    for (const [n, v] of Object.entries(p.byNetwork)) at(f, n).gained = v;
+  }
+  // Abonnés au total : dernier relevé connu à cette date, série par série.
+  for (const s of series.values()) {
+    let i = 0;
+    let last: number | null = null;
+    for (const d of axis) {
+      while (i < s.points.length && s.points[i].day <= d) last = s.points[i++].followers;
+      if (last == null) continue;
+      const f = full.get(d)!;
+      f.m.followers += last;
+      at(f, s.network).followers += last;
+    }
+  }
+  // Vues, portée, interactions des publications, par jour de mise en ligne (heure de La Réunion).
+  const dayExpr = raw<string>`to_char(${socialPosts.publishedAt} at time zone 'Indian/Reunion', 'YYYY-MM-DD')`;
+  const posts = await db
+    .select({
+      day: dayExpr,
+      network: socialPosts.network,
+      views: raw<number>`sum(${socialPosts.views})::float`,
+      reach: raw<number>`sum(greatest(${socialPosts.reach}, ${socialPosts.views}))::float`,
+      interactions: raw<number>`sum(${socialPosts.interactions})::float`,
+    })
+    .from(socialPosts)
+    .innerJoin(clients, eq(clients.id, socialPosts.clientId))
+    .where(and(gte(socialPosts.publishedAt, new Date(start + "T00:00:00Z")), eq(clients.active, true), clientId ? eq(clients.id, clientId) : undefined))
+    .groupBy(dayExpr, socialPosts.network);
+  for (const r of posts) {
+    const f = full.get(r.day);
+    if (!f) continue;
+    f.m.views += r.views;
+    f.m.reach += r.reach;
+    f.m.interactions += r.interactions;
+    const n = at(f, r.network);
+    n.views += r.views;
+    n.reach += r.reach;
+    n.interactions += r.interactions;
+  }
+  const points = [...full.values()];
   return {
     points,
     networks: [...nets.entries()].map(([network, v]) => ({ network, ...v })).sort((a, b) => b.current - a.current),
@@ -228,9 +296,16 @@ export async function audience(days = 90, clientId?: string): Promise<AudienceDa
  * La publication du mois qui a touché le plus de monde, et combien de fois la
  * portée habituelle du même client (moyenne de ses 90 derniers jours).
  */
-export async function topPostThisMonth(now: Date, clientId?: string) {
+export type TopMetric = "reach" | "views" | "interactions";
+
+export async function topPostThisMonth(now: Date, clientId?: string, metric: TopMetric = "reach") {
   const { start, end } = monthRange(now);
-  const reachExpr = raw<number>`greatest(${socialPosts.reach}, ${socialPosts.views})`;
+  const reachExpr =
+    metric === "views"
+      ? raw<number>`${socialPosts.views}`
+      : metric === "interactions"
+        ? raw<number>`${socialPosts.interactions}`
+        : raw<number>`greatest(${socialPosts.reach}, ${socialPosts.views})`;
   const [top] = await db
     .select({
       id: socialPosts.id,
@@ -264,7 +339,7 @@ export async function topPostThisMonth(now: Date, clientId?: string) {
   if (!top || !top.score) return null;
   const since = new Date(now.getTime() - 90 * 86_400_000);
   const [avg] = await db
-    .select({ avg: raw<number>`avg(greatest(${socialPosts.reach}, ${socialPosts.views}))::float` })
+    .select({ avg: raw<number>`avg(${reachExpr})::float` })
     .from(socialPosts)
     .where(and(eq(socialPosts.clientId, top.clientId), eq(socialPosts.network, top.network), gte(socialPosts.publishedAt, since)));
   const usual = avg?.avg ?? 0;

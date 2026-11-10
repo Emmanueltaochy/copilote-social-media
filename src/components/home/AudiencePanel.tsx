@@ -27,10 +27,21 @@ function niceMax(v: number) {
   return 10 * p;
 }
 
+const METRICS = [
+  { key: "gained", label: "Nouveaux abonnés", sum: true },
+  { key: "followers", label: "Abonnés", sum: false },
+  { key: "views", label: "Vues", sum: true },
+  { key: "reach", label: "Portée", sum: true },
+  { key: "interactions", label: "Interactions", sum: true },
+] as const;
+type MetricKey = (typeof METRICS)[number]["key"];
+
 export function AudiencePanel({ data }: { data: AudienceData }) {
   const [range, setRange] = useState<30 | 90>(30);
   const [net, setNet] = useState<string | null>(null);
+  const [metric, setMetric] = useState<MetricKey>("gained");
   const [hover, setHover] = useState<number | null>(null);
+  const meta = METRICS.find((m) => m.key === metric)!;
 
   const series = useMemo(() => {
     // Fenêtre comptée depuis le dernier relevé, pas depuis l'horloge du navigateur.
@@ -38,15 +49,32 @@ export function AudiencePanel({ data }: { data: AudienceData }) {
     const start = last ? new Date(new Date(last + "T12:00:00Z").getTime() - (range - 1) * 86_400_000).toISOString().slice(0, 10) : "";
     return data.points
       .filter((p) => p.day >= start)
-      .map((p) => ({ day: p.day, v: net ? (p.byNetwork[net] ?? 0) : p.total }));
-  }, [data.points, range, net]);
+      .map((p) => ({ day: p.day, v: net ? (p.mByNetwork?.[net]?.[metric] ?? 0) : (p.m?.[metric] ?? 0) }))
+      // Les abonnés au total n'ont pas de sens avant le premier relevé.
+      .filter((p) => metric !== "followers" || p.v > 0);
+  }, [data.points, range, net, metric]);
 
-  const gained = series.reduce((s, p) => s + p.v, 0);
-  const base = net ? (data.networks.find((n) => n.network === net)?.current ?? 0) - gained : data.current - gained;
-  const pct = base > 0 ? (gained / base) * 100 : null;
+  const sum = series.reduce((s, p) => s + p.v, 0);
+  const first = series[0]?.v ?? 0;
+  const lastV = series.at(-1)?.v ?? 0;
+  // Le grand chiffre : la somme de la période, ou la valeur actuelle pour les abonnés.
+  const headline = meta.sum ? sum : lastV;
+  const evolution = metric === "followers" ? (first > 0 ? ((lastV - first) / first) * 100 : null) : null;
+  const gainedBase = net ? (data.networks.find((n) => n.network === net)?.current ?? 0) - sum : data.current - sum;
+  const pct = metric === "gained" ? (gainedBase > 0 ? (sum / gainedBase) * 100 : null) : evolution;
+  const caption =
+    metric === "gained"
+      ? `nouveaux abonnés en ${range} jours`
+      : metric === "followers"
+        ? `abonnés aujourd'hui`
+        : `${meta.label.toLowerCase()} des publications parues en ${range} jours`;
 
-  const max = niceMax(Math.max(1, ...series.map((p) => p.v)));
-  const min = Math.min(0, ...series.map((p) => p.v));
+  // Les abonnés au total bougent peu : on cadre sur leur plage pour voir la pente.
+  const vals = series.map((p) => p.v);
+  const lo = vals.length ? Math.min(...vals) : 0;
+  const hi = vals.length ? Math.max(...vals) : 1;
+  const max = metric === "followers" ? Math.ceil(hi + Math.max(1, (hi - lo) * 0.15)) : niceMax(Math.max(1, hi));
+  const min = metric === "followers" ? Math.max(0, Math.floor(lo - Math.max(1, (hi - lo) * 0.15))) : Math.min(0, lo);
   const span = max - min || 1;
   const x = (i: number) => PAD.l + (series.length <= 1 ? 0 : (i / (series.length - 1)) * (W - PAD.l - PAD.r));
   const y = (v: number) => PAD.t + (1 - (v - min) / span) * (H - PAD.t - PAD.b);
@@ -61,11 +89,12 @@ export function AudiencePanel({ data }: { data: AudienceData }) {
       <div className="mb-1 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <span className="text-[40px] leading-none font-bold tracking-[-0.03em] tabular-nums">
-            {gained >= 0 ? "+" : ""}
-            {fmt(gained)}
+            {metric === "gained" && headline >= 0 ? "+" : ""}
+            {fmt(Math.round(headline))}
           </span>
           <span className="text-small text-ink-3">
-            nouveaux abonnés en {range} jours{pct != null ? ` · ${pct >= 0 ? "+" : ""}${pct.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %` : ""}
+            {caption}
+            {pct != null ? ` · ${pct >= 0 ? "+" : ""}${pct.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %` : ""}
           </span>
         </div>
         <div className="flex rounded-full bg-mute p-[3px]">
@@ -83,6 +112,22 @@ export function AudiencePanel({ data }: { data: AudienceData }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1">
+        {METRICS.map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => setMetric(m.key)}
+            className={cn(
+              "cursor-pointer rounded-full border-none px-3 py-[5px] text-small font-semibold",
+              metric === m.key ? "bg-night text-white" : "bg-transparent text-ink-3 hover:bg-mute hover:text-ink",
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
       </div>
 
       <div className="mt-2 mb-1 flex flex-wrap items-center gap-2">
@@ -117,7 +162,7 @@ export function AudiencePanel({ data }: { data: AudienceData }) {
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full"
           role="img"
-          aria-label={`Nouveaux abonnés par jour sur ${range} jours`}
+          aria-label={`${meta.label} par jour sur ${range} jours`}
           onMouseLeave={() => setHover(null)}
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
@@ -132,9 +177,9 @@ export function AudiencePanel({ data }: { data: AudienceData }) {
               <stop offset="100%" stopColor="var(--c-info)" stopOpacity="0" />
             </linearGradient>
           </defs>
-          {[...(min < -max * 0.15 ? [min] : []), 0, max / 2, max].map((v) => (
+          {(metric === "followers" ? [min, Math.round((min + max) / 2), max] : [...(min < -max * 0.15 ? [min] : []), 0, max / 2, max]).map((v) => (
             <g key={v}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="var(--c-line)" strokeDasharray={v === 0 ? "" : "3 4"} />
+              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="var(--c-line)" strokeDasharray={v === (metric === "followers" ? min : 0) ? "" : "3 4"} />
               <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end" fontSize="10.5" fill="var(--c-ink-3)">
                 {fmt(Math.round(v))}
               </text>

@@ -3,7 +3,7 @@
 import { useActionState, useRef } from "react";
 import { repondre, type ReplyState } from "./actions";
 
-export function Reply({ hidden, disabled }: { hidden: Record<string, string>; disabled: boolean }) {
+export function Reply({ hidden, disabled, onSent }: { hidden: Record<string, string>; disabled: boolean; onSent?: () => void }) {
   const [state, action, pending] = useActionState<ReplyState, FormData>(repondre, {});
   const ref = useRef<HTMLFormElement>(null);
   return (
@@ -12,6 +12,7 @@ export function Reply({ hidden, disabled }: { hidden: Record<string, string>; di
       action={async (fd) => {
         await action(fd);
         ref.current?.reset();
+        onSent?.();
       }}
       className="flex flex-col gap-2 border-t border-line p-4"
     >

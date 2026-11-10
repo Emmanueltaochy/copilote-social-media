@@ -183,8 +183,8 @@ function ScopePicker() {
   const { scope, setScope, clients } = useApp();
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
-  // La bibliothèque filtre côté serveur : sur cet écran, l'URL fait foi.
-  const parLURL = pathname === "/assets";
+  // Ces écrans filtrent côté serveur : l'adresse (?client=) fait foi.
+  const parLURL = ["/", "/assets", "/statistiques", "/calendrier", "/boite", "/veille"].includes(pathname);
   const affiché = parLURL
     ? (clients.find((c) => c.id === params.get("client"))?.name ?? ALL_CLIENTS)
     : scope;
@@ -192,8 +192,13 @@ function ScopePicker() {
   function choisir(client: { id: string; name: string } | null) {
     setScope(client?.name ?? ALL_CLIENTS);
     setOpen(false);
-    if (parLURL)
-      router.push(client ? `/assets?client=${client.id}` : "/assets");
+    if (parLURL) {
+      const q = new URLSearchParams(params.toString());
+      if (client) q.set("client", client.id);
+      else q.delete("client");
+      const qs = q.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    }
   }
 
   return (
@@ -597,7 +602,7 @@ export function AppShell({
                   key={i.href}
                   href={i.href}
                   className={cn(
-                    "flex flex-none items-center gap-2 rounded-full px-3 py-[9px] text-base font-medium no-underline hover:no-underline 2xl:px-4",
+                    "flex flex-none items-center gap-2 rounded-full px-[9px] py-[9px] text-base font-medium no-underline hover:no-underline 2xl:px-4",
                     active
                       ? "bg-night text-white"
                       : "text-ink-2 hover:text-ink",
