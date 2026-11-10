@@ -61,7 +61,7 @@ export async function scheduledSoon() {
 }
 
 /** Les chiffres d'en-tête : idées, en validation, programmés sur 7 jours. */
-export async function composeCounts() {
+export async function composeCounts(clientId?: string) {
   const now = new Date();
   const in7 = new Date(now.getTime() + 7 * 86_400_000);
   const [r] = await db
@@ -72,17 +72,17 @@ export async function composeCounts() {
     })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
-    .where(eq(clients.active, true));
+    .where(and(eq(clients.active, true), clientId ? eq(clients.id, clientId) : undefined));
   return r ?? { ideas: 0, validation: 0, week: 0 };
 }
 
 /** Les dernières idées sans date : elles attendent un créneau. */
-export async function recentIdeas(limit = 5) {
+export async function recentIdeas(limit = 5, clientId?: string) {
   return db
     .select({ id: contents.id, title: contents.title, clientName: clients.shortName, createdAt: contents.createdAt })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
-    .where(and(eq(contents.status, "idee"), isNull(contents.scheduledAt), eq(clients.active, true)))
+    .where(and(eq(contents.status, "idee"), isNull(contents.scheduledAt), eq(clients.active, true), clientId ? eq(clients.id, clientId) : undefined))
     .orderBy(desc(contents.createdAt))
     .limit(limit);
 }

@@ -20,3 +20,13 @@ export async function scopeClientId(param?: string | null): Promise<string | und
   const v = (await cookies()).get(SCOPE_COOKIE)?.value;
   return v && UUID.test(v) ? v : undefined;
 }
+
+/** Le client filtré avec son nom, pour l'afficher (« Filtré sur … »). */
+export async function scopedClient(param?: string | null): Promise<{ id: string; name: string; shortName: string } | undefined> {
+  const id = await scopeClientId(param);
+  if (!id) return undefined;
+  const { db, clients } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const [c] = await db.select({ id: clients.id, name: clients.name, shortName: clients.shortName }).from(clients).where(eq(clients.id, id)).limit(1);
+  return c;
+}

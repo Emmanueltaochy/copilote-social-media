@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
@@ -14,9 +15,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ProductionPage() {
   await requireDepartment("social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
   const [clients, rows, staff] = await Promise.all([
     listClientsWithPace(new Date(), "social"),
-    listPipeline(),
+    listPipeline(scopeId),
     listStaff(),
   ]);
   const covers = await coversFor(rows.map((r) => r.content.id));
@@ -24,7 +27,7 @@ export default async function ProductionPage() {
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Pipeline de production" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Pipeline de production" sub={monthLabel()} />
         <EmptyState title="Aucun contenu en production" actionLabel="Ajouter un client" actionHref="/clients">
           Le pipeline suit chaque contenu de l&apos;idée à la publication, en neuf étapes. Il faut
           d&apos;abord un client à qui rattacher les contenus.
@@ -37,7 +40,7 @@ export default async function ProductionPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Pipeline de production"
         sub={`${monthLabel()} · ${inProgress.length} ${inProgress.length > 1 ? "contenus en cours" : "contenu en cours"} · 9 étapes`}
       >

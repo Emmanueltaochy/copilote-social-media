@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,12 +19,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function RapportsPage() {
   await requireDepartment("social");
-  const clients = await listClientsWithPace(new Date(), "social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const clients = await listClientsWithPace(new Date(), "social", scopeId);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Rapports" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Rapports" sub={monthLabel()} />
         <EmptyState title="Aucun rapport à produire" actionLabel="Ajouter un client" actionHref="/clients">
           Le rapport mensuel se construit à partir des contenus publiés, des statistiques saisies,
           des campagnes et des tournages du mois. Il faut d&apos;abord un client.
@@ -34,7 +37,7 @@ export default async function RapportsPage() {
 
   return (
     <>
-      <PageHeader title="Rapports" sub={`${monthLabel()} · ${clients.length} client${clients.length > 1 ? "s" : ""}`} />
+      <PageHeader scope={scope?.shortName} title="Rapports" sub={`${monthLabel()} · ${clients.length} client${clients.length > 1 ? "s" : ""}`} />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[900px] flex-col gap-4">

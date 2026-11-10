@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -116,11 +117,13 @@ function Rangee({ ligne, now, retard }: { ligne: Ligne; now: Date; retard: boole
  */
 export default async function APublierPage() {
   await requireDepartment("social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
   const [clients, prets, pasPrets, publiés] = await Promise.all([
     listClientsWithPace(new Date(), "social"),
-    listReadyToPublish(),
-    listScheduledTodayNotReady(),
-    listPublishedToday(),
+    listReadyToPublish(scopeId),
+    listScheduledTodayNotReady(new Date(), scopeId),
+    listPublishedToday(new Date(), scopeId),
   ]);
 
   const now = new Date();
@@ -136,7 +139,7 @@ export default async function APublierPage() {
   if (clients.length === 0 || (prets.length === 0 && pasPrets.length === 0 && publiés.length === 0)) {
     return (
       <>
-        <PageHeader title="À publier" sub={today} />
+        <PageHeader scope={scope?.shortName} title="À publier" sub={today} />
         <EmptyState
           title="Rien à publier"
           actionLabel={clients.length === 0 ? "Ajouter un client" : "Nouveau contenu"}
@@ -153,7 +156,7 @@ export default async function APublierPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="À publier"
         sub={
           `${today} · ${prets.length} prêt${prets.length > 1 ? "s" : ""}` +

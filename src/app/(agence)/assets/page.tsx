@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { scopeClientId } from "@/lib/scope";
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -85,7 +86,10 @@ export default async function AssetsPage({
 
   // On ne passe à la requête qu'un identifiant reconnu : une valeur bricolée
   // dans l'URL ne doit pas atteindre la base.
-  const selected = clients.find((c) => c.id === demandé)?.id;
+  // Le client choisi en haut à droite (cookie), sauf ?client= dans l'adresse.
+  const voulu = await scopeClientId(demandé);
+  const cookieScoped = Boolean(await scopeClientId());
+  const selected = clients.find((c) => c.id === voulu)?.id;
 
   // Les dossiers n'existent qu'à l'intérieur d'un client : ranger ensemble les
   // médias de deux marques n'aurait aucun sens, et « Shooting mars » ne veut
@@ -104,7 +108,7 @@ export default async function AssetsPage({
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Bibliothèque d'assets" sub="Aucun média" />
+        <PageHeader scope={cookieScoped ? clients.find((c) => c.id === selected)?.name : null} title="Bibliothèque d'assets" sub="Aucun média" />
         <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
           Un média se rattache à un client : c&apos;est ce qui permet de savoir à qui il appartient
           et de le montrer dans son portail.
@@ -120,7 +124,7 @@ export default async function AssetsPage({
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={cookieScoped ? clients.find((c) => c.id === selected)?.name : null}
         title="Bibliothèque d'assets"
         sub={
           `${selectedName ? `${selectedName} · ` : ""}` +
@@ -171,7 +175,7 @@ export default async function AssetsPage({
           {/* Le filtre passe par l'URL : la vue d'un client se met en favori,
               se partage et survit à un retour arrière. */}
           <div className="flex flex-wrap items-center gap-[6px]">
-            <Chip href="/assets" label="Tous les clients" n={footprint.files} on={!selected} />
+            <Chip href={cookieScoped ? "/assets?client=all" : "/assets"} label="Tous les clients" n={footprint.files} on={!selected} />
             {clients.map((c) => (
               <Chip
                 key={c.id}

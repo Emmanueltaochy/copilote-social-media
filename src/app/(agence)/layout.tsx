@@ -18,14 +18,14 @@ import { scopeClientId } from "@/lib/scope";
 export default async function AgenceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
   const pole = await polActif(user);
+  const scopeId = await scopeClientId();
   const [clients, notices, unreadCount, chatUnread, counts] = await Promise.all([
     listClientsWithPace(new Date(), pole),
     recent(user.id, 20),
     countUnread(user.id),
     unreadTotal(user.id),
-    shellCounts(),
+    shellCounts(scopeId),
   ]);
-  const scopeId = await scopeClientId();
   const scoped = clients.find((c) => c.id === scopeId);
 
   const shellNotices = notices.map((n) => ({

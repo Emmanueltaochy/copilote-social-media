@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopeClientId } from "@/lib/scope";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { clients, db, trendReports } from "@/db";
 import { requireDepartment } from "@/lib/auth";
@@ -40,7 +41,9 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
     );
   }
 
-  const client = linked.find((c) => c.id === sp.client) ?? linked[0];
+  // Le client choisi en haut à droite (cookie), sauf ?client= dans l'adresse.
+  const wanted = await scopeClientId(sp.client);
+  const client = linked.find((c) => c.id === wanted) ?? linked[0];
   const errors: string[] = [];
   const lists = await Promise.all(
     COMPETITOR_NETWORKS.map((n) =>

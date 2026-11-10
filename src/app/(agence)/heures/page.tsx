@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/Screen";
+import { scopedClient } from "@/lib/scope";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Eyebrow } from "@/components/ui/primitives";
@@ -24,13 +25,17 @@ export const dynamic = "force-dynamic";
 export default async function HeuresPage() {
   const user = await requireStaff();
   const pole = await polActif(user);
-  const [clients, entries] = await Promise.all([listClientOptions(pole), listTimeEntries(user.id)]);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const [clients, toutes] = await Promise.all([listClientOptions(pole), listTimeEntries(user.id)]);
+  // Le client choisi en haut à droite : seules ses heures.
+  const entries = scopeId ? toutes.filter((e) => e.entry.clientId === scopeId) : toutes;
   const deuxPoles = departmentsOf(user).length > 1;
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Mes heures" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Mes heures" sub={monthLabel()} />
         <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
           Une heure se rattache à un client : c&apos;est ce qui permet de comparer le temps passé
           au forfait vendu.
@@ -50,7 +55,7 @@ export default async function HeuresPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Mes heures"
         sub={`${monthLabel()} · ${formatDuration(totalMinutes)} saisies ce mois`}
       />

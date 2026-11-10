@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { scopeClientId } from "@/lib/scope";
+import { ScopeNotice } from "@/components/shell/ScopeNotice";
 import { requireDepartment } from "@/lib/auth";
 import { audienceStats, postStats } from "@/db/stats-queries";
 import { listClientOptions } from "@/db/queries";
@@ -39,7 +41,7 @@ export default async function StatistiquesPage({
   const f = {
     days,
     network: sp.n || undefined,
-    clientId: sp.client || undefined,
+    clientId: await scopeClientId(sp.client),
   };
 
   const [aud, posts, mc, clientOptions] = await Promise.all([
@@ -53,6 +55,7 @@ export default async function StatistiquesPage({
     ? ((await audienceStats({ ...f, network: undefined }))?.networks ?? [])
     : (aud?.networks ?? []);
   const client = clientOptions.find((c) => c.id === f.clientId);
+  const cookieScoped = Boolean(await scopeClientId());
 
   const href = (o: {
     p?: number;
@@ -66,6 +69,8 @@ export default async function StatistiquesPage({
     if (n) q.set("n", n);
     const c = o.client === undefined ? f.clientId : o.client;
     if (c) q.set("client", c);
+    // Revenir à tous les clients doit passer devant le client mémorisé.
+    else if (cookieScoped) q.set("client", "all");
     const s = q.toString();
     return `/statistiques${s ? `?${s}` : ""}`;
   };
@@ -114,6 +119,7 @@ export default async function StatistiquesPage({
               {client.name}
             </span>
           ) : null}
+          {cookieScoped && client ? <ScopeNotice name={client.name} className="mt-1 text-base font-normal tracking-normal" /> : null}
         </h1>
         <Stat
           icon="users"

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,12 +24,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function WebPage() {
   await requireDepartment("web");
-  const [clients, rows] = await Promise.all([listClientOptions("web"), listWebProjects()]);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const [clients, rows] = await Promise.all([listClientOptions("web"), listWebProjects(scopeId)]);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Projets web" sub="Aucun client web" />
+        <PageHeader scope={scope?.shortName} title="Projets web" sub="Aucun client web" />
         <EmptyState title="Aucun client côté web" actionLabel="Voir les clients" actionHref="/clients">
           Un projet web se rattache à un client, comme le reste : c&apos;est ce qui permet de
           retrouver son brief, ses fichiers et son portail. Ouvre la fiche du client concerné et
@@ -46,7 +49,7 @@ export default async function WebPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Projets web"
         sub={
           rows.length === 0

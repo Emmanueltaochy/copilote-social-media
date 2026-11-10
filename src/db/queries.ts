@@ -84,7 +84,7 @@ export async function devisDuClient(clientId: string) {
  * Les demandes ouvertes remontent : une demande close reste consultable mais
  * n'a plus à disputer la place à celle qui attend une réponse.
  */
-export async function listDevis() {
+export async function listDevis(clientId?: string) {
   return db
     .select({
       devis: quoteRequests,
@@ -94,6 +94,7 @@ export async function listDevis() {
     .from(quoteRequests)
     .innerJoin(clients, eq(clients.id, quoteRequests.clientId))
     .leftJoin(users, eq(users.id, quoteRequests.requestedById))
+    .where(clientId ? eq(quoteRequests.clientId, clientId) : undefined)
     .orderBy(
       raw`case ${quoteRequests.status} when 'nouvelle' then 0 when 'en_cours' then 1 when 'envoye' then 2 else 3 end`,
       desc(quoteRequests.createdAt),
@@ -101,11 +102,11 @@ export async function listDevis() {
 }
 
 /** Combien de demandes n'ont pas encore été ouvertes. */
-export async function devisNouveaux(): Promise<number> {
+export async function devisNouveaux(clientId?: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(quoteRequests)
-    .where(eq(quoteRequests.status, "nouvelle"));
+    .where(and(eq(quoteRequests.status, "nouvelle"), clientId ? eq(quoteRequests.clientId, clientId) : undefined));
   return row?.n ?? 0;
 }
 
@@ -171,6 +172,7 @@ export type ClientWithPace = Client & {
 export async function listClientsWithPace(
   now: Date = new Date(),
   pole?: "social" | "web",
+  clientId?: string,
 ): Promise<ClientWithPace[]> {
   const { start, end } = monthRange(now);
 
@@ -189,7 +191,7 @@ export async function listClientsWithPace(
         lt(contents.publishedAt, end),
       ),
     )
-    .where(and(eq(clients.active, true), duPole(pole)))
+    .where(and(eq(clients.active, true), duPole(pole), clientId ? eq(clients.id, clientId) : undefined))
     .groupBy(clients.id)
     .orderBy(asc(clients.shortName));
 
@@ -213,7 +215,9 @@ export async function semaineDeSuivi(
   lundiIso: string,
   now: Date = new Date(),
   pole?: "social" | "web",
+  clientId?: string,
 ) {
+  const seul = clientId ? eq(clients.id, clientId) : undefined;
   const debut = new Date(`${lundiIso}T00:00:00`);
   const fin = new Date(debut);
   fin.setDate(debut.getDate() + 7);
@@ -231,6 +235,7 @@ export async function semaineDeSuivi(
           lt(contents.scheduledAt, fin),
           eq(clients.active, true),
           duPole(pole),
+          seul,
         ),
       )
       .orderBy(asc(contents.scheduledAt), asc(clients.shortName)),
@@ -247,6 +252,7 @@ export async function semaineDeSuivi(
           isNull(contents.publishedAt),
           eq(clients.active, true),
           duPole(pole),
+          seul,
         ),
       )
       .orderBy(asc(clients.shortName)),
@@ -279,7 +285,7 @@ export async function semaineDeSuivi(
         )`,
       })
       .from(clients)
-      .where(and(eq(clients.active, true), duPole(pole)))
+      .where(and(eq(clients.active, true), duPole(pole), seul))
       .orderBy(asc(clients.shortName)),
   ]);
 
@@ -363,14 +369,14 @@ export async function listPipeline(clientId?: string) {
 }
 
 /** La file du jour : ce qui est prêt et doit partir aujourd'hui. */
-export async function listTodayQueue(now: Date = new Date()) {
+export async function listTodayQueue(now: Date = new Date(), clientId?: string) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(start.getTime() + 86_400_000);
   return db
     .select({ content: contents, clientName: clients.shortName })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
-    .where(and(gte(contents.scheduledAt, start), lt(contents.scheduledAt, end)))
+    .where(and(gte(contents.scheduledAt, start), lt(contents.scheduledAt, end), clientId ? eq(contents.clientId, clientId) : undefined))
     .orderBy(asc(contents.scheduledAt));
 }
 
@@ -398,7 +404,7 @@ export async function listReadyToPublish(clientId?: string) {
 }
 
 /** Ce qui est programmé aujourd'hui sans être encore prêt : le rappel du jour. */
-export async function listScheduledTodayNotReady(now: Date = new Date()) {
+export async function listScheduledTodayNotReady(now: Date = new Date(), clientId?: string) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(start.getTime() + 86_400_000);
   return db
@@ -411,20 +417,21 @@ export async function listScheduledTodayNotReady(now: Date = new Date()) {
         lt(contents.scheduledAt, end),
         isNull(contents.publishedAt),
         raw`${contents.status} <> 'pret'`,
+        clientId ? eq(contents.clientId, clientId) : undefined,
       ),
     )
     .orderBy(asc(contents.scheduledAt));
 }
 
 /** Publiés aujourd'hui : la preuve que la journée a été faite. */
-export async function listPublishedToday(now: Date = new Date()) {
+export async function listPublishedToday(now: Date = new Date(), clientId?: string) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(start.getTime() + 86_400_000);
   return db
     .select({ content: contents, clientName: clients.shortName })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
-    .where(and(gte(contents.publishedAt, start), lt(contents.publishedAt, end)))
+    .where(and(gte(contents.publishedAt, start), lt(contents.publishedAt, end), clientId ? eq(contents.clientId, clientId) : undefined))
     .orderBy(desc(contents.publishedAt));
 }
 
@@ -458,7 +465,7 @@ export async function listAwaitingApproval(clientId?: string) {
  * Publications manquées : l'heure prévue est passée et rien n'a été publié.
  * C'est l'alerte la plus importante du cockpit.
  */
-export async function countMissedPublications(now: Date = new Date()) {
+export async function countMissedPublications(now: Date = new Date(), clientId?: string) {
   const [{ n }] = await db
     .select({ n: count() })
     .from(contents)
@@ -468,6 +475,7 @@ export async function countMissedPublications(now: Date = new Date()) {
         isNotNull(contents.scheduledAt),
         lt(contents.scheduledAt, now),
         raw`${contents.status} in ('pret','manque')`,
+        clientId ? eq(contents.clientId, clientId) : undefined,
       ),
     );
   return n;

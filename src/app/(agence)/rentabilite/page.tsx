@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/Screen";
+import { scopedClient } from "@/lib/scope";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
@@ -24,9 +25,11 @@ const COLS = "minmax(160px,1fr) 110px 110px 110px 110px 110px 110px";
 export default async function RentabilitePage() {
   // Coûts internes et marges : direction uniquement.
   await requireDirection();
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
 
   const [clients, costs, rates] = await Promise.all([
-    listClientsWithPace(new Date(), "social"),
+    listClientsWithPace(new Date(), "social", scopeId),
     // Seules les heures saisies sous le pôle social : cet écran compare au
     // forfait mensuel, qui ne paie pas la fabrication d'un site.
     costByClient(new Date(), "social"),
@@ -37,7 +40,7 @@ export default async function RentabilitePage() {
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Rentabilité" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Rentabilité" sub={monthLabel()} />
         <EmptyState title="Rien à mesurer" actionLabel="Ajouter un client" actionHref="/clients">
           La rentabilité compare les heures passées au forfait vendu. Il faut des clients, leurs
           forfaits, et des heures saisies.
@@ -57,7 +60,7 @@ export default async function RentabilitePage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Rentabilité"
         sub={`${monthLabel()} · ${billed.length} compte${billed.length > 1 ? "s" : ""} facturé${
           billed.length > 1 ? "s" : ""

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { ClientChip } from "@/components/home/bits";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -16,12 +17,14 @@ const COLS = "190px minmax(80px,1fr) 132px 96px 136px";
 
 export default async function CockpitPage() {
   await requireDepartment("social");
-  const clients = await listClientsWithPace(new Date(), "social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const clients = await listClientsWithPace(new Date(), "social", scopeId);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader
+        <PageHeader scope={scope?.shortName}
           title="Cockpit agence"
           sub={`${monthLabel()} · ${monthProgressLabel()}`}
         />
@@ -40,10 +43,10 @@ export default async function CockpitPage() {
   }
 
   const [queue, approvals, shoots, missed] = await Promise.all([
-    listTodayQueue(),
-    listAwaitingApproval(),
-    listUpcomingShoots(),
-    countMissedPublications(),
+    listTodayQueue(new Date(), scopeId),
+    listAwaitingApproval(scopeId),
+    listUpcomingShoots(new Date(), scopeId),
+    countMissedPublications(new Date(), scopeId),
   ]);
 
   const late = clients.filter((c) => c.pace.key === "late" || c.pace.key === "risk").length;
@@ -51,7 +54,7 @@ export default async function CockpitPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Cockpit agence"
         sub={`${monthLabel()} · ${monthProgressLabel()} · ${clients.length} ${clients.length > 1 ? "clients actifs" : "client actif"}`}
       />

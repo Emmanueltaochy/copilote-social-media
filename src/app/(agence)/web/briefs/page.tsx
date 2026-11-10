@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { Dot, StatusPill } from "@/components/ui/primitives";
@@ -16,14 +17,16 @@ export const dynamic = "force-dynamic";
  */
 export default async function BriefsPage() {
   await requireDepartment("web");
-  const rows = await listBriefs();
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const rows = await listBriefs({ clientId: scopeId });
 
   const attendus = rows.filter((r) => r.brief.status === "envoye" || r.brief.status === "en_cours");
   const autres = rows.filter((r) => !attendus.includes(r));
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Briefs"
         sub={
           rows.length === 0

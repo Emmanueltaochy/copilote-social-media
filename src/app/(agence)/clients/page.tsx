@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { ClientChip } from "@/components/home/bits";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -23,7 +24,9 @@ const WEB_PLAIN = "minmax(180px,1fr) 120px 130px";
 export default async function ClientsPage() {
   const user = await requireStaff();
   const pole = await polActif(user);
-  const clients = await listClientsWithPace(new Date(), pole);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const clients = await listClientsWithPace(new Date(), pole, scopeId);
   // Les forfaits ne regardent que la direction : la colonne disparaît pour
   // l'équipe plutôt que d'afficher un tiret qui laisserait deviner un montant.
   const money = canSeeMoney(user);
@@ -38,7 +41,7 @@ export default async function ClientsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Clients"
         sub={`${monthLabel()} · ${clients.length} ${clients.length > 1 ? "comptes actifs" : "compte actif"}`}
       />

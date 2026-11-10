@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -19,14 +20,16 @@ const STALE_DAYS = 5;
 
 export default async function ApprobationsPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientsWithPace(new Date(), "social"), listAwaitingApproval()]);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const [clients, rows] = await Promise.all([listClientsWithPace(new Date(), "social"), listAwaitingApproval(scopeId)]);
   const covers = await coversFor(rows.map((r) => r.content.id));
   const slides = await slidesFor(rows.map((r) => r.content.id));
 
   if (clients.length === 0 || rows.length === 0) {
     return (
       <>
-        <PageHeader title="Approbations" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Approbations" sub={monthLabel()} />
         <EmptyState
           title="Rien à valider pour l'instant"
           actionLabel={clients.length === 0 ? "Ajouter un client" : "Nouveau contenu"}
@@ -42,7 +45,7 @@ export default async function ApprobationsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Approbations"
         sub={`${rows.length} ${rows.length > 1 ? "contenus en attente" : "contenu en attente"}`}
       />

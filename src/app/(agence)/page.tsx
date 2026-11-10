@@ -14,6 +14,8 @@ import {
 } from "@/db/home-queries";
 import { AudiencePanel } from "@/components/home/AudiencePanel";
 import { TopPostCard } from "@/components/home/TopPostCard";
+import { ScopeNotice } from "@/components/shell/ScopeNotice";
+import { scopeClientId } from "@/lib/scope";
 import { devisNouveaux } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
 import { networksOf } from "@/data/content";
@@ -43,21 +45,21 @@ import {
  */
 export default async function AujourdhuiPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const user = await requireDepartment("social");
-  // Le sélecteur de client (en haut à droite) filtre l'audience et la meilleure publication.
-  const scopeId = (await searchParams).client || undefined;
+  // Le sélecteur de client (en haut à droite) filtre tout l'écran.
+  const scopeId = await scopeClientId((await searchParams).client);
   const now = new Date();
   const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis, aud, topReach, topViews, topInter] =
     await Promise.all([
-      upNext(now),
-      missedRecently(now),
-      listAwaitingApproval(),
-      weekAhead(now),
-      networksThisMonth(now),
-      publishedThisMonth(now),
-      teamActivity(8),
-      shootsSoon(now),
-      listClientsWithPace(now, "social"),
-      devisNouveaux(),
+      upNext(now, 9, scopeId),
+      missedRecently(now, scopeId),
+      listAwaitingApproval(scopeId),
+      weekAhead(now, scopeId),
+      networksThisMonth(now, scopeId),
+      publishedThisMonth(now, scopeId),
+      teamActivity(8, scopeId),
+      shootsSoon(now, scopeId),
+      listClientsWithPace(now, "social", scopeId),
+      devisNouveaux(scopeId),
       audience(90, scopeId),
       topPostThisMonth(now, scopeId, "reach"),
       topPostThisMonth(now, scopeId, "views"),
@@ -124,15 +126,18 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
       {/* Bonjour + chiffres clés */}
       <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-4">
-        <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
-          {greeting},<br className="hidden lg:block" /> {firstName}
-        </h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
+            {greeting},<br className="hidden lg:block" /> {firstName}
+          </h1>
+          <ScopeNotice name={scopeName} />
+        </div>
         {aud ? (
           <Stat
             icon="users"
             value={compact(aud.current)}
             pill={aud.current30ago > 0 ? `${aud.current >= aud.current30ago ? "+" : ""}${(((aud.current - aud.current30ago) / aud.current30ago) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % en 30 j` : undefined}
-            label="abonnés, tous clients et réseaux"
+            label={scopeName ? "abonnés, tous réseaux" : "abonnés, tous clients et réseaux"}
           />
         ) : null}
         <Stat icon="send" value={`${published}`} pill={sold ? `${Math.round((published / Math.max(1, sold)) * 100)} % du mois` : undefined} label={`publiés en ${monthLabel(now).split(" ")[0]} sur ${sold} vendus`} />

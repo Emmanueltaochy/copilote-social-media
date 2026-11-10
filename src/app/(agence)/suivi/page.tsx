@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -38,6 +39,8 @@ export default async function SuiviPage({
   // pôle social. Quelqu'un qui ne fait que du web est renvoyé à son tableau,
   // comme le faisait le cockpit qui occupait cette adresse.
   await requireDepartment("social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
   const { semaine: demandée } = await searchParams;
 
   const now = new Date();
@@ -48,12 +51,12 @@ export default async function SuiviPage({
       ? demandée
       : mondayOf(now);
 
-  const { programmes, sansDate, parClient } = await semaineDeSuivi(lundi, now, "social");
+  const { programmes, sansDate, parClient } = await semaineDeSuivi(lundi, now, "social", scopeId);
 
   if (parClient.length === 0) {
     return (
       <>
-        <PageHeader title="Suivi de la semaine" sub="Rien à suivre pour l'instant" />
+        <PageHeader scope={scope?.shortName} title="Suivi de la semaine" sub="Rien à suivre pour l'instant" />
         <EmptyState
           eyebrow="Premier pas"
           title="Aucun client pour l'instant"
@@ -112,7 +115,7 @@ export default async function SuiviPage({
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Suivi de la semaine"
         sub={`${libelléSemaine} · ${programmes.length} ${programmes.length > 1 ? "contenus programmés" : "contenu programmé"}`}
       />

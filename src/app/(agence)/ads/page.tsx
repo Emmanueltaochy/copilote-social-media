@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,12 +21,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdsPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientOptions("social"), listCampaignsWithTotals()]);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const [clients, rows] = await Promise.all([listClientOptions("social"), listCampaignsWithTotals(new Date(), scopeId)]);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Campagnes ads" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Campagnes ads" sub={monthLabel()} />
         <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
           Une campagne se rattache à un client : c&apos;est ce qui permet de la comparer à son
           budget et de la faire apparaître dans son rapport mensuel.
@@ -44,7 +47,7 @@ export default async function AdsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Campagnes ads"
         sub={
           rows.length === 0

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,12 +21,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function DevisPage() {
   await requireStaff();
-  const demandes = await listDevis();
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const demandes = await listDevis(scopeId);
 
   if (demandes.length === 0) {
     return (
       <>
-        <PageHeader title="Demandes de devis" sub="Aucune demande pour l'instant" />
+        <PageHeader scope={scope?.shortName} title="Demandes de devis" sub="Aucune demande pour l'instant" />
         <EmptyState title="Rien à chiffrer" actionLabel="Voir les clients" actionHref="/clients">
           Vos clients peuvent demander un devis depuis leur portail : un projet leur vient
           souvent le soir, et cette demande arrive ici plutôt que de se perdre dans une boîte
@@ -39,7 +42,7 @@ export default async function DevisPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Demandes de devis"
         sub={`${demandes.length} demande${demandes.length > 1 ? "s" : ""}${nouvelles > 0 ? ` · ${nouvelles} à ouvrir` : ""}`}
       />

@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/Screen";
+import { scopedClient } from "@/lib/scope";
 import { ClientChip } from "@/components/home/bits";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -15,13 +16,15 @@ const COLS = "minmax(180px,1fr) minmax(160px,1fr) 96px 96px 96px 120px";
 
 export default async function AvancementPage() {
   await requireDepartment("social");
-  const clients = byUrgency(await listClientsWithPace(new Date(), "social"));
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const clients = byUrgency(await listClientsWithPace(new Date(), "social", scopeId));
   const engaged = clients.filter((c) => c.contentTarget > 0);
 
   if (engaged.length === 0) {
     return (
       <>
-        <PageHeader title="Suivi d'avancement" sub={`${monthLabel()} · ${monthProgressLabel()}`} />
+        <PageHeader scope={scope?.shortName} title="Suivi d'avancement" sub={`${monthLabel()} · ${monthProgressLabel()}`} />
         <EmptyState
           title="Aucun engagement à suivre"
           actionLabel="Ajouter un client"
@@ -41,7 +44,7 @@ export default async function AvancementPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Suivi d'avancement"
         sub={`${monthLabel()} · ${monthProgressLabel()}`}
       />

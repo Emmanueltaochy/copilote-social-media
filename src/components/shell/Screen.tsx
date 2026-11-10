@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { ScopeNotice } from "./ScopeNotice";
 
 /**
  * Every screen opens the same way: what am I looking at, when, and the one
@@ -9,10 +10,13 @@ export function PageHeader({
   title,
   sub,
   children,
+  scope,
 }: {
   title: string;
   sub: string;
   children?: ReactNode;
+  /** Nom du client filtré (sélecteur en haut à droite), s'il y en a un. */
+  scope?: string | null;
 }) {
   return (
     // Sur mobile l'action passe sous le titre plutôt que de le comprimer :
@@ -22,6 +26,7 @@ export function PageHeader({
       <div className="flex min-w-0 flex-col gap-1">
         <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">{title}</h1>
         <span className="text-base text-ink-3 tabular-nums">{sub}</span>
+        <ScopeNotice name={scope} />
       </div>
       {/* Aucun bouton décoratif : une action affichée doit faire quelque chose. */}
       {children ? <div className="flex max-w-full flex-wrap items-center gap-2 lg:flex-none lg:flex-nowrap">{children}</div> : null}

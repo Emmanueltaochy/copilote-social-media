@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { requireDepartment } from "@/lib/auth";
 import { db, clients } from "@/db";
@@ -21,13 +22,15 @@ export default async function PreparerPage({
   searchParams: Promise<{ mois?: string }>;
 }) {
   await requireDepartment("social");
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
   const { mois: demandé } = await searchParams;
   const mois = moisDepuis(demandé);
 
   const actifs = await db
     .select({ id: clients.id })
     .from(clients)
-    .where(eq(clients.active, true))
+    .where(scopeId ? and(eq(clients.active, true), eq(clients.id, scopeId)) : eq(clients.active, true))
     .orderBy(clients.shortName);
 
   const plans = (await Promise.all(actifs.map((c) => planDuMois(c.id, mois)))).filter(
@@ -55,7 +58,7 @@ export default async function PreparerPage({
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Préparer le mois"
         sub={
           total > 0

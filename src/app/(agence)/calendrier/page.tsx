@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { scopeClientId } from "@/lib/scope";
+import { ScopeNotice } from "@/components/shell/ScopeNotice";
 import { PageHeader } from "@/components/shell/Screen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Cover } from "@/components/ui/Cover";
@@ -66,7 +68,10 @@ export default async function CalendrierPage({
   }
 
   const view = sp.vue === "mois" ? "mois" : "semaine";
-  const clientId = clients.some((c) => c.id === sp.client) ? sp.client : undefined;
+  // Le client choisi en haut à droite (cookie), sauf ?client= dans l'adresse.
+  const wanted = await scopeClientId(sp.client);
+  const clientId = clients.some((c) => c.id === wanted) ? wanted : undefined;
+  const cookieScoped = Boolean(await scopeClientId());
   const now = new Date();
   const today = startOfDay(now);
   const anchor = parseDate(sp.date) ?? today;
@@ -108,6 +113,8 @@ export default async function CalendrierPage({
     if (d && !sameDay(d, today)) q.set("date", ymd(d));
     const c = o.client === undefined ? clientId : o.client;
     if (c) q.set("client", c);
+    // « Tous les clients » doit passer devant le client mémorisé.
+    else if (cookieScoped) q.set("client", "all");
     const s = q.toString();
     return `/calendrier${s ? `?${s}` : ""}`;
   };
@@ -135,10 +142,13 @@ export default async function CalendrierPage({
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
       {/* Titre + chiffres */}
       <div className="mb-4 flex flex-wrap items-center gap-x-8 gap-y-4">
-        <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
-          Calendrier
-          <br className="hidden lg:block" /> éditorial
-        </h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
+            Calendrier
+            <br className="hidden lg:block" /> éditorial
+          </h1>
+          <ScopeNotice name={cookieScoped ? clients.find((c) => c.id === clientId)?.name : null} />
+        </div>
         <div className="grid w-full grid-cols-2 gap-4 sm:flex sm:w-auto sm:flex-wrap sm:gap-x-8">
           <Stat icon="calendar" value={scheduledWeek} label="programmés cette semaine" />
           <Stat icon="check" value={awaiting} label="en validation sur la période" />

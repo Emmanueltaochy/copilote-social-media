@@ -12,17 +12,18 @@ import { contents, quoteRequests } from "./schema";
  * encore publié). Un badge qui ne correspond pas à l'écran qu'il annonce
  * apprend à ne plus le regarder.
  */
-export async function shellCounts(): Promise<{ validation: number; publier: number; devis: number }> {
+export async function shellCounts(clientId?: string): Promise<{ validation: number; publier: number; devis: number }> {
+  const only = (col: typeof contents.clientId | typeof quoteRequests.clientId) => (clientId ? eq(col, clientId) : undefined);
   const [[v], [p], [d]] = await Promise.all([
     db
       .select({ n: count() })
       .from(contents)
-      .where(raw`${contents.status} in ('revision','validation')`),
+      .where(and(raw`${contents.status} in ('revision','validation')`, only(contents.clientId))),
     db
       .select({ n: count() })
       .from(contents)
-      .where(and(eq(contents.status, "pret"), isNull(contents.publishedAt))),
-    db.select({ n: count() }).from(quoteRequests).where(eq(quoteRequests.status, "nouvelle")),
+      .where(and(eq(contents.status, "pret"), isNull(contents.publishedAt), only(contents.clientId))),
+    db.select({ n: count() }).from(quoteRequests).where(and(eq(quoteRequests.status, "nouvelle"), only(quoteRequests.clientId))),
   ]);
   return { validation: v?.n ?? 0, publier: p?.n ?? 0, devis: d?.n ?? 0 };
 }

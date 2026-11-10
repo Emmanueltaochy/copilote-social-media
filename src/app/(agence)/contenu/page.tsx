@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/Screen";
+import { scopeClientId } from "@/lib/scope";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { requireDepartment } from "@/lib/auth";
@@ -20,6 +21,7 @@ export default async function NouveauContenuPage({
 }) {
   await requireDepartment("social");
   const sp = await searchParams;
+  const scopeId = await scopeClientId(sp.client);
   const clients = await listClientOptions("social");
 
   if (clients.length === 0) {
@@ -37,10 +39,11 @@ export default async function NouveauContenuPage({
   const [best, scheduled, counts, ideas] = await Promise.all([
     bestSlotsByClient(clients.map((c) => c.id)),
     scheduledSoon(),
-    composeCounts(),
-    recentIdeas(5),
+    composeCounts(scopeId),
+    recentIdeas(5, scopeId),
   ]);
-  const initialClientId = clients.some((c) => c.id === sp.client) ? sp.client : undefined;
+  // Préremplissage : ?client= (depuis le calendrier), sinon le client choisi en haut à droite.
+  const initialClientId = clients.some((c) => c.id === scopeId) ? scopeId : undefined;
   const initialDate = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : undefined;
 
   return (

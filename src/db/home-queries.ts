@@ -28,7 +28,7 @@ const contentRow = {
 };
 
 /** Ce qui part ensuite : programmé, pas encore publié, à partir de maintenant. */
-export async function upNext(now: Date, limit = 9) {
+export async function upNext(now: Date, limit = 9, clientId?: string) {
   return db
     .select(contentRow)
     .from(contents)
@@ -40,6 +40,7 @@ export async function upNext(now: Date, limit = 9) {
         isNull(contents.publishedAt),
         raw`${contents.status} <> 'publie'`,
         eq(clients.active, true),
+        clientId ? eq(clients.id, clientId) : undefined,
       ),
     )
     .orderBy(asc(contents.scheduledAt))
@@ -47,7 +48,7 @@ export async function upNext(now: Date, limit = 9) {
 }
 
 /** Programmé dans le passé (14 derniers jours) et jamais publié. */
-export async function missedRecently(now: Date) {
+export async function missedRecently(now: Date, clientId?: string) {
   const since = new Date(now.getTime() - 14 * 86_400_000);
   return db
     .select(contentRow)
@@ -60,25 +61,26 @@ export async function missedRecently(now: Date) {
         gte(contents.scheduledAt, since),
         isNull(contents.publishedAt),
         eq(clients.active, true),
+        clientId ? eq(clients.id, clientId) : undefined,
       ),
     )
     .orderBy(desc(contents.scheduledAt));
 }
 
 /** Les 7 jours à partir d'aujourd'hui, publiés compris. */
-export async function weekAhead(now: Date) {
+export async function weekAhead(now: Date, clientId?: string) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(start.getTime() + 7 * 86_400_000);
   return db
     .select(contentRow)
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
-    .where(and(gte(contents.scheduledAt, start), lt(contents.scheduledAt, end), eq(clients.active, true)))
+    .where(and(gte(contents.scheduledAt, start), lt(contents.scheduledAt, end), eq(clients.active, true), clientId ? eq(clients.id, clientId) : undefined))
     .orderBy(asc(contents.scheduledAt));
 }
 
 /** Contenus du mois par réseau : publiés et prévus. */
-export async function networksThisMonth(now: Date) {
+export async function networksThisMonth(now: Date, clientId?: string) {
   const { start, end } = monthRange(now);
   const rows = await db
     .select({ network: contents.network, networks: contents.networks, publishedAt: contents.publishedAt })
@@ -87,6 +89,7 @@ export async function networksThisMonth(now: Date) {
     .where(
       and(
         eq(clients.active, true),
+        clientId ? eq(clients.id, clientId) : undefined,
         raw`coalesce(${contents.publishedAt}, ${contents.scheduledAt}) >= ${start.toISOString()}::timestamptz`,
         raw`coalesce(${contents.publishedAt}, ${contents.scheduledAt}) < ${end.toISOString()}::timestamptz`,
       ),
@@ -107,17 +110,17 @@ export async function networksThisMonth(now: Date) {
 }
 
 /** Publiés dans le mois en cours, tous clients confondus. */
-export async function publishedThisMonth(now: Date) {
+export async function publishedThisMonth(now: Date, clientId?: string) {
   const { start, end } = monthRange(now);
   const [row] = await db
     .select({ n: raw<number>`count(*)::int` })
     .from(contents)
-    .where(and(gte(contents.publishedAt, start), lt(contents.publishedAt, end)));
+    .where(and(gte(contents.publishedAt, start), lt(contents.publishedAt, end), clientId ? eq(contents.clientId, clientId) : undefined));
   return row?.n ?? 0;
 }
 
 /** Le fil d'activité de l'équipe : qui a fait quoi, sur quel client. */
-export async function teamActivity(limit = 8) {
+export async function teamActivity(limit = 8, clientId?: string) {
   return db
     .select({
       id: activity.id,
@@ -134,12 +137,13 @@ export async function teamActivity(limit = 8) {
     .from(activity)
     .leftJoin(users, eq(users.id, activity.actorId))
     .leftJoin(clients, eq(clients.id, activity.clientId))
+    .where(clientId ? eq(activity.clientId, clientId) : undefined)
     .orderBy(desc(activity.createdAt))
     .limit(limit);
 }
 
 /** Tournages des 14 prochains jours. */
-export async function shootsSoon(now: Date) {
+export async function shootsSoon(now: Date, clientId?: string) {
   const end = new Date(now.getTime() + 14 * 86_400_000);
   return db
     .select({
@@ -152,7 +156,7 @@ export async function shootsSoon(now: Date) {
     })
     .from(shoots)
     .innerJoin(clients, eq(clients.id, shoots.clientId))
-    .where(and(gte(shoots.startsAt, now), lt(shoots.startsAt, end), raw`${shoots.status} <> 'annule'`))
+    .where(and(gte(shoots.startsAt, now), lt(shoots.startsAt, end), raw`${shoots.status} <> 'annule'`, clientId ? eq(shoots.clientId, clientId) : undefined))
     .orderBy(asc(shoots.startsAt));
 }
 

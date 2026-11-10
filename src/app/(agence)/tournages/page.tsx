@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopedClient } from "@/lib/scope";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -27,12 +28,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function TournagesPage() {
   await requireDepartment("social");
-  const [clients, rows] = await Promise.all([listClientOptions("social"), listShoots()]);
+  const scope = await scopedClient();
+  const scopeId = scope?.id;
+  const [clients, rows] = await Promise.all([listClientOptions("social"), listShoots({ clientId: scopeId })]);
 
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Planning tournages" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="Planning tournages" sub={monthLabel()} />
         <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
           Un tournage se rattache à un client : c&apos;est ce qui permet de le compter dans son
           engagement et de retrouver les médias qui en sortent.
@@ -49,7 +52,7 @@ export default async function TournagesPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader scope={scope?.shortName}
         title="Planning tournages"
         sub={
           actifs.length === 0
