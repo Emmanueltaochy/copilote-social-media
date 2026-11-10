@@ -27,6 +27,29 @@ type SR = {
   onend: (() => void) | null;
   onerror: ((e: { error: string }) => void) | null;
 };
+type FullThread = Thread & { turns: Turn[]; log: Log[] };
+
+/** Attend (jusqu'à 5 min) que la réponse à `text` apparaisse dans l'historique. */
+async function recover(threadId: string | null, sentAt: number, text: string): Promise<FullThread | null> {
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    try {
+      let id = threadId;
+      if (!id) {
+        const list = (await (await fetch("/api/jarvis")).json()) as Thread[];
+        id = list.find((t) => new Date(t.updatedAt).getTime() >= sentAt - 5000)?.id ?? null;
+        if (!id) continue;
+      }
+      const [t] = (await (await fetch(`/api/jarvis?id=${id}`)).json()) as FullThread[];
+      const turns = t?.turns ?? [];
+      const last = turns.at(-1);
+      const asked = turns.findLastIndex((x) => x.role === "user" && x.text.includes(text.slice(0, 40)));
+      if (t && last?.role === "assistant" && asked >= 0 && asked < turns.length - 1) return { ...t, id };
+    } catch {}
+  }
+  return null;
+}
+
 function makeRecognition(): SR | null {
   if (typeof window === "undefined") return null;
   const W = window as unknown as {
@@ -125,18 +148,20 @@ export function JarvisChat({
     setDraft("");
     setTurns((x) => [...x, { role: "user", text: t }]);
     setBusy(true);
+    const sentAt = Date.now();
     try {
       const r = await fetch("/api/jarvis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threadId, text: t }),
       });
-      const j = (await r.json()) as {
+      const j = (await r.json().catch(() => null)) as {
         threadId?: string;
         reply?: string;
         log?: Log[];
         error?: string;
-      };
+      } | null;
+      if (!j) throw new Error(`HTTP ${r.status}`);
       if (j.threadId) setThreadId(j.threadId);
       const reply = j.error ? `⚠️ ${j.error}` : (j.reply ?? "");
       setTurns((x) => [...x, { role: "assistant", text: reply }]);
@@ -144,10 +169,22 @@ export function JarvisChat({
       if (!j.error) speak(reply);
       void loadThreads();
     } catch {
-      setTurns((x) => [
-        ...x,
-        { role: "assistant", text: "⚠️ Connexion interrompue. Réessayez." },
-      ]);
+      // La connexion a pu couper pendant un long travail (passerelle, réseau
+      // mobile) alors que Jarvis continue côté serveur : on attend sa réponse
+      // dans l'historique au lieu d'annoncer un échec.
+      const recovered = await recover(threadId, sentAt, t);
+      if (recovered) {
+        setThreadId(recovered.id);
+        setTurns(recovered.turns);
+        setLog(recovered.log);
+        speak(recovered.turns.at(-1)?.text ?? "");
+        void loadThreads();
+      } else {
+        setTurns((x) => [
+          ...x,
+          { role: "assistant", text: "⚠️ Pas de réponse de Jarvis. Rechargez la page dans un instant : s'il a terminé, sa réponse sera dans l'historique." },
+        ]);
+      }
     } finally {
       setBusy(false);
     }

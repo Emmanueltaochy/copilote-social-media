@@ -29,6 +29,10 @@ export async function register() {
     throw error;
   }
 
+  // La vidéo de bienvenue livrée avec cette version (une seule fois).
+  const { installBundledPortalVideo } = await import("@/lib/portail-video-bundle");
+  await installBundledPortalVideo().catch((e) => console.warn("[pilot] vidéo du portail", e));
+
   // Relevé Metricool : toutes les heures on regarde si le dernier date de
   // plus de 6 h. Sans clé enregistrée, rien ne part.
   const { syncIfStale } = await import("@/lib/metricool");

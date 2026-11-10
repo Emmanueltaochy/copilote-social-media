@@ -120,10 +120,10 @@ export default async function PortailPage() {
         </div>
       </div>
 
-      {/* La vidéo d'accueil, avant tout le reste : c'est la première chose que
-          l'agence veut montrer à qui arrive. Le client peut la replier. */}
+      {/* La vidéo d'accueil : en grand à la première visite, puis une simple
+          vignette pour la revoir, qui laisse remonter le reste. */}
       {versionVideo(config.portalVideoPath) ? (
-        <VideoAccueil version={versionVideo(config.portalVideoPath)!} couleur={config.primaryColor} />
+        <VideoAccueil version={versionVideo(config.portalVideoPath)!} couleur={config.primaryColor} personne={user.id} />
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">

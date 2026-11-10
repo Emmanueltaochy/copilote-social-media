@@ -41,6 +41,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Les fichiers de migration sont lus au démarrage par src/instrumentation.ts.
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/assets ./assets
 
 # Les médias sont montés ici par docker compose. Le dossier doit exister et
 # appartenir à l'utilisateur applicatif, sinon le premier import échoue.

@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { agentThreads, db } from "@/db";
 import { currentUser } from "@/lib/auth";
+import Anthropic from "@anthropic-ai/sdk";
 import { askJarvis } from "@/lib/agent/run";
 
 /**
@@ -60,6 +61,21 @@ export async function POST(request: Request) {
     await db.update(agentThreads).set({ messages: r.messages, log, updatedAt: new Date() }).where(eq(agentThreads.id, thread.id));
     return Response.json({ threadId: thread.id, reply: r.reply, log: r.log });
   } catch (e) {
-    return Response.json({ threadId: thread.id, error: (e as Error).message }, { status: 200 });
+    console.error("[jarvis]", e);
+    return Response.json({ threadId: thread.id, error: explain(e) }, { status: 200 });
   }
+}
+
+/** Une erreur de l'API Claude, dite en clair avec ce qu'il faut faire. */
+function explain(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError)
+    return "La clé Claude est refusée. Collez une clé valide dans Réglages → Assistant IA.";
+  if (/credit balance|billing|purchase credits/i.test(msg))
+    return "Le compte Anthropic n'a plus de crédit. Ajoutez du crédit sur console.anthropic.com (Billing), puis réessayez.";
+  if (e instanceof Anthropic.RateLimitError) return "Trop de demandes d'un coup pour votre compte Anthropic. Réessayez dans une minute.";
+  if (e instanceof Anthropic.InternalServerError || /overloaded/i.test(msg)) return "Claude est surchargé en ce moment. Réessayez dans une minute.";
+  if (e instanceof Anthropic.APIConnectionError) return "Le serveur n'arrive pas à joindre Claude (réseau). Réessayez dans un instant.";
+  if (e instanceof Anthropic.APIError) return `Claude a refusé la demande (${e.status ?? "?"}) : ${msg}`;
+  return msg;
 }
