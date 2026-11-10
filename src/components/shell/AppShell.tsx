@@ -597,7 +597,7 @@ export function AppShell({
                   key={i.href}
                   href={i.href}
                   className={cn(
-                    "flex flex-none items-center gap-2 rounded-full px-4 py-[9px] text-base font-medium no-underline hover:no-underline",
+                    "flex flex-none items-center gap-2 rounded-full px-3 py-[9px] text-base font-medium no-underline hover:no-underline 2xl:px-4",
                     active
                       ? "bg-night text-white"
                       : "text-ink-2 hover:text-ink",
@@ -654,9 +654,28 @@ export function AppShell({
             href="/a-publier"
             title="À publier"
             aria-label="À publier"
-            className={railBtn}
+            className={cn(railBtn, "relative")}
           >
             <Icon name="clock" />
+            {counts.publier ? (
+              <span className="absolute top-[9px] right-[9px] h-2 w-2 rounded-full bg-alert ring-2 ring-night" />
+            ) : null}
+          </Link>
+          <Link
+            href="/clients"
+            title="Clients"
+            aria-label="Clients"
+            className={railBtn}
+          >
+            <Icon name="users" />
+          </Link>
+          <Link
+            href="/ads"
+            title="Campagnes"
+            aria-label="Campagnes"
+            className={railBtn}
+          >
+            <Icon name="megaphone" />
           </Link>
           <Link
             href="/assets"
@@ -674,14 +693,6 @@ export function AppShell({
             className={railBtn}
           >
             <Icon name="phone" />
-          </Link>
-          <Link
-            href="/rapports"
-            title="Rapports"
-            aria-label="Rapports"
-            className={railBtn}
-          >
-            <Icon name="chart" />
           </Link>
           <Link
             href="/compte"

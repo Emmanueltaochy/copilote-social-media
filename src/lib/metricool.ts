@@ -23,7 +23,11 @@ const ID = "metricool";
 export type MetricoolConfig = { token: string; userId: string };
 
 export async function metricoolConfig(): Promise<MetricoolConfig | null> {
-  const [row] = await db.select().from(integrations).where(eq(integrations.id, ID)).limit(1);
+  const [row] = await db
+    .select()
+    .from(integrations)
+    .where(eq(integrations.id, ID))
+    .limit(1);
   const token = row?.token || process.env.METRICOOL_TOKEN || "";
   const userId = row?.accountId || process.env.METRICOOL_USER_ID || "";
   return token && userId ? { token, userId } : null;
@@ -31,7 +35,11 @@ export async function metricoolConfig(): Promise<MetricoolConfig | null> {
 
 /** L'état affichable : jamais la clé elle-même. */
 export async function metricoolStatus() {
-  const [row] = await db.select().from(integrations).where(eq(integrations.id, ID)).limit(1);
+  const [row] = await db
+    .select()
+    .from(integrations)
+    .where(eq(integrations.id, ID))
+    .limit(1);
   const cfg = await metricoolConfig();
   return {
     connected: Boolean(cfg),
@@ -42,8 +50,17 @@ export async function metricoolStatus() {
   };
 }
 
-export async function saveMetricoolConfig(token: string | null, userId: string) {
-  const values = { id: ID, accountId: userId, lastError: null, updatedAt: new Date(), ...(token ? { token } : {}) };
+export async function saveMetricoolConfig(
+  token: string | null,
+  userId: string,
+) {
+  const values = {
+    id: ID,
+    accountId: userId,
+    lastError: null,
+    updatedAt: new Date(),
+    ...(token ? { token } : {}),
+  };
   await db
     .insert(integrations)
     .values(values)
@@ -54,10 +71,18 @@ export async function saveMetricoolConfig(token: string | null, userId: string) 
  * Vérifie une clé auprès de Metricool et retrouve l'identifiant du compte :
  * la clé suffit, personne n'a à aller chercher un numéro dans une URL.
  */
-export async function verifyToken(token: string): Promise<{ userId: string; brands: number }> {
-  const rows = await call<RawProfile[]>({ token, userId: "" }, "/admin/simpleProfiles", {});
+export async function verifyToken(
+  token: string,
+): Promise<{ userId: string; brands: number }> {
+  const rows = await call<RawProfile[]>(
+    { token, userId: "" },
+    "/admin/simpleProfiles",
+    {},
+  );
   if (!Array.isArray(rows)) throw new Error("Réponse inattendue de Metricool.");
-  const first = rows[0] as { ownerUserId?: number; userId?: number } | undefined;
+  const first = rows[0] as
+    | { ownerUserId?: number; userId?: number }
+    | undefined;
   const userId = String(first?.userId ?? first?.ownerUserId ?? "");
   if (!userId) throw new Error("Aucune marque sur ce compte Metricool.");
   return { userId, brands: rows.length };
@@ -67,13 +92,22 @@ export async function forgetMetricool() {
   await db.delete(integrations).where(eq(integrations.id, ID));
 }
 
-async function call<T>(cfg: MetricoolConfig, path: string, params: Record<string, string>, init?: RequestInit): Promise<T> {
+async function call<T>(
+  cfg: MetricoolConfig,
+  path: string,
+  params: Record<string, string>,
+  init?: RequestInit,
+): Promise<T> {
   const url = new URL(BASE + path);
   if (cfg.userId) url.searchParams.set("userId", cfg.userId);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await fetch(url, {
     ...init,
-    headers: { "X-Mc-Auth": cfg.token, Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}) },
+    headers: {
+      "X-Mc-Auth": cfg.token,
+      Accept: "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    },
     signal: AbortSignal.timeout(30_000),
     cache: "no-store",
   });
@@ -104,9 +138,16 @@ export type MetricoolBrand = {
   networks: string[];
 };
 
-type RawProfile = Record<string, unknown> & { id: number; label?: string; title?: string; timezone?: string };
+type RawProfile = Record<string, unknown> & {
+  id: number;
+  label?: string;
+  title?: string;
+  timezone?: string;
+};
 
-export async function listBrands(cfg?: MetricoolConfig | null): Promise<MetricoolBrand[]> {
+export async function listBrands(
+  cfg?: MetricoolConfig | null,
+): Promise<MetricoolBrand[]> {
   const c = cfg ?? (await metricoolConfig());
   if (!c) return [];
   const rows = await call<RawProfile[]>(c, "/admin/simpleProfiles", {});
@@ -139,13 +180,20 @@ const FOLLOWERS_METRIC: Record<string, string> = {
   youtube: "totalSubscribers",
 };
 
-type Timeline = { data: { metric: string; values: { dateTime: string; value: number }[] }[] };
+type Timeline = {
+  data: { metric: string; values: { dateTime: string; value: number }[] }[];
+};
 
 function iso(d: Date) {
   return d.toISOString().slice(0, 19);
 }
 
-async function syncAudience(cfg: MetricoolConfig, clientId: string, brand: MetricoolBrand, days: number) {
+async function syncAudience(
+  cfg: MetricoolConfig,
+  clientId: string,
+  brand: MetricoolBrand,
+  days: number,
+) {
   const to = new Date();
   const from = new Date(to.getTime() - days * 86_400_000);
   for (const network of brand.networks) {
@@ -161,14 +209,25 @@ async function syncAudience(cfg: MetricoolConfig, clientId: string, brand: Metri
       timezone: brand.timezone,
     });
     // Un jour sans relevé n'est pas un jour à zéro abonné : on l'ignore.
-    const points = (res.data?.[0]?.values ?? []).filter((v) => typeof v.value === "number" && v.value > 0);
+    const points = (res.data?.[0]?.values ?? []).filter(
+      (v) => typeof v.value === "number" && v.value > 0,
+    );
     if (!points.length) continue;
-    const rows = points.map((v) => ({ clientId, network, day: v.dateTime.slice(0, 10), followers: Math.round(v.value) }));
+    const rows = points.map((v) => ({
+      clientId,
+      network,
+      day: v.dateTime.slice(0, 10),
+      followers: Math.round(v.value),
+    }));
     await db
       .insert(audienceDaily)
       .values(rows)
       .onConflictDoUpdate({
-        target: [audienceDaily.clientId, audienceDaily.network, audienceDaily.day],
+        target: [
+          audienceDaily.clientId,
+          audienceDaily.network,
+          audienceDaily.day,
+        ],
         set: { followers: raw`excluded.followers` },
       });
   }
@@ -177,12 +236,14 @@ async function syncAudience(cfg: MetricoolConfig, clientId: string, brand: Metri
 /* -------------------------------------------------------- publications -- */
 
 type Row = Record<string, unknown>;
-const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0);
+const num = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 
 function dateOf(v: unknown): Date | null {
   if (typeof v === "number") return new Date(v);
-  if (typeof v === "string") return new Date(v.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+  if (typeof v === "string")
+    return new Date(v.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
   if (v && typeof v === "object" && "dateTime" in v) {
     // { dateTime, timezone } : on garde l'heure locale telle quelle, l'ordre de
     // grandeur suffit pour ranger une publication dans son mois.
@@ -295,7 +356,12 @@ const POST_SOURCES: {
   },
 ];
 
-async function syncPosts(cfg: MetricoolConfig, clientId: string, brand: MetricoolBrand, days: number) {
+async function syncPosts(
+  cfg: MetricoolConfig,
+  clientId: string,
+  brand: MetricoolBrand,
+  days: number,
+) {
   const to = new Date();
   const from = new Date(to.getTime() - days * 86_400_000);
   for (const src of POST_SOURCES) {
@@ -308,14 +374,24 @@ async function syncPosts(cfg: MetricoolConfig, clientId: string, brand: Metricoo
     });
     const rows = (res.data ?? [])
       .map((r) => src.map(r, clientId))
-      .filter((r): r is PostRow => Boolean(r && r.publishedAt && !Number.isNaN(r.publishedAt.getTime()) && !r.id.endsWith(":undefined")));
+      .filter((r): r is PostRow =>
+        Boolean(
+          r &&
+          r.publishedAt &&
+          !Number.isNaN(r.publishedAt.getTime()) &&
+          !r.id.endsWith(":undefined"),
+        ),
+      );
     for (const row of rows) {
       const { id, ...rest } = row;
       void id;
       await db
         .insert(socialPosts)
         .values(row)
-        .onConflictDoUpdate({ target: socialPosts.id, set: { ...rest, syncedAt: new Date() } });
+        .onConflictDoUpdate({
+          target: socialPosts.id,
+          set: { ...rest, syncedAt: new Date() },
+        });
     }
   }
 }
@@ -342,13 +418,20 @@ export function syncMetricool(days = 95): Promise<SyncReport> {
       errors.push((e as Error).message);
     }
     const linked = await db
-      .select({ id: clients.id, name: clients.shortName, brandId: clients.metricoolBrandId })
+      .select({
+        id: clients.id,
+        name: clients.shortName,
+        brandId: clients.metricoolBrandId,
+      })
       .from(clients)
-      .where(and(eq(clients.active, true), isNotNull(clients.metricoolBrandId)));
+      .where(
+        and(eq(clients.active, true), isNotNull(clients.metricoolBrandId)),
+      );
     for (const c of linked) {
       const brand = brands.find((b) => b.id === c.brandId);
       if (!brand) {
-        if (brands.length) errors.push(`${c.name} : marque Metricool ${c.brandId} introuvable.`);
+        if (brands.length)
+          errors.push(`${c.name} : marque Metricool ${c.brandId} introuvable.`);
         continue;
       }
       for (const step of [syncAudience, syncPosts]) {
@@ -361,7 +444,10 @@ export function syncMetricool(days = 95): Promise<SyncReport> {
     }
     await db
       .update(integrations)
-      .set({ lastSyncAt: new Date(), lastError: errors.length ? errors.slice(0, 8).join("\n") : null })
+      .set({
+        lastSyncAt: new Date(),
+        lastError: errors.length ? errors.slice(0, 8).join("\n") : null,
+      })
       .where(eq(integrations.id, ID));
     return { clients: linked.length, errors };
   })().finally(() => {
@@ -395,7 +481,12 @@ export async function audienceAvailable(since: Date) {
 /* ---------------------------------------------------------- programmer -- */
 
 /** Les réseaux de Pilot que Metricool sait publier. */
-export const SCHEDULABLE = ["instagram", "facebook", "linkedin", "tiktok"] as const;
+export const SCHEDULABLE = [
+  "instagram",
+  "facebook",
+  "linkedin",
+  "tiktok",
+] as const;
 
 export async function schedulePost(input: {
   brandId: string;
@@ -409,23 +500,33 @@ export async function schedulePost(input: {
   draft: boolean;
 }) {
   const cfg = await metricoolConfig();
-  if (!cfg) throw new Error("Metricool n'est pas raccordé (Réglages → Intégrations).");
+  if (!cfg)
+    throw new Error("Metricool n'est pas raccordé (Réglages → Intégrations).");
 
   // Metricool récupère lui-même chaque fichier et l'héberge : sans cette
   // étape, la publication partirait sans visuel.
   const media: string[] = [];
   for (const u of input.mediaUrls) {
-    const normalized = await call<unknown>(cfg, "/actions/normalize/image/url", { blogId: input.brandId, url: u });
+    const normalized = await call<unknown>(
+      cfg,
+      "/actions/normalize/image/url",
+      { blogId: input.brandId, url: u },
+    );
     const url =
       typeof normalized === "string"
         ? normalized
-        : ((normalized as { url?: string; data?: string } | null)?.url ?? (normalized as { data?: string } | null)?.data);
+        : ((normalized as { url?: string; data?: string } | null)?.url ??
+          (normalized as { data?: string } | null)?.data);
     if (url && /^https?:\/\//.test(url.trim())) media.push(url.trim());
   }
 
-  const isVideo = input.kind === "reel" || input.kind === "video" || input.kind === "story";
+  const isVideo =
+    input.kind === "reel" || input.kind === "video" || input.kind === "story";
   const body = {
-    publicationDate: { dateTime: input.localDateTime, timezone: input.timezone },
+    publicationDate: {
+      dateTime: input.localDateTime,
+      timezone: input.timezone,
+    },
     text: input.text,
     providers: input.networks.map((network) => ({ network })),
     media,
@@ -434,15 +535,32 @@ export async function schedulePost(input: {
     autoPublish: true,
     draft: input.draft,
     ...(input.networks.includes("instagram")
-      ? { instagramData: { autoPublish: true, type: input.kind === "story" ? "STORY" : isVideo ? "REEL" : "POST", showReelOnFeed: true } }
+      ? {
+          instagramData: {
+            autoPublish: true,
+            type: input.kind === "story" ? "STORY" : isVideo ? "REEL" : "POST",
+            showReelOnFeed: true,
+          },
+        }
       : {}),
     ...(input.networks.includes("facebook")
-      ? { facebookData: { type: input.kind === "story" ? "STORY" : isVideo ? "REEL" : "POST" } }
+      ? {
+          facebookData: {
+            type: input.kind === "story" ? "STORY" : isVideo ? "REEL" : "POST",
+          },
+        }
       : {}),
   };
-  const res = await call<{ data?: { id?: number; uuid?: string } }>(cfg, "/v2/scheduler/posts", { blogId: input.brandId }, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  return res?.data?.id != null ? String(res.data.id) : (res?.data?.uuid ?? "envoyé");
+  const res = await call<{ data?: { id?: number; uuid?: string } }>(
+    cfg,
+    "/v2/scheduler/posts",
+    { blogId: input.brandId },
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+  return res?.data?.id != null
+    ? String(res.data.id)
+    : (res?.data?.uuid ?? "envoyé");
 }
