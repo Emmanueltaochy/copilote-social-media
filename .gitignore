@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Préversion : état local du VPS
+deploy/preview/.base-copiee

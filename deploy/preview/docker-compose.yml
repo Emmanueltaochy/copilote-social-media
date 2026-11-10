@@ -1,0 +1,60 @@
+# Préversion : la nouvelle version de l'application, à côté de la production,
+# sur une COPIE de la base. Rien n'est partagé en écriture avec la production :
+#   - sa propre base (volume preview-db), remplie par une copie de la vraie ;
+#   - les médias de la production, montés en LECTURE SEULE (les visuels
+#     s'affichent, un envoi de fichier échoue proprement) ;
+#   - aucun identifiant SMTP : aucun e-mail ne peut partir vers un client.
+# Projet compose « pilot-preview » : ses conteneurs et volumes ne portent pas
+# les noms de ceux de la production.
+name: pilot-preview
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: pilot-preview-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pilot
+      POSTGRES_PASSWORD: ${PREVIEW_DB_PASSWORD:?PREVIEW_DB_PASSWORD manquant}
+      POSTGRES_DB: pilot
+    volumes:
+      - preview-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pilot -d pilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ${PREVIEW_IMAGE:-ghcr.io/emmanueltaochy/copilote-social-media:preview}
+    container_name: pilot-preview-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PREVIEW_PORT:-3091}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_VERSION: ${APP_VERSION:-preview}
+      DATABASE_URL: postgres://pilot:${PREVIEW_DB_PASSWORD}@db:5432/pilot
+      MEDIA_ROOT: /data/assets
+      APP_DOMAIN: ${PREVIEW_DOMAIN:-preview.taochyagency.com}
+      LEGACY_DOMAINS: ""
+      # Volontairement vide : la préversion n'envoie aucun e-mail.
+      SMTP_HOST: ""
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: ""
+      SMTP_WEB_HOST: ""
+      SMTP_WEB_USER: ""
+      SMTP_WEB_PASSWORD: ""
+      SMTP_WEB_FROM: ""
+    volumes:
+      - prod-media:/data/assets:ro
+
+volumes:
+  preview-db:
+  prod-media:
+    external: true
+    name: ${PROD_MEDIA_VOLUME:?PROD_MEDIA_VOLUME manquant}
