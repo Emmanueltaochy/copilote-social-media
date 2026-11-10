@@ -152,7 +152,7 @@ try {
   Essai :
 
       curl -H "Authorization: Bearer ${jeton}" \\
-           https://marketing.taochyconsulting.fr/api/agent/contents
+           https://app.taochyagency.com/api/agent/contents
 `);
 } catch (error) {
   console.error("\n[pilot] création de clé impossible :", error.message ?? error, "\n");

@@ -56,7 +56,7 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
   useEffect(() => {
     if (!open) return;
     const rect = buttonRef.current?.getBoundingClientRect();
-    if (rect) setAnchor({ top: rect.bottom + 8, left: rect.left });
+    if (rect) setAnchor({ top: rect.bottom + 10, left: Math.max(12, Math.min(rect.left, window.innerWidth - 352)) });
   }, [open]);
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
         aria-label={
           unreadCount > 0 ? `Notifications, ${unreadCount} non lues` : "Notifications"
         }
-        className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-control border border-transparent bg-transparent text-night-ink hover:border-night-border hover:text-paper"
+        className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-ink hover:text-ink-2"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
@@ -97,7 +97,7 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
           <path d="M6.5 13a1.6 1.6 0 0 0 3 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
         {unreadCount > 0 ? (
-          <span className="absolute -top-[2px] -right-[2px] flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-[3px] text-[10px] font-semibold text-night tabular-nums">
+          <span className="absolute -top-[2px] -right-[2px] flex h-4 min-w-4 items-center justify-center rounded-full bg-alert px-[3px] text-[10px] font-bold text-white tabular-nums">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}
@@ -108,7 +108,7 @@ export function Bell({ notices, unreadCount }: { notices: Notice[]; unreadCount:
             <div
               ref={panneauRef}
               style={{ top: anchor.top, left: anchor.left }}
-              className="fixed z-[60] flex w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+              className="fixed z-[60] flex w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-soft"
             >
           <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
             <span className="eyebrow text-ink-3">Notifications</span>

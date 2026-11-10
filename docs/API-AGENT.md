@@ -37,7 +37,7 @@ navigateur déjà connecté pourrait piloter l'API à l'insu de son utilisateur.
 
 ```bash
 curl -H "Authorization: Bearer tpk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
-     https://marketing.taochyconsulting.fr/api/agent/pipeline
+     https://app.taochyagency.com/api/agent/pipeline
 ```
 
 ### Créer une clé
@@ -139,7 +139,7 @@ recevrait une page en `200` et la lirait comme un succès.
 
 ```bash
 curl -H "Authorization: Bearer $CLE" \
-     "https://marketing.taochyconsulting.fr/api/agent/pipeline?jours=3"
+     "https://app.taochyagency.com/api/agent/pipeline?jours=3"
 ```
 
 Rend le total, la ventilation par statut et par client, et trois anomalies :
@@ -158,11 +158,11 @@ Rend le total, la ventilation par statut et par client, et trois anomalies :
 ```bash
 # Ce qui attend une validation ou est prêt à partir
 curl -H "Authorization: Bearer $CLE" \
-     "https://marketing.taochyconsulting.fr/api/agent/contents?statut=validation,pret"
+     "https://app.taochyagency.com/api/agent/contents?statut=validation,pret"
 
 # Ce qui doit sortir cette semaine
 curl -H "Authorization: Bearer $CLE" \
-     "https://marketing.taochyconsulting.fr/api/agent/contents?debut=2026-09-01&fin=2026-09-07"
+     "https://app.taochyagency.com/api/agent/contents?debut=2026-09-01&fin=2026-09-07"
 ```
 
 Filtres : `client`, `statut` (séparés par des virgules), `debut`, `fin`
@@ -172,7 +172,7 @@ Filtres : `client`, `statut` (séparés par des virgules), `debut`, `fin`
 
 ```bash
 curl -H "Authorization: Bearer $CLE" \
-     "https://marketing.taochyconsulting.fr/api/agent/contents/$ID"
+     "https://app.taochyagency.com/api/agent/contents/$ID"
 ```
 
 Le contenu, ses versions et son fil de commentaires.
@@ -181,7 +181,7 @@ Le contenu, ses versions et son fil de commentaires.
 
 ```bash
 curl -H "Authorization: Bearer $CLE" \
-     https://marketing.taochyconsulting.fr/api/agent/clients
+     https://app.taochyagency.com/api/agent/clients
 ```
 
 Chaque client vient avec son `contrat` — ce que le mois **devrait** contenir,
@@ -192,10 +192,10 @@ manque.
 
 ```bash
 curl -H "Authorization: Bearer $CLE" \
-     https://marketing.taochyconsulting.fr/api/agent/shoots
+     https://app.taochyagency.com/api/agent/shoots
 
 curl -H "Authorization: Bearer $CLE" \
-     https://marketing.taochyconsulting.fr/api/agent/team
+     https://app.taochyagency.com/api/agent/team
 ```
 
 Savoir qu'un tournage a lieu jeudi explique pourquoi rien n'est prêt mercredi.
@@ -227,7 +227,7 @@ curl -X POST \
     "consignes": "Trois vues, ton chaleureux",
     "prevuLe": "2026-09-15T09:00:00Z"
   }' \
-  https://marketing.taochyconsulting.fr/api/agent/contents
+  https://app.taochyagency.com/api/agent/contents
 ```
 
 Le contenu naît toujours au statut `idee`. Le statut n'est pas un paramètre :
@@ -241,7 +241,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $CLE" \
   -H "Content-Type: application/json" \
   -d '{"statut": "creation"}' \
-  https://marketing.taochyconsulting.fr/api/agent/contents/$ID
+  https://app.taochyagency.com/api/agent/contents/$ID
 ```
 
 Colonnes modifiables : `titre`, `statut`, `format`, `reseaux`, `consignes`,
@@ -257,7 +257,7 @@ curl -X POST \
   -H "Authorization: Bearer $CLE" \
   -H "Content-Type: application/json" \
   -d '{"texte": "La légende dépasse la limite Instagram, à raccourcir."}' \
-  https://marketing.taochyconsulting.fr/api/agent/contents/$ID/comments
+  https://app.taochyagency.com/api/agent/contents/$ID/comments
 ```
 
 C'est ainsi qu'un chef de projet relance : sur le contenu concerné, là où
@@ -330,7 +330,7 @@ voit jamais.
 ## Vérifier que tout tient
 
 ```bash
-BASE=https://marketing.taochyconsulting.fr \
+BASE=https://app.taochyagency.com \
 PGURL="postgres://…" \
 node scripts/smoke-api.mjs
 ```

@@ -46,6 +46,8 @@ services:
       # L'adresse publique, pour les liens « mot de passe oublié » : l'en-tête
       # Host d'une requête anonyme ne mérite pas qu'on lui confie un lien.
       APP_DOMAIN: ${APP_DOMAIN:-}
+      # Anciennes adresses, renvoyées vers APP_DOMAIN (voir src/proxy.ts).
+      LEGACY_DOMAINS: ${LEGACY_DOMAINS:-marketing.taochyconsulting.fr}
       # Messagerie : les identifiants viennent du .env du serveur, jamais du
       # dépôt. Un mot de passe de boîte mail commité y reste pour toujours,
       # y compris après l'avoir changé.

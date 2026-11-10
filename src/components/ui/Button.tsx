@@ -5,14 +5,14 @@ type Variant = "primary" | "secondary" | "link";
 type Size = "sm" | "md";
 
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-ink border-ink text-paper hover:bg-black",
-  secondary: "bg-paper border-line text-ink-2 hover:border-line-strong hover:text-ink",
-  link: "border-transparent bg-transparent text-gold hover:text-ink p-0",
+  primary: "bg-night border-night text-white hover:brightness-125",
+  secondary: "bg-paper border-line text-ink hover:border-line-strong",
+  link: "border-transparent bg-transparent text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink p-0",
 };
 
 const SIZE: Record<Size, string> = {
-  sm: "px-[10px] py-[6px] text-small",
-  md: "px-3 py-2 text-base",
+  sm: "px-[14px] py-[7px] text-small",
+  md: "px-[18px] py-[10px] text-base",
 };
 
 export function Button({
@@ -30,7 +30,7 @@ export function Button({
     <button
       type="button"
       className={cn(
-        "cursor-pointer rounded-control border font-medium whitespace-nowrap",
+        "cursor-pointer rounded-full border font-semibold whitespace-nowrap",
         VARIANT[variant],
         variant === "link" ? "text-small" : SIZE[size],
         className,
@@ -57,9 +57,9 @@ export function Chip({
     <button
       type="button"
       className={cn(
-        "flex-none cursor-pointer rounded-control border px-[9px] py-[5px] text-small font-medium whitespace-nowrap",
+        "flex-none cursor-pointer rounded-full border px-[12px] py-[6px] text-small font-medium whitespace-nowrap",
         active
-          ? "bg-gold-wash border-gold text-ink"
+          ? "bg-night border-night text-white"
           : "bg-paper border-line text-ink-2 hover:border-line-strong hover:text-ink",
         className,
       )}

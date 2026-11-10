@@ -28,7 +28,7 @@ export default async function TerrainLayout({ children }: { children: React.Reac
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-night px-4 py-3">
         <span className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-[2px] bg-gold" />
-          <span className="eyebrow text-paper">Terrain</span>
+          <span className="eyebrow text-white">Terrain</span>
         </span>
         <span className="flex items-center gap-3">
           <span className="text-small text-night-ink">{user.name}</span>
@@ -36,7 +36,7 @@ export default async function TerrainLayout({ children }: { children: React.Reac
               avoir à retaper l'adresse. */}
           <Link
             href="/"
-            className="rounded-control border border-night-border px-2 py-1 text-micro text-night-ink no-underline hover:text-paper hover:no-underline"
+            className="rounded-control border border-night-border px-2 py-1 text-micro text-night-ink no-underline hover:text-white hover:no-underline"
           >
             Bureau
           </Link>

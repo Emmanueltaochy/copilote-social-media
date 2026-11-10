@@ -3,7 +3,7 @@
 # Installation complète sur le VPS. À lancer une seule fois — mais il est
 # rejouable sans rien casser si besoin.
 #
-#   sudo bash scripts/setup-vps.sh --domain marketing.taochyconsulting.fr
+#   sudo bash scripts/setup-vps.sh --domain app.taochyagency.com
 #
 # Ce que le script fait :
 #   1. installe Docker et nginx s'ils manquent
@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-DOMAIN="marketing.taochyconsulting.fr"
+DOMAIN="app.taochyagency.com"
 APP_DIR="/opt/copilote-social-media"
 REPO="https://github.com/Emmanueltaochy/copilote-social-media.git"
 SKIP_TLS=0

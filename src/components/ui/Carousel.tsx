@@ -73,7 +73,7 @@ export function Carousel({
               type="button"
               onClick={() => go(-1)}
               aria-label="Vue précédente"
-              className="absolute top-1/2 left-2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-none bg-night/70 text-paper hover:bg-night"
+              className="absolute top-1/2 left-2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-none bg-night/70 text-white hover:bg-night"
             >
               ‹
             </button>
@@ -81,11 +81,11 @@ export function Carousel({
               type="button"
               onClick={() => go(1)}
               aria-label="Vue suivante"
-              className="absolute top-1/2 right-2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-none bg-night/70 text-paper hover:bg-night"
+              className="absolute top-1/2 right-2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-none bg-night/70 text-white hover:bg-night"
             >
               ›
             </button>
-            <span className="absolute top-2 right-2 rounded-control bg-night/70 px-2 py-[2px] text-micro font-medium text-paper tabular-nums">
+            <span className="absolute top-2 right-2 rounded-control bg-night/70 px-2 py-[2px] text-micro font-medium text-white tabular-nums">
               {index + 1} / {slides.length}
             </span>
           </>

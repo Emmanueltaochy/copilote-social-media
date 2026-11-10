@@ -10,8 +10,25 @@ import { SESSION_COOKIE } from "@/lib/auth.shared";
  * vraie vérification a lieu côté serveur, dans requireUser() / requireStaff().
  * Ici on évite seulement un aller-retour inutile aux visiteurs non connectés.
  */
+/**
+ * Anciennes adresses du logiciel. Une requête qui arrive par l'une d'elles est
+ * renvoyée, chemin compris, vers l'adresse officielle (APP_DOMAIN) : les liens
+ * déjà envoyés par e-mail (invitations, rapports) continuent de fonctionner,
+ * et tout le monde finit sur la même adresse.
+ */
+const LEGACY_DOMAINS = (process.env.LEGACY_DOMAINS ?? "marketing.taochyconsulting.fr")
+  .split(",")
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
+
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
+
+  const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  const official = process.env.APP_DOMAIN?.trim().toLowerCase();
+  if (official && host !== official && LEGACY_DOMAINS.includes(host)) {
+    return NextResponse.redirect(`https://${official}${pathname}${search}`, 308);
+  }
 
   const isPublic =
     pathname.startsWith("/connexion") ||

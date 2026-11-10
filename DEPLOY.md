@@ -92,20 +92,36 @@ jour tout seul.
 en ligne. Un rond rouge = le déploiement a été refusé, et **l'ancienne version
 continue de tourner** — le site ne tombe jamais à cause d'une mauvaise version.
 
-**Vérifier la version en ligne** : https://marketing.taochyconsulting.fr/api/health
+**Vérifier la version en ligne** : https://app.taochyagency.com/api/health
 
 ---
 
-## Changer de domaine plus tard
+## Passer à app.taochyagency.com
 
-Pour passer à `taochyagency.com` : ajoute le DNS chez ton registrar, puis
-relance la commande de l'étape 1 en changeant seulement le domaine :
+L'adresse officielle devient **https://app.taochyagency.com**. L'ancienne
+(`marketing.taochyconsulting.fr`) renvoie automatiquement vers la nouvelle,
+chemin compris : les liens déjà envoyés (invitations, rapports) continuent de
+marcher.
+
+1. **DNS** (panneau Hostinger → Domaines → `taochyagency.com` → DNS) : ajoute
+   un enregistrement **A**, nom `app`, valeur = l'adresse IP du VPS (la même
+   que pour `marketing`). Ne touche pas aux autres enregistrements : le site
+   taochyagency.com reste où il est.
+2. **VPS** (terminal du navigateur Hostinger), une fois le DNS propagé :
 
 ```bash
-bash /opt/copilote-social-media/scripts/setup-vps.sh --domain marketing.taochyagency.com
+cd /opt/copilote-social-media && git pull -q && \
+bash scripts/setup-vps.sh --domain app.taochyagency.com && \
+docker compose up -d
 ```
 
-L'ancienne adresse continue de répondre tant que tu ne la retires pas.
+Le script ajoute le site nginx et le certificat HTTPS pour la nouvelle
+adresse et met `APP_DOMAIN` à jour dans le `.env`. À partir de là, l'application
+renvoie elle-même l'ancienne adresse vers la nouvelle. Pour couper l'ancienne
+adresse un jour, il suffira de retirer son site nginx.
+
+Chacun devra se reconnecter une fois sur la nouvelle adresse (les sessions
+sont liées au domaine).
 
 ---
 

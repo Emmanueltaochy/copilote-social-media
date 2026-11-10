@@ -16,8 +16,8 @@ export function Card({
   return (
     <section
       className={cn(
-        "flex-none overflow-hidden rounded-card border border-line bg-paper",
-        padded && "p-4",
+        "flex-none overflow-hidden rounded-card border border-line bg-paper shadow-soft",
+        padded && "p-5",
         className,
       )}
     >
@@ -41,7 +41,7 @@ export function CardHead({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-b border-line px-[14px] py-3",
+        "flex items-center justify-between gap-3 border-b border-line px-5 py-4",
         className,
       )}
     >
@@ -68,7 +68,7 @@ export function KpiGrid({
   return (
     <div
       className={cn(
-        "grid gap-px overflow-hidden rounded-card border border-line bg-line",
+        "grid gap-3",
         className,
       )}
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
@@ -94,7 +94,7 @@ export function Kpi({
   size?: "md" | "lg";
 }) {
   return (
-    <div className="flex flex-col gap-[3px] bg-paper px-[14px] py-3">
+    <div className="flex flex-col gap-1 rounded-card border border-line bg-paper px-5 py-4 shadow-soft">
       <Eyebrow>{label}</Eyebrow>
       <span
         className={cn(

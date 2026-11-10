@@ -1,28 +1,50 @@
+import type { IconName } from "@/components/ui/Icon";
+
 export type NavItem = {
   label: string;
   href: string;
   /** Coûts internes et marges : réservés à la direction. */
   directionOnly?: boolean;
+  icon?: IconName;
+  /** Compteur affiché à côté du libellé. */
+  badge?: "validation" | "publier" | "devis";
+  /** Une phrase pour le menu « Plus » et la recherche. */
+  hint?: string;
 };
 
-export const NAV: NavItem[] = [
-  { label: "Suivi", href: "/" },
-  { label: "Cockpit", href: "/cockpit" },
-  { label: "Avancement", href: "/avancement" },
-  { label: "Calendrier", href: "/calendrier" },
-  { label: "Préparer le mois", href: "/preparer" },
-  { label: "Production", href: "/production" },
-  { label: "Approbations", href: "/approbations" },
-  { label: "À publier", href: "/a-publier" },
-  { label: "Tournages", href: "/tournages" },
-  { label: "Assets", href: "/assets" },
-  { label: "Ads", href: "/ads" },
-  { label: "Rapports", href: "/rapports" },
-  { label: "Mes heures", href: "/heures" },
-  { label: "Terrain", href: "/terrain" },
-  { label: "Clients", href: "/clients" },
-  { label: "Devis", href: "/devis" },
-  { label: "Équipe", href: "/equipe", directionOnly: true },
-  { label: "Rentabilité", href: "/rentabilite", directionOnly: true },
-  { label: "Réglages", href: "/reglages", directionOnly: true },
+/*
+ * Navigation du pôle social, refondue en novembre 2026.
+ *
+ * Avant : dix-neuf entrées au même niveau, dont trois écrans de suivi qui se
+ * ressemblaient. Maintenant : sept destinations du quotidien en haut, le reste
+ * rangé dans « Plus » avec une phrase qui dit à quoi il sert. Aucune route n'a
+ * disparu : les anciens liens continuent de fonctionner.
+ */
+export const NAV_MAIN: NavItem[] = [
+  { label: "Aujourd'hui", href: "/", icon: "home" },
+  { label: "Calendrier", href: "/calendrier", icon: "calendar" },
+  { label: "Production", href: "/production", icon: "layers" },
+  { label: "À valider", href: "/approbations", icon: "check", badge: "validation" },
+  { label: "À publier", href: "/a-publier", icon: "send", badge: "publier" },
+  { label: "Tournages", href: "/tournages", icon: "camera" },
+  { label: "Clients", href: "/clients", icon: "users" },
 ];
+
+export const NAV_MORE: NavItem[] = [
+  { label: "Semaine de suivi", href: "/suivi", icon: "list", hint: "Les contenus de la semaine, jour par jour" },
+  { label: "Avancement", href: "/avancement", icon: "gauge", hint: "Livré contre vendu, client par client" },
+  { label: "Cockpit", href: "/cockpit", icon: "gauge", hint: "Engagements triés par urgence" },
+  { label: "Préparer le mois", href: "/preparer", icon: "sparkles", hint: "Créer d'un coup les contenus du mois" },
+  { label: "Bibliothèque", href: "/assets", icon: "image", hint: "Photos et vidéos par client" },
+  { label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité et rythme du budget" },
+  { label: "Rapports", href: "/rapports", icon: "chart", hint: "Le rapport mensuel de chaque client" },
+  { label: "Devis", href: "/devis", icon: "inbox", badge: "devis", hint: "Demandes arrivées des portails" },
+  { label: "Mes heures", href: "/heures", icon: "clock", hint: "Saisie de la semaine" },
+  { label: "Terrain", href: "/terrain", icon: "phone", hint: "La version téléphone pour les tournages" },
+  { label: "Équipe", href: "/equipe", icon: "users", directionOnly: true, hint: "Accès, rôles et invitations" },
+  { label: "Rentabilité", href: "/rentabilite", icon: "euro", directionOnly: true, hint: "Forfaits, heures et marges" },
+  { label: "Réglages", href: "/reglages", icon: "settings", directionOnly: true, hint: "Agence, portail, logos, offres" },
+];
+
+/** Tout le pôle social, pour la recherche et le menu mobile. */
+export const NAV: NavItem[] = [...NAV_MAIN, ...NAV_MORE];

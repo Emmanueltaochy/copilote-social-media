@@ -1,10 +1,10 @@
 import { AppProvider } from "@/state/app";
-import { Sidebar } from "@/components/shell/Sidebar";
+import { AppShell } from "@/components/shell/AppShell";
 import { ChatDock } from "@/components/shell/ChatDock";
 import { ClientPortal } from "@/components/shell/ClientPortal";
-import { TopBar } from "@/components/shell/TopBar";
 import { requireStaff } from "@/lib/auth";
 import { listClientsWithPace } from "@/db/queries";
+import { shellCounts } from "@/db/shell-queries";
 import { unreadTotal } from "@/lib/chat";
 import { departmentsOf } from "@/lib/auth";
 import { polActif } from "@/lib/pole";
@@ -17,14 +17,15 @@ import { countUnread, recent } from "@/lib/notify";
 export default async function AgenceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
   const pole = await polActif(user);
-  const [clients, notices, unreadCount, chatUnread] = await Promise.all([
+  const [clients, notices, unreadCount, chatUnread, counts] = await Promise.all([
     listClientsWithPace(new Date(), pole),
     recent(user.id, 20),
     countUnread(user.id),
     unreadTotal(user.id),
+    shellCounts(),
   ]);
 
-  const mobileNotices = notices.map((n) => ({
+  const shellNotices = notices.map((n) => ({
     id: n.id,
     title: n.title,
     body: n.body,
@@ -52,20 +53,9 @@ export default async function AgenceLayout({ children }: { children: React.React
         tone: c.pace.tone,
       }))}
     >
-      {/* h-dvh et non h-screen : sur mobile, la barre d'adresse du navigateur
-          mange une partie de « 100vh », et le bas de l'écran — souvent la
-          barre d'action — passait sous elle. La hauteur minimale ne vaut que
-          sur grand écran : l'imposer à un téléphone ferait défiler la page
-          entière au lieu du seul contenu. */}
-      <div className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink lg:min-h-[720px] lg:flex-row">
-        <TopBar notices={mobileNotices} unreadCount={unreadCount} />
-        {/* Sur mobile la barre latérale est hors flux (elle glisse par-dessus),
-            donc « main » occupe seul ce qui reste sous la barre du haut. */}
-        <Sidebar notices={mobileNotices} unreadCount={unreadCount} />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
-          {children}
-        </main>
-      </div>
+      <AppShell notices={shellNotices} unreadCount={unreadCount} counts={counts}>
+        {children}
+      </AppShell>
       <ClientPortal />
       {/* Hors du cadre à débordement caché de la coquille : une bulle fixée en
           bas à droite doit flotter au-dessus de l'écran, pas être rognée par

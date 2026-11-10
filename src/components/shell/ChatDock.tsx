@@ -354,7 +354,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
         aria-label={
           affiché > 0 ? `Messagerie, ${affiché} messages non lus` : "Ouvrir la messagerie"
         }
-        className="fixed right-5 bottom-5 z-50 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-night bg-night text-paper shadow-[0_6px_18px_rgba(18,18,18,0.28)] hover:bg-black"
+        className="fixed right-5 bottom-5 z-50 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-night bg-night text-white shadow-[0_6px_18px_rgba(18,18,18,0.28)] hover:bg-black"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path

@@ -5,64 +5,136 @@
    Every value below is lifted from the prototype. Screens use these
    tokens, never raw hex.
 ------------------------------------------------------------------- */
+/* ------------------------------------------------------------------
+   Taochy Pilot — jetons de design (refonte 2026-11).
+   Les écrans utilisent ces noms (bg-paper, text-ink-2, border-line…),
+   jamais un hexadécimal. Chaque couleur pointe vers une variable qui
+   change avec le thème : clair par défaut, sombre « noir et or » au choix
+   (attribut data-theme sur <html>, ou réglage du système).
+------------------------------------------------------------------- */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-paper: var(--c-paper);
+  --color-mute: var(--c-mute);
+  --color-slot: var(--c-slot);
+  --color-gold-wash: var(--c-gold-wash);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-night: var(--c-night);
+  --color-night-2: var(--c-night-2);
+  --color-night-line: var(--c-night-line);
+  --color-night-border: var(--c-night-border);
+  --color-night-ink: var(--c-night-ink);
+  --color-gold: var(--c-gold);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-alert: var(--c-alert);
+  --color-alert-bg: var(--c-alert-bg);
+  --color-alert-line: var(--c-alert-line);
+  --color-alert-wash: var(--c-alert-wash);
+  --color-warn: var(--c-warn);
+  --color-warn-bg: var(--c-warn-bg);
+  --color-ok: var(--c-ok);
+  --color-ok-bg: var(--c-ok-bg);
+  --color-info: var(--c-info);
+  --color-info-bg: var(--c-info-bg);
+}
+
 @theme {
-  /* Surfaces */
-  --color-canvas: #faf9f7;
-  --color-paper: #ffffff;
-  --color-mute: #f4f3f0;
-  --color-slot: #f0eeea;
-  --color-gold-wash: #fbf3e0;
-
-  /* Lines */
-  --color-line: #e8e6e1;
-  --color-line-strong: #d5d2cc;
-
-  /* Ink */
-  --color-ink: #121212;
-  --color-ink-2: #575652;
-  --color-ink-3: #8b8983;
-
-  /* Dark chrome (sidebar, report header) */
-  --color-night: #121212;
-  --color-night-2: #1f1f1e;
-  --color-night-line: #2a2a28;
-  --color-night-border: #333330;
-  --color-night-ink: #d5d2cc;
-
-  /* Accent */
-  --color-gold: #a67c1a;
-
-  /* Semantic */
-  --color-alert: #d33a3f;
-  --color-alert-bg: #fceeef;
-  --color-alert-line: #f0c9cb;
-  --color-alert-wash: #fcf7f7;
-  --color-warn: #c2410c;
-  --color-warn-bg: #fdede5;
-  --color-ok: #1f9d5a;
-  --color-ok-bg: #f1f8f3;
-  --color-info: #3a66d6;
-  --color-info-bg: #edf1fc;
-
-  /* Type scale — 6 sizes, no more */
+  /* Échelle typographique — 6 tailles, pas une de plus */
   --text-micro: 11px;
   --text-micro--line-height: 1.4;
-  --text-small: 12px;
-  --text-small--line-height: 1.4;
-  --text-base: 13px;
+  --text-small: 12.5px;
+  --text-small--line-height: 1.45;
+  --text-base: 14px;
   --text-base--line-height: 1.5;
-  --text-lead: 15px;
-  --text-lead--line-height: 1.4;
-  --text-title: 18px;
-  --text-title--line-height: 1.4;
-  --text-display: 24px;
-  --text-display--line-height: 1.3;
+  --text-lead: 16px;
+  --text-lead--line-height: 1.45;
+  --text-title: 20px;
+  --text-title--line-height: 1.35;
+  --text-display: 30px;
+  --text-display--line-height: 1.15;
 
-  /* Radii */
-  --radius-control: 6px;
-  --radius-card: 8px;
+  /* Rayons : grandes cartes douces, contrôles arrondis */
+  --radius-control: 12px;
+  --radius-card: 22px;
 
-  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-sans: var(--font-jakarta), "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+}
+
+/* Thème clair (défaut) */
+:root {
+  --c-canvas: #eef1f3;
+  --c-paper: #ffffff;
+  --c-mute: #f3f4f6;
+  --c-slot: #eceef1;
+  --c-gold-wash: #fbf3e0;
+  --c-line: #e7e9ed;
+  --c-line-strong: #d7dae0;
+  --c-ink: #15161a;
+  --c-ink-2: #565a63;
+  --c-ink-3: #8b8f98;
+  --c-night: #15161a;
+  --c-night-2: #24262c;
+  --c-night-line: #2f3138;
+  --c-night-border: #3b3e46;
+  --c-night-ink: #d9dbe0;
+  --c-gold: #a67c1a;
+  --c-accent: #f2b33d;
+  --c-accent-ink: #15161a;
+  --c-alert: #d9433b;
+  --c-alert-bg: #fdecea;
+  --c-alert-line: #f3c7c3;
+  --c-alert-wash: #fdf6f5;
+  --c-warn: #c2620c;
+  --c-warn-bg: #fdf0e3;
+  --c-ok: #1d8f57;
+  --c-ok-bg: #e8f6ee;
+  --c-info: #2f63d4;
+  --c-info-bg: #eaf0fc;
+  --c-bg-glow-1: rgba(120, 196, 190, 0.35);
+  --c-bg-glow-2: rgba(246, 204, 168, 0.35);
+  --c-shadow: 0 1px 2px rgba(21, 22, 26, 0.04), 0 8px 24px rgba(21, 22, 26, 0.05);
+  color-scheme: light;
+}
+
+/* Thème sombre « noir et or », aux couleurs de Taochy */
+:root[data-theme="dark"] {
+  --c-canvas: #0a0a09;
+  --c-paper: #151412;
+  --c-mute: #1d1b18;
+  --c-slot: #23211d;
+  --c-gold-wash: #2a2416;
+  --c-line: #2a2824;
+  --c-line-strong: #3a3731;
+  --c-ink: #f3eee4;
+  --c-ink-2: #bdb6a8;
+  --c-ink-3: #8a857b;
+  --c-night: #000000;
+  --c-night-2: #1b1a17;
+  --c-night-line: #2a2824;
+  --c-night-border: #3a3731;
+  --c-night-ink: #d8d2c4;
+  --c-gold: #cead6f;
+  --c-accent: #cead6f;
+  --c-accent-ink: #0d0c0a;
+  --c-alert: #f0675f;
+  --c-alert-bg: #3a1714;
+  --c-alert-line: #5c2522;
+  --c-alert-wash: #1f1110;
+  --c-warn: #f0a04b;
+  --c-warn-bg: #36240f;
+  --c-ok: #4cc58a;
+  --c-ok-bg: #11291d;
+  --c-info: #7aa2f7;
+  --c-info-bg: #141f36;
+  --c-bg-glow-1: rgba(206, 173, 111, 0.10);
+  --c-bg-glow-2: rgba(206, 173, 111, 0.05);
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 @layer base {
@@ -82,7 +154,11 @@
   }
 
   body {
-    background: var(--color-canvas);
+    background:
+      radial-gradient(1200px 520px at 8% -10%, var(--c-bg-glow-1), transparent 60%),
+      radial-gradient(900px 480px at 92% -8%, var(--c-bg-glow-2), transparent 60%),
+      var(--color-canvas);
+    background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: var(--text-base);
@@ -90,7 +166,7 @@
   }
 
   a {
-    color: var(--color-gold);
+    color: var(--color-ink);
     text-decoration: none;
   }
   a:hover {
@@ -122,6 +198,11 @@
 }
 
 /* One-line truncation, used in every dense table cell. */
+/* Ombre douce des cartes, adaptée au thème. */
+@utility shadow-soft {
+  box-shadow: var(--c-shadow);
+}
+
 @utility clip {
   min-width: 0;
   overflow: hidden;

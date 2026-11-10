@@ -20,12 +20,12 @@ export function ClientPortal() {
       <div className="flex flex-none items-center justify-between gap-4 bg-night px-6 py-2">
         <span className="flex items-center gap-[10px]">
           <span className="h-2 w-2 rounded-[2px] bg-gold" />
-          <Eyebrow className="text-paper">Aperçu du portail client</Eyebrow>
+          <Eyebrow className="text-white">Aperçu du portail client</Eyebrow>
         </span>
         <button
           type="button"
           onClick={() => setPortalOpen(false)}
-          className="cursor-pointer rounded-control border border-ink-2 bg-transparent px-[10px] py-[6px] text-small font-medium text-night-ink hover:border-ink-3 hover:text-paper"
+          className="cursor-pointer rounded-control border border-ink-2 bg-transparent px-[10px] py-[6px] text-small font-medium text-night-ink hover:border-ink-3 hover:text-white"
         >
           Quitter l&apos;aperçu
         </button>

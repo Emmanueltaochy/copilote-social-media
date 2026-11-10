@@ -143,14 +143,14 @@ export async function AuthShell({
         {/* Les marques, en haut de l'écran d'un téléphone. Le bloc s'étire pour
             pousser le formulaire vers le bas ; sur grand écran il disparaît, le
             volet de droite prenant le relais. */}
-        <div className="relative flex flex-1 items-center justify-center py-6 text-paper lg:hidden">
+        <div className="relative flex flex-1 items-center justify-center py-6 text-white lg:hidden">
           {marque("grand")}
         </div>
 
         <div className="relative mx-auto w-full max-w-[400px] lg:mx-0">
           <div className="mb-6 hidden items-center gap-2 text-ink lg:flex">{marque("petit")}</div>
 
-          <h1 className="mb-1 text-display font-semibold tracking-[-0.01em] text-paper lg:text-ink">
+          <h1 className="mb-1 text-display font-semibold tracking-[-0.01em] text-white lg:text-ink">
             {titre}
           </h1>
           <p className="mb-6 text-base text-night-ink lg:text-ink-2">{sous}</p>
@@ -183,7 +183,7 @@ export async function AuthShell({
           />
         ) : null}
         <div className="relative flex h-full flex-col justify-end gap-3 p-10">
-          <span className="text-paper">{marque("moyen")}</span>
+          <span className="text-white">{marque("moyen")}</span>
           <p className="max-w-[420px] text-lead text-night-ink">
             {config.portalWelcome ??
               "Vos contenus, vos validations et vos projets, au même endroit."}

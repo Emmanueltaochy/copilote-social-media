@@ -19,7 +19,7 @@ export function TableHead({
   return (
     <div
       className={cn(
-        "grid gap-3 border-b border-line bg-canvas px-[14px] py-2",
+        "grid gap-3 border-b border-line bg-mute px-5 py-[10px]",
         sticky && "sticky top-0 z-2",
         className,
       )}
@@ -59,7 +59,7 @@ export function TableRow({
   onClick?: () => void;
 }) {
   const shared = cn(
-    "grid items-center gap-3 border-b border-line px-[14px]",
+    "grid items-center gap-3 border-b border-line px-5",
     height === 44 ? "h-11" : "h-10",
     className,
   );
