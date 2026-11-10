@@ -165,6 +165,12 @@ export const clients = pgTable(
      */
     departments: jsonb("departments").$type<string[]>().notNull().default(["social"]),
 
+    /**
+     * La marque Metricool du client (son « blogId »). Vide = pas de
+     * statistiques ni de programmation automatique pour ce compte.
+     */
+    metricoolBrandId: text("metricool_brand_id"),
+
     active: boolean("active").notNull().default(true),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -294,6 +300,9 @@ export const contents = pgTable(
     /** Lien du post en ligne : la preuve que la publication a eu lieu. */
     publishedUrl: text("published_url"),
     publishedById: uuid("published_by_id").references(() => users.id, { onDelete: "set null" }),
+    /** La publication programmée chez Metricool, si elle a été envoyée d'ici. */
+    metricoolPostId: text("metricool_post_id"),
+    metricoolSentAt: timestamp("metricool_sent_at", { withTimezone: true }),
 
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     shootId: uuid("shoot_id"),
@@ -1401,4 +1410,68 @@ export const passwordResets = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("password_resets_user_idx").on(t.userId)],
+);
+
+/* ------------------------------------------------------------ Metricool -- */
+
+/**
+ * Les raccordements à des services extérieurs, une ligne par service.
+ *
+ * La clé d'API vit ici, côté serveur : elle n'est jamais renvoyée au
+ * navigateur — l'écran de réglages n'affiche que « clé enregistrée ».
+ */
+export const integrations = pgTable("integrations", {
+  id: text("id").primaryKey(),
+  token: text("token"),
+  /** L'identifiant du compte chez le service (le « userId » de Metricool). */
+  accountId: text("account_id"),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  /** Le dernier échec, en clair, pour qu'on sache quoi réparer. Vide = tout va bien. */
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Abonnés par client, par réseau et par jour, tels que Metricool les relève.
+ * Les nouveaux abonnés d'un jour se déduisent de la différence avec la veille.
+ */
+export const audienceDaily = pgTable(
+  "audience_daily",
+  {
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** instagram, facebook, tiktok, linkedin, youtube. */
+    network: text("network").notNull(),
+    day: date("day").notNull(),
+    followers: integer("followers").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clientId, t.network, t.day] }), index("audience_daily_day_idx").on(t.day)],
+);
+
+/** Les publications réellement parues, avec leurs chiffres, relevées chez Metricool. */
+export const socialPosts = pgTable(
+  "social_posts",
+  {
+    /** « réseau:identifiant chez le réseau » : stable d'une synchronisation à l'autre. */
+    id: text("id").primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    network: text("network").notNull(),
+    /** post, reel, video. */
+    kind: text("kind").notNull().default("post"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+    text: text("text"),
+    imageUrl: text("image_url"),
+    url: text("url"),
+    reach: integer("reach").notNull().default(0),
+    views: integer("views").notNull().default(0),
+    interactions: integer("interactions").notNull().default(0),
+    saves: integer("saves").notNull().default(0),
+    /** En pour cent, tel que Metricool le calcule. */
+    engagement: text("engagement"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("social_posts_client_idx").on(t.clientId), index("social_posts_published_idx").on(t.publishedAt)],
 );

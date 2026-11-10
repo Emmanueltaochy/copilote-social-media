@@ -30,7 +30,7 @@ export function EmptyState({
         {actionLabel && actionHref ? (
           <Link
             href={actionHref}
-            className="mt-1 rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper no-underline hover:bg-black hover:no-underline"
+            className="mt-1 rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper no-underline hover:opacity-85 hover:no-underline"
           >
             {actionLabel}
           </Link>

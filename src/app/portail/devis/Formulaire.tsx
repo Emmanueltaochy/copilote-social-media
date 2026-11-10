@@ -15,7 +15,7 @@ const champ =
  * devant un formulaire exigeant, et qu'une demande abandonnée coûte plus cher
  * qu'une demande imprécise. Les précisions se demandent au téléphone.
  */
-export function FormulaireDevis({ accent }: { accent: string }) {
+export function FormulaireDevis({}: { accent?: string }) {
   const [state, formAction, pending] = useActionState(demanderDevis, {});
   const [kind, setKind] = useState("site");
 
@@ -80,8 +80,7 @@ export function FormulaireDevis({ accent }: { accent: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="cursor-pointer rounded-control px-4 py-2 text-base font-medium text-paper disabled:opacity-60"
-          style={{ background: accent }}
+          className="cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-5 py-[10px] text-base disabled:opacity-60"
         >
           {pending ? "Envoi…" : "Envoyer ma demande"}
         </button>

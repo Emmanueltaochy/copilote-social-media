@@ -46,7 +46,7 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
         </Link>
         <div className="flex flex-col gap-[2px]">
           <Eyebrow>Brief</Eyebrow>
-          <h1 className="text-display font-semibold tracking-[-0.01em]">{brief.title}</h1>
+          <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">{brief.title}</h1>
         </div>
 
         <Card className="flex flex-col gap-2 p-4">

@@ -46,6 +46,7 @@ const NETWORK_STYLE: Record<string, { label: string; short: string; cls: string 
   linkedin: { label: "LinkedIn", short: "in", cls: "bg-[#0a66c2] text-white" },
   tiktok: { label: "TikTok", short: "TT", cls: "bg-[#111] text-white" },
   google: { label: "Google", short: "G", cls: "bg-white text-[#4285f4] border border-line" },
+  youtube: { label: "YouTube", short: "YT", cls: "bg-[#ff0033] text-white" },
 };
 
 export function networkLabel(n: string) {

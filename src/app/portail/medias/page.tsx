@@ -44,7 +44,7 @@ export default async function MediasPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-[2px]">
         <span className="eyebrow text-ink-3">{client.shortName}</span>
-        <h1 className="text-display font-semibold tracking-[-0.01em]">Vos médias</h1>
+        <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">Vos médias</h1>
       </div>
 
       {dossiers.length === 0 && medias.length === 0 ? (

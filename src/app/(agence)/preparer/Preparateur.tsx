@@ -138,7 +138,7 @@ export function Preparateur({
             <button
               type="submit"
               disabled={toutPending || total === 0}
-              className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black disabled:cursor-default disabled:opacity-40"
+              className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85 disabled:cursor-default disabled:opacity-40"
             >
               {toutPending
                 ? "Préparation…"

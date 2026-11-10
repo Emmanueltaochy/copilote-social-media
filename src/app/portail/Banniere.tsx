@@ -68,8 +68,7 @@ export function BanniereClient({
             href={ctaUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex-none rounded-control px-3 py-[6px] text-base font-medium text-paper no-underline hover:no-underline"
-            style={{ background: accent }}
+            className="flex-none rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-4 py-2 text-base no-underline hover:no-underline"
           >
             {ctaLabel}
           </a>

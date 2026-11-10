@@ -80,7 +80,7 @@ export function ProjectForm({
         <button
           type="submit"
           disabled={pending}
-          className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black disabled:opacity-60"
+          className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85 disabled:opacity-60"
         >
           {pending ? "Création…" : "Créer le projet"}
         </button>

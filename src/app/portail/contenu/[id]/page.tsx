@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  * partira en ligne, et c'est souvent lui que le client veut corriger.
  */
 export default async function ContenuPage({ params }: { params: Promise<{ id: string }> }) {
-  const { client, config } = await contextePortail();
+  const { client } = await contextePortail();
   const { id } = await params;
 
   const [ligne] = await db
@@ -68,7 +68,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
         <span className="eyebrow text-ink-3">
           {CONTENT_KIND[c.kind] ?? c.kind} · {networksLabel(c)}
         </span>
-        <h1 className="text-display font-semibold tracking-[-0.01em]">{c.title}</h1>
+        <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">{c.title}</h1>
         <span className="text-base text-ink-2">
           {c.scheduledAt
             ? `Prévu le ${c.scheduledAt.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`
@@ -150,8 +150,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
           href={c.publishedUrl}
           target="_blank"
           rel="noreferrer"
-          className="self-start rounded-control px-4 py-2 text-base font-medium text-paper no-underline hover:no-underline"
-          style={{ background: config.primaryColor }}
+          className="self-start rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-5 py-[10px] text-base no-underline hover:no-underline"
         >
           Voir la publication ↗
         </a>

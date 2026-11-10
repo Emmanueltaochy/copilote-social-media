@@ -43,7 +43,7 @@ export default async function ProductionPage() {
       >
         <Link
           href="/contenu"
-          className="rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper no-underline hover:bg-black hover:no-underline"
+          className="rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper no-underline hover:opacity-85 hover:no-underline"
         >
           Nouveau contenu
         </Link>

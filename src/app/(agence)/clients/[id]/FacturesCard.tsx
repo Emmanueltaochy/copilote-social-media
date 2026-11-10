@@ -207,7 +207,7 @@ export function FacturesCard({
             type="button"
             onClick={envoyer}
             disabled={busy}
-            className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-[6px] text-small font-medium text-paper hover:bg-black disabled:opacity-60"
+            className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-[6px] text-small font-medium text-paper hover:opacity-85 disabled:opacity-60"
           >
             {busy ? "Envoi…" : "Ajouter la facture"}
           </button>

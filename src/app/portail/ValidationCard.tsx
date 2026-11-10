@@ -71,7 +71,7 @@ export function ValidationCard({
                 vignette de 180 px ne suffit pas à juger un cadrage. */}
             <Link
               href={`/portail/contenu/${id}`}
-              className="clip text-lead font-medium text-ink no-underline hover:underline"
+              className="clip text-title font-semibold text-ink no-underline hover:underline"
             >
               {title}
             </Link>

@@ -88,7 +88,7 @@ function Rangee({ ligne, now, retard }: { ligne: Ligne; now: Date; retard: boole
             className={cn(
               "flex-none cursor-pointer rounded-control border px-[10px] py-[6px] text-small font-medium",
               retard
-                ? "border-ink bg-ink text-paper hover:bg-black"
+                ? "border-ink bg-ink text-paper hover:opacity-85"
                 : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
             )}
           >

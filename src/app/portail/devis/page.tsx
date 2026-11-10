@@ -23,7 +23,7 @@ export default async function DevisPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-[2px]">
         <span className="eyebrow text-ink-3">{client.shortName}</span>
-        <h1 className="text-display font-semibold tracking-[-0.01em]">Demander un devis</h1>
+        <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">Demander un devis</h1>
       </div>
 
       <Card className="flex flex-col gap-4 p-4 sm:p-6">

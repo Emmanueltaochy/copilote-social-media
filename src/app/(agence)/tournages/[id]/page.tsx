@@ -387,7 +387,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               </label>
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black"
+                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
               >
                 Enregistrer
               </button>

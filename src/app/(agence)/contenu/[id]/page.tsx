@@ -19,6 +19,7 @@ import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS, networksLabel } from "@/d
 import { ContentForm } from "../ContentForm";
 import { AssignPicker } from "../../production/AssignPicker";
 import { MediaCard } from "./MediaCard";
+import { ProgrammerMetricool } from "./ProgrammerMetricool";
 import {
   addComment,
   approveContent,
@@ -136,7 +137,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                   <input type="hidden" name="id" value={content.id} />
                   <button
                     type="submit"
-                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black"
+                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
                   >
                     Valider
                   </button>
@@ -171,6 +172,20 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : null}
 
+          {client.metricoolBrandId && !content.publishedAt && (content.status === "pret" || content.status === "validation") ? (
+            <Card className="p-4">
+              <Eyebrow>Metricool</Eyebrow>
+              <p className="mt-1 mb-3 text-base text-ink-2">
+                Envoie la légende, les médias (dans l&apos;ordre) et la date à Metricool, qui publiera tout seul.
+              </p>
+              <ProgrammerMetricool
+                id={content.id}
+                sentAt={content.metricoolSentAt ? content.metricoolSentAt.toISOString() : null}
+                draftOnly={process.env.METRICOOL_DRAFT_ONLY === "1"}
+              />
+            </Card>
+          ) : null}
+
           {content.status === "pret" ? (
             <Card className="p-4">
               <Eyebrow>Publication</Eyebrow>
@@ -190,7 +205,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 />
                 <button
                   type="submit"
-                  className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black"
+                  className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
                 >
                   Marquer comme publié
                 </button>
@@ -312,7 +327,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
               />
               <button
                 type="submit"
-                className="cursor-pointer self-start rounded-control border border-ink bg-ink px-3 py-[6px] text-small font-medium text-paper hover:bg-black"
+                className="cursor-pointer self-start rounded-control border border-ink bg-ink px-3 py-[6px] text-small font-medium text-paper hover:opacity-85"
               >
                 Envoyer
               </button>

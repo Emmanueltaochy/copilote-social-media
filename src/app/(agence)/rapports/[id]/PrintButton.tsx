@@ -14,7 +14,7 @@ export function PrintButton() {
     <button
       type="button"
       onClick={() => window.print()}
-      className="print:hidden cursor-pointer rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper hover:bg-black"
+      className="print:hidden cursor-pointer rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper hover:opacity-85"
     >
       Imprimer ou enregistrer en PDF
     </button>

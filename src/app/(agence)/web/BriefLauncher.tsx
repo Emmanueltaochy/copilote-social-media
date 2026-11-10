@@ -36,7 +36,7 @@ export function BriefLauncher({
       <button
         type="submit"
         disabled={pending}
-        className="flex-none cursor-pointer rounded-control border border-ink bg-ink px-[10px] py-[6px] text-small font-medium text-paper hover:bg-black disabled:opacity-60"
+        className="flex-none cursor-pointer rounded-control border border-ink bg-ink px-[10px] py-[6px] text-small font-medium text-paper hover:opacity-85 disabled:opacity-60"
       >
         {pending ? "Création…" : "Créer un brief"}
       </button>

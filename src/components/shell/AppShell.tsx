@@ -14,9 +14,17 @@ import { Icon } from "@/components/ui/Icon";
 import { Bell, type Notice } from "./Bell";
 import { ThemeButton, ThemeChoices } from "./ThemeToggle";
 
-export type ShellCounts = { validation: number; publier: number; devis: number };
+export type ShellCounts = {
+  validation: number;
+  publier: number;
+  devis: number;
+};
 
-const ROLE_LABEL: Record<string, string> = { direction: "Direction", equipe: "Équipe", client: "Client" };
+const ROLE_LABEL: Record<string, string> = {
+  direction: "Direction",
+  equipe: "Équipe",
+  client: "Client",
+};
 
 /* ------------------------------------------------------------- utilitaires -- */
 
@@ -55,7 +63,13 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-function Badge({ n, tone = "accent" }: { n: number; tone?: "accent" | "alert" }) {
+function Badge({
+  n,
+  tone = "accent",
+}: {
+  n: number;
+  tone?: "accent" | "alert";
+}) {
   if (!n) return null;
   return (
     <span
@@ -76,10 +90,24 @@ const roundBtn =
 
 function Logo() {
   return (
-    <Link href="/" className="flex flex-none items-center gap-[10px] text-ink no-underline hover:no-underline">
+    <Link
+      href="/"
+      className="flex flex-none items-center gap-[10px] text-ink no-underline hover:no-underline"
+    >
       <span className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-night text-white">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 15c2.5-6 5-6 7.5 0S16.5 21 20 9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 15c2.5-6 5-6 7.5 0S16.5 21 20 9"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
           <circle cx="20" cy="7" r="1.6" fill="#cead6f" />
         </svg>
       </span>
@@ -90,7 +118,13 @@ function Logo() {
   );
 }
 
-function MoreMenu({ items, badge }: { items: NavItem[]; badge: (i: NavItem) => number }) {
+function MoreMenu({
+  items,
+  badge,
+}: {
+  items: NavItem[];
+  badge: (i: NavItem) => number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
@@ -104,7 +138,9 @@ function MoreMenu({ items, badge }: { items: NavItem[]; badge: (i: NavItem) => n
         aria-expanded={open}
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-full border-none px-4 py-[9px] text-base font-medium",
-          active ? "bg-night text-white" : "bg-transparent text-ink-2 hover:text-ink",
+          active
+            ? "bg-night text-white"
+            : "bg-transparent text-ink-2 hover:text-ink",
         )}
       >
         Plus <Badge n={total} /> <Icon name="chevronDown" size={15} />
@@ -128,7 +164,9 @@ function MoreMenu({ items, badge }: { items: NavItem[]; badge: (i: NavItem) => n
                 <span className="flex items-center gap-2 text-base font-semibold">
                   {i.label} <Badge n={badge(i)} />
                 </span>
-                {i.hint ? <span className="text-small text-ink-3">{i.hint}</span> : null}
+                {i.hint ? (
+                  <span className="text-small text-ink-3">{i.hint}</span>
+                ) : null}
               </span>
             </Link>
           ))}
@@ -147,12 +185,15 @@ function ScopePicker() {
   const ref = useDismiss(open, () => setOpen(false));
   // La bibliothèque filtre côté serveur : sur cet écran, l'URL fait foi.
   const parLURL = pathname === "/assets";
-  const affiché = parLURL ? (clients.find((c) => c.id === params.get("client"))?.name ?? ALL_CLIENTS) : scope;
+  const affiché = parLURL
+    ? (clients.find((c) => c.id === params.get("client"))?.name ?? ALL_CLIENTS)
+    : scope;
 
   function choisir(client: { id: string; name: string } | null) {
     setScope(client?.name ?? ALL_CLIENTS);
     setOpen(false);
-    if (parLURL) router.push(client ? `/assets?client=${client.id}` : "/assets");
+    if (parLURL)
+      router.push(client ? `/assets?client=${client.id}` : "/assets");
   }
 
   return (
@@ -175,14 +216,18 @@ function ScopePicker() {
             onClick={() => choisir(null)}
             className={cn(
               "w-full cursor-pointer rounded-[12px] border-none px-3 py-2 text-left text-base font-semibold",
-              affiché === ALL_CLIENTS ? "bg-night text-white" : "bg-transparent text-ink hover:bg-mute",
+              affiché === ALL_CLIENTS
+                ? "bg-night text-white"
+                : "bg-transparent text-ink hover:bg-mute",
             )}
           >
             {ALL_CLIENTS}
           </button>
           <div className="mx-2 my-[6px] h-px bg-line" />
           {clients.length === 0 ? (
-            <p className="px-3 py-2 text-small text-ink-3">Aucun client pour l&apos;instant.</p>
+            <p className="px-3 py-2 text-small text-ink-3">
+              Aucun client pour l&apos;instant.
+            </p>
           ) : (
             clients.map((c) => (
               <button
@@ -191,7 +236,9 @@ function ScopePicker() {
                 onClick={() => choisir(c)}
                 className={cn(
                   "flex w-full cursor-pointer items-center gap-2 rounded-[12px] border-none px-3 py-[8px] text-left text-base text-ink",
-                  affiché === c.name ? "bg-mute font-semibold" : "bg-transparent hover:bg-mute",
+                  affiché === c.name
+                    ? "bg-mute font-semibold"
+                    : "bg-transparent hover:bg-mute",
                 )}
               >
                 <Dot tone={c.tone} size={8} />
@@ -229,12 +276,19 @@ function AccountMenu() {
           <div className="flex items-center gap-3 px-2 py-2">
             <Avatar initials={user.initials} src={user.avatar} size={36} />
             <span className="flex min-w-0 flex-col">
-              <span className="clip text-base font-semibold text-ink">{user.name}</span>
-              <span className="text-small text-ink-3">{ROLE_LABEL[user.role]}</span>
+              <span className="clip text-base font-semibold text-ink">
+                {user.name}
+              </span>
+              <span className="text-small text-ink-3">
+                {ROLE_LABEL[user.role]}
+              </span>
             </span>
           </div>
           {user.departments.length > 1 ? (
-            <form action={changerDePole} className="mx-1 mb-2 grid grid-cols-2 gap-1 rounded-control bg-mute p-1">
+            <form
+              action={changerDePole}
+              className="mx-1 mb-2 grid grid-cols-2 gap-1 rounded-control bg-mute p-1"
+            >
               {(["social", "web"] as const).map((p) => (
                 <button
                   key={p}
@@ -244,7 +298,9 @@ function AccountMenu() {
                   aria-current={user.pole === p}
                   className={cn(
                     "cursor-pointer rounded-[9px] border-none px-2 py-[7px] text-small font-semibold",
-                    user.pole === p ? "bg-paper text-ink shadow-soft" : "bg-transparent text-ink-2 hover:text-ink",
+                    user.pole === p
+                      ? "bg-paper text-ink shadow-soft"
+                      : "bg-transparent text-ink-2 hover:text-ink",
                   )}
                 >
                   {p === "social" ? "Pôle social" : "Pôle web"}
@@ -296,13 +352,36 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo(() => {
-    const allowed = (i: NavItem) => !i.directionOnly || user.role === "direction";
-    const pages = (user.pole === "web" ? [...NAV_WEB_MAIN, ...NAV_WEB_MORE] : [...NAV_MAIN, ...NAV_MORE])
+    const allowed = (i: NavItem) =>
+      !i.directionOnly || user.role === "direction";
+    const pages = (
+      user.pole === "web"
+        ? [...NAV_WEB_MAIN, ...NAV_WEB_MORE]
+        : [...NAV_MAIN, ...NAV_MORE]
+    )
       .filter(allowed)
-      .map((i) => ({ key: "p" + i.href, label: i.label, sub: i.hint ?? "Écran", icon: i.icon ?? "grid", go: () => router.push(i.href) }));
+      .map((i) => ({
+        key: "p" + i.href,
+        label: i.label,
+        sub: i.hint ?? "Écran",
+        icon: i.icon ?? "grid",
+        go: () => router.push(i.href),
+      }));
     const actions = [
-      { key: "a-new", label: "Nouveau contenu", sub: "Créer un contenu", icon: "plus" as const, go: () => router.push("/contenu") },
-      { key: "a-compte", label: "Mon compte", sub: "Profil et mot de passe", icon: "user" as const, go: () => router.push("/compte") },
+      {
+        key: "a-new",
+        label: "Nouveau contenu",
+        sub: "Créer un contenu",
+        icon: "plus" as const,
+        go: () => router.push("/contenu"),
+      },
+      {
+        key: "a-compte",
+        label: "Mon compte",
+        sub: "Profil et mot de passe",
+        icon: "user" as const,
+        go: () => router.push("/compte"),
+      },
     ];
     const cl = clients.map((c) => ({
       key: "c" + c.id,
@@ -315,15 +394,26 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
       },
     }));
     const all = [...actions, ...pages, ...cl];
-    const n = q.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+    const n = q
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
     if (!n) return all;
     return all.filter((i) =>
-      (i.label + " " + i.sub).toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").includes(n),
+      (i.label + " " + i.sub)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .includes(n),
     );
   }, [q, clients, user, router, setScope]);
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center bg-[rgba(10,10,12,0.45)] p-4 pt-[12vh] backdrop-blur-[2px]" onMouseDown={onClose}>
+    <div
+      className="fixed inset-0 z-[90] flex items-start justify-center bg-[rgba(10,10,12,0.45)] p-4 pt-[12vh] backdrop-blur-[2px]"
+      onMouseDown={onClose}
+    >
       <div
         className="w-full max-w-[560px] overflow-hidden rounded-card border border-line bg-paper shadow-soft"
         onMouseDown={(e) => e.stopPropagation()}
@@ -356,11 +446,15 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             placeholder="Aller à un écran, un client…"
             className="h-14 flex-1 border-none bg-transparent text-lead text-ink outline-none placeholder:text-ink-3"
           />
-          <kbd className="rounded-[6px] border border-line px-[6px] py-[2px] text-micro text-ink-3">Échap</kbd>
+          <kbd className="rounded-[6px] border border-line px-[6px] py-[2px] text-micro text-ink-3">
+            Échap
+          </kbd>
         </div>
         <div className="max-h-[50vh] overflow-auto p-2">
           {items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-base text-ink-3">Rien ne correspond.</p>
+            <p className="px-3 py-6 text-center text-base text-ink-3">
+              Rien ne correspond.
+            </p>
           ) : (
             items.map((i, k) => (
               <button
@@ -380,7 +474,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
                   <Icon name={i.icon} size={16} />
                 </span>
                 <span className="flex min-w-0 flex-col">
-                  <span className="clip text-base font-semibold text-ink">{i.label}</span>
+                  <span className="clip text-base font-semibold text-ink">
+                    {i.label}
+                  </span>
                   <span className="clip text-small text-ink-3">{i.sub}</span>
                 </span>
               </button>
@@ -425,7 +521,12 @@ function MobileDrawer({ counts }: { counts: ShellCounts }) {
       <div className="absolute inset-y-0 left-0 flex w-[300px] max-w-[86vw] flex-col gap-3 overflow-auto bg-paper p-4">
         <div className="flex items-center justify-between">
           <Logo />
-          <button type="button" onClick={() => setNavOpen(false)} aria-label="Fermer" className={roundBtn}>
+          <button
+            type="button"
+            onClick={() => setNavOpen(false)}
+            aria-label="Fermer"
+            className={roundBtn}
+          >
             <Icon name="close" />
           </button>
         </div>
@@ -476,31 +577,47 @@ export function AppShell({
     <div className="flex h-dvh flex-col overflow-hidden text-ink">
       {/* En-tête : logo, navigation en pilules, client, cloche, compte. */}
       <header className="flex flex-none items-center gap-3 px-4 pt-3 pb-2 lg:gap-5 lg:px-7 lg:pt-5 lg:pb-3">
-        <button type="button" onClick={() => setNavOpen(true)} aria-label="Ouvrir le menu" className={cn(roundBtn, "lg:hidden")}>
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Ouvrir le menu"
+          className={cn(roundBtn, "lg:hidden")}
+        >
           <Icon name="menu" />
         </button>
         <Logo />
-        <nav className="mx-auto hidden min-w-0 items-center gap-1 overflow-x-auto rounded-full lg:flex">
-          {main.map((i) => {
-            const active = isActive(pathname, i.href);
-            return (
-              <Link
-                key={i.href}
-                href={i.href}
-                className={cn(
-                  "flex flex-none items-center gap-2 rounded-full px-4 py-[9px] text-base font-medium no-underline hover:no-underline",
-                  active ? "bg-night text-white" : "text-ink-2 hover:text-ink",
-                )}
-              >
-                {i.label}
-                <Badge n={badge(i)} />
-              </Link>
-            );
-          })}
+        {/* Le menu « Plus » reste hors de la zone qui défile : un parent en
+            overflow coupe tout ce qui en dépasse, menu déroulant compris. */}
+        <div className="mx-auto hidden min-w-0 items-center gap-1 lg:flex">
+          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-full [scrollbar-width:none]">
+            {main.map((i) => {
+              const active = isActive(pathname, i.href);
+              return (
+                <Link
+                  key={i.href}
+                  href={i.href}
+                  className={cn(
+                    "flex flex-none items-center gap-2 rounded-full px-4 py-[9px] text-base font-medium no-underline hover:no-underline",
+                    active
+                      ? "bg-night text-white"
+                      : "text-ink-2 hover:text-ink",
+                  )}
+                >
+                  {i.label}
+                  <Badge n={badge(i)} />
+                </Link>
+              );
+            })}
+          </nav>
           <MoreMenu items={more} badge={badge} />
-        </nav>
+        </div>
         <div className="ml-auto flex flex-none items-center gap-2 lg:ml-0">
-          <button type="button" onClick={() => setSearch(true)} aria-label="Rechercher" className={cn(roundBtn, "lg:hidden")}>
+          <button
+            type="button"
+            onClick={() => setSearch(true)}
+            aria-label="Rechercher"
+            className={cn(roundBtn, "lg:hidden")}
+          >
             <Icon name="search" />
           </button>
           <span className="hidden md:block">
@@ -516,33 +633,71 @@ export function AppShell({
       <div className="flex min-h-0 flex-1">
         {/* Rail d'actions rapides, façon Murmura. */}
         <aside className="hidden flex-none flex-col items-center gap-1 self-start rounded-full bg-night px-[6px] py-3 lg:ml-5 lg:flex">
-          <button type="button" onClick={() => setSearch(true)} title="Rechercher (Ctrl K)" aria-label="Rechercher" className={railBtn}>
+          <button
+            type="button"
+            onClick={() => setSearch(true)}
+            title="Rechercher (Ctrl K)"
+            aria-label="Rechercher"
+            className={railBtn}
+          >
             <Icon name="search" />
           </button>
-          <Link href="/contenu" title="Nouveau contenu" aria-label="Nouveau contenu" className="my-1 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-ink no-underline hover:no-underline hover:brightness-105">
+          <Link
+            href="/contenu"
+            title="Nouveau contenu"
+            aria-label="Nouveau contenu"
+            className="my-1 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-ink no-underline hover:no-underline hover:brightness-105"
+          >
             <Icon name="plus" strokeWidth={2.2} />
           </Link>
-          <Link href="/a-publier" title="À publier" aria-label="À publier" className={railBtn}>
+          <Link
+            href="/a-publier"
+            title="À publier"
+            aria-label="À publier"
+            className={railBtn}
+          >
             <Icon name="clock" />
           </Link>
-          <Link href="/assets" title="Bibliothèque" aria-label="Bibliothèque" className={railBtn}>
+          <Link
+            href="/assets"
+            title="Bibliothèque"
+            aria-label="Bibliothèque"
+            className={railBtn}
+          >
             <Icon name="image" />
           </Link>
           <span className="my-1 h-px w-6 bg-night-line" />
-          <Link href="/terrain" title="Terrain (téléphone)" aria-label="Terrain" className={railBtn}>
+          <Link
+            href="/terrain"
+            title="Terrain (téléphone)"
+            aria-label="Terrain"
+            className={railBtn}
+          >
             <Icon name="phone" />
           </Link>
-          <Link href="/rapports" title="Rapports" aria-label="Rapports" className={railBtn}>
+          <Link
+            href="/rapports"
+            title="Rapports"
+            aria-label="Rapports"
+            className={railBtn}
+          >
             <Icon name="chart" />
           </Link>
-          <Link href="/compte" title="Mon compte" aria-label="Mon compte" className={railBtn}>
+          <Link
+            href="/compte"
+            title="Mon compte"
+            aria-label="Mon compte"
+            className={railBtn}
+          >
             <Icon name="settings" />
           </Link>
           <span className="my-1 h-px w-6 bg-night-line" />
           <ThemeButton className={railBtn} />
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">{children}</main>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
+          {children}
+        </main>
       </div>
 
       <MobileDrawer counts={counts} />

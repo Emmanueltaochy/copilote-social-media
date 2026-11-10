@@ -28,7 +28,7 @@ export function InviteForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-[10px] text-base font-medium text-paper hover:bg-black disabled:opacity-60"
+        className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-[10px] text-base font-medium text-paper hover:opacity-85 disabled:opacity-60"
       >
         {pending ? "Un instant…" : "Accéder à mon espace"}
       </button>

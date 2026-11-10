@@ -15,7 +15,6 @@ export function Terminer({
   id,
   manquants,
   dejaTermine,
-  accent,
 }: {
   id: string;
   manquants: number;
@@ -43,8 +42,7 @@ export function Terminer({
       <button
         type="submit"
         disabled={pending || manquants > 0}
-        style={manquants > 0 ? undefined : { background: accent, borderColor: accent }}
-        className="cursor-pointer rounded-control border border-line px-4 py-3 text-lead font-medium text-paper disabled:cursor-default disabled:border-line disabled:bg-slot disabled:text-ink-3"
+        className="cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-5 py-3 text-lead disabled:cursor-default disabled:border-line disabled:bg-slot disabled:text-ink-3 disabled:hover:opacity-100"
       >
         {pending ? "Un instant…" : "J'ai rempli le brief"}
       </button>

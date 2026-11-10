@@ -380,7 +380,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               </label>
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black"
+                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
               >
                 Enregistrer
               </button>

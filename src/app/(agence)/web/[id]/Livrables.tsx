@@ -121,7 +121,7 @@ export function AjoutLivrable({ projectId, clientId }: { projectId: string; clie
         <button
           type="submit"
           disabled={envoi}
-          className="cursor-pointer rounded-control border border-ink bg-ink px-[10px] py-[6px] text-small font-medium text-paper hover:bg-black disabled:opacity-60"
+          className="cursor-pointer rounded-control border border-ink bg-ink px-[10px] py-[6px] text-small font-medium text-paper hover:opacity-85 disabled:opacity-60"
         >
           {envoi ? "Envoi du fichier…" : "Soumettre au client"}
         </button>

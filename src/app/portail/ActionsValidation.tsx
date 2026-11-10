@@ -24,7 +24,7 @@ export function ActionsValidation({ id, taille = "normal" }: { id: string; taill
   );
 
   const state = approveState.ok || approveState.error ? approveState : changeState;
-  const bouton = taille === "grand" ? "px-4 py-[10px] text-lead" : "px-3 py-2 text-base";
+  const bouton = taille === "grand" ? "px-5 py-[11px] text-lead" : "px-4 py-2 text-base";
 
   if (state.ok) {
     return (
@@ -42,7 +42,7 @@ export function ActionsValidation({ id, taille = "normal" }: { id: string; taill
           <button
             type="submit"
             disabled={approving || changing}
-            className={`cursor-pointer rounded-control border border-ink bg-ink font-medium text-paper hover:bg-black disabled:opacity-60 ${bouton}`}
+            className={`cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 disabled:opacity-60 ${bouton}`}
           >
             {approving ? "Un instant…" : "Valider"}
           </button>
@@ -55,13 +55,13 @@ export function ActionsValidation({ id, taille = "normal" }: { id: string; taill
             <input
               name="note"
               placeholder="Le logo est trop petit, et la date est le 14 et non le 12."
-              className="w-full rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
+              className="w-full rounded-full border border-line bg-paper px-4 py-2 text-base outline-none focus:border-gold"
             />
           </label>
           <button
             type="submit"
             disabled={approving || changing}
-            className={`flex-none cursor-pointer rounded-control border border-line bg-paper font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-60 ${bouton}`}
+            className={`flex-none cursor-pointer rounded-full border border-line bg-paper font-semibold text-ink hover:border-line-strong disabled:opacity-60 ${bouton}`}
           >
             {changing ? "Un instant…" : "Envoyer"}
           </button>

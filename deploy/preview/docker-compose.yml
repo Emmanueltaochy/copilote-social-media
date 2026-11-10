@@ -41,6 +41,9 @@ services:
       MEDIA_ROOT: /data/assets
       APP_DOMAIN: ${PREVIEW_DOMAIN:-preview.taochyagency.com}
       LEGACY_DOMAINS: ""
+      # Un essai depuis la préversion ne doit jamais publier chez un client :
+      # Metricool reçoit des brouillons.
+      METRICOOL_DRAFT_ONLY: "1"
       # Volontairement vide : la préversion n'envoie aucun e-mail.
       SMTP_HOST: ""
       SMTP_USER: ""

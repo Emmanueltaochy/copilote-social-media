@@ -20,7 +20,7 @@ const jour = (iso: string | null) =>
  * pour la même raison — c'est le premier chiffre qu'il vérifie.
  */
 export default async function FacturesPage() {
-  const { client, config } = await contextePortail();
+  const { client } = await contextePortail();
   const factures = await facturesDuClient(client.id);
 
   // Le groupement se fait sur la date d'émission : une facture d'avril
@@ -37,7 +37,7 @@ export default async function FacturesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-[2px]">
         <span className="eyebrow text-ink-3">{client.shortName}</span>
-        <h1 className="text-display font-semibold tracking-[-0.01em]">Vos factures</h1>
+        <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">Vos factures</h1>
       </div>
 
       {factures.length === 0 ? (
@@ -109,8 +109,7 @@ export default async function FacturesPage() {
 
                 <a
                   href={`/api/invoice/${f.id}`}
-                  className="flex-none rounded-control px-3 py-[6px] text-small font-medium text-paper no-underline hover:no-underline"
-                  style={{ background: config.primaryColor }}
+                  className="flex-none rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-4 py-[7px] text-small no-underline hover:no-underline"
                 >
                   Télécharger
                 </a>

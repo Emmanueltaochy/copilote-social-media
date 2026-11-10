@@ -20,7 +20,7 @@ export default async function ChartePage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-[2px]">
         <span className="eyebrow text-ink-3">{client.shortName}</span>
-        <h1 className="text-display font-semibold tracking-[-0.01em]">Votre charte graphique</h1>
+        <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">Votre charte graphique</h1>
       </div>
 
       <Card>

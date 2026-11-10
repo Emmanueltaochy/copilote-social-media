@@ -141,7 +141,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                 <div className="flex items-center justify-between gap-3">
                   <button
                     type="submit"
-                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black"
+                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
                   >
                     Enregistrer
                   </button>

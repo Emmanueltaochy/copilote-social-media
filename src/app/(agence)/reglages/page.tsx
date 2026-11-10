@@ -10,6 +10,29 @@ import { listPromos } from "@/db/queries";
 import { versionVideo } from "@/lib/portail-video";
 import { VideoPortail } from "./VideoPortail";
 import { basculerPromo, creerPromo, supprimerPromo } from "./actions";
+import { asc, eq } from "drizzle-orm";
+import { clients, db } from "@/db";
+import { listBrands, metricoolStatus, type MetricoolBrand } from "@/lib/metricool";
+import { MetricoolReglages } from "./Metricool";
+
+/** « Les Copeaux d'Abord » ↔ « Les Copeaux d'Abord Réunion » : même nom, aux accents et espaces près. */
+function cle(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function suggerer(nom: string, brands: MetricoolBrand[]): string | null {
+  const k = cle(nom);
+  if (k.length < 3) return null;
+  const hit = brands.find((b) => {
+    const l = cle(b.label);
+    return l.length >= 3 && (l.includes(k) || k.includes(l));
+  });
+  return hit?.id ?? null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +46,45 @@ export const dynamic = "force-dynamic";
  */
 export default async function ReglagesPage() {
   await requireDirection();
-  const [config, bannieres] = await Promise.all([reglages(), listPromos()]);
+  const [config, bannieres, mc, clientRows] = await Promise.all([
+    reglages(),
+    listPromos(),
+    metricoolStatus(),
+    db
+      .select({ id: clients.id, name: clients.name, brandId: clients.metricoolBrandId })
+      .from(clients)
+      .where(eq(clients.active, true))
+      .orderBy(asc(clients.name)),
+  ]);
+  let brands: MetricoolBrand[] = [];
+  let brandsError: string | null = null;
+  if (mc.connected) {
+    try {
+      brands = await listBrands();
+    } catch (e) {
+      brandsError = (e as Error).message;
+    }
+  }
 
   return (
     <>
-      <PageHeader title="Réglages" sub="Ce que voient vos clients" />
+      <PageHeader title="Réglages" sub="Intégrations et ce que voient vos clients" />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+          <Card>
+            <CardHead title="Metricool" meta={mc.connected ? "Connecté" : "Non connecté"} />
+            <MetricoolReglages
+              connected={mc.connected}
+              fromEnv={mc.fromEnv}
+              lastSyncAt={mc.lastSyncAt ? mc.lastSyncAt.toISOString() : null}
+              lastError={mc.lastError}
+              brands={brands.map((b) => ({ id: b.id, label: b.label, networks: b.networks }))}
+              brandsError={brandsError}
+              rows={clientRows.map((c) => ({ ...c, suggested: c.brandId ? null : suggerer(c.name, brands) }))}
+            />
+          </Card>
+
           <Card>
             <CardHead title="Identité du portail client" />
             <div className="p-[14px]">

@@ -249,7 +249,7 @@ export function UploadForm({
           type="button"
           onClick={() => start()}
           disabled={running}
-          className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:bg-black disabled:opacity-60"
+          className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85 disabled:opacity-60"
         >
           {running ? `Import ${done + 1} sur ${items.length}…` : "Importer"}
         </button>

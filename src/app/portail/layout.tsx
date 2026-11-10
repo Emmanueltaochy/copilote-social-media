@@ -4,6 +4,8 @@ import { compteursPortail } from "@/db/web-queries";
 import { facturesAregler } from "@/db/queries";
 import { contextePortail } from "@/lib/portail";
 import { NavPortail } from "./Nav";
+import { Icon } from "@/components/ui/Icon";
+import { ThemeButton } from "@/components/shell/ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -41,53 +43,72 @@ export default async function PortailLayout({ children }: { children: React.Reac
       ? "/api/branding/logo"
       : null;
 
+  const roundBtn =
+    "flex h-10 w-10 flex-none cursor-pointer items-center justify-center rounded-full border border-line bg-paper text-ink shadow-soft hover:border-line-strong";
+
   return (
-    <div className="flex min-h-dvh flex-col bg-canvas">
-      {/* Le bandeau prend les couleurs réglées par l'agence : le portail est un
-          prolongement de sa marque, pas un outil générique où le client se
-          demande chez qui il est. */}
-      <header style={{ background: config.darkColor }}>
-        <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/portail" className="flex items-center gap-[10px] no-underline hover:no-underline">
-            {logo ? (
-              /* eslint-disable-next-line @next/next/no-img-element -- servi
-                 par une route maison, hors du pipeline d'images. */
-              <img
-                src={logo}
-                alt={config.agencyName}
-                className="h-6 w-auto max-w-[130px] object-contain"
-              />
-            ) : (
-              <span className="h-2 w-2 rounded-[2px]" style={{ background: config.primaryColor }} />
-            )}
-            <span className="eyebrow text-paper">{config.agencyName}</span>
+    <div className="flex min-h-dvh flex-col">
+      {/* L'en-tête de la nouvelle coquille : la marque de l'agence dans sa
+          tuile (le logo est dessiné pour un fond sombre, celui que l'agence a
+          réglé), le nom du client, la navigation en pilules et le thème. */}
+      <header className="sticky top-0 z-30 bg-canvas/80 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center gap-x-4 gap-y-3 px-4 pt-3 pb-3 sm:px-6 lg:pt-4">
+          <Link
+            href="/portail"
+            className="flex min-w-0 flex-none items-center gap-[10px] text-ink no-underline hover:no-underline"
+          >
+            <span
+              className="flex h-10 min-w-10 flex-none items-center justify-center rounded-[13px] border border-night-line px-[10px]"
+              style={{ background: config.darkColor }}
+            >
+              {logo ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- servi
+                   par une route maison, hors du pipeline d'images. */
+                <img
+                  src={logo}
+                  alt={config.agencyName}
+                  className="h-5 w-auto max-w-[96px] object-contain"
+                />
+              ) : (
+                <span className="h-2 w-2 rounded-[2px]" style={{ background: config.primaryColor }} />
+              )}
+            </span>
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="clip text-[17px] font-bold tracking-[-0.02em]">{client.shortName}</span>
+              <span className="clip text-small text-ink-3">Espace client · {config.agencyName}</span>
+            </span>
           </Link>
 
-          <span className="flex items-center gap-3">
-            <span className="hidden text-small text-night-ink sm:inline">{user.name}</span>
+          {/* Sa propre ligne, à toutes les tailles : huit onglets ne tiennent
+              pas à côté du logo, et un onglet rogné serait un onglet perdu. */}
+          <div className="order-last w-full min-w-0">
+            <NavPortail aValider={compteurs.aValider} projets={compteurs.projets} factures={factures} />
+          </div>
+
+          <div className="ml-auto flex flex-none items-center gap-2">
+            <ThemeButton className={roundBtn} />
+            <span
+              className="hidden h-10 items-center gap-2 rounded-full border border-line bg-paper py-1 pr-4 pl-1 text-base font-medium text-ink shadow-soft sm:flex"
+              title={user.name}
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-night text-small font-semibold text-white">
+                {user.initials}
+              </span>
+              <span className="clip max-w-[140px]">{user.name}</span>
+            </span>
             <form action={logout}>
-              <button
-                type="submit"
-                className="cursor-pointer rounded-control border border-ink-2 bg-transparent px-[10px] py-[6px] text-small font-medium text-night-ink hover:border-ink-3 hover:text-paper"
-              >
-                Se déconnecter
+              <button type="submit" title="Se déconnecter" aria-label="Se déconnecter" className={roundBtn}>
+                <Icon name="logout" size={17} />
               </button>
             </form>
-          </span>
+          </div>
         </div>
-
-        <NavPortail
-          accent={config.primaryColor}
-          aValider={compteurs.aValider}
-          projets={compteurs.projets}
-          factures={factures}
-        />
       </header>
 
-      <main className="mx-auto w-full max-w-[1100px] flex-1 p-4 sm:p-6">{children}</main>
+      <main className="mx-auto w-full max-w-[1180px] flex-1 px-4 pt-5 pb-6 sm:px-6 lg:pt-7">{children}</main>
 
-      <footer className="mx-auto w-full max-w-[1100px] px-4 pb-8 sm:px-6">
-        <p className="text-base text-ink-3">
+      <footer className="mx-auto w-full max-w-[1180px] px-4 pb-8 sm:px-6">
+        <p className="rounded-card border border-line bg-paper px-5 py-4 text-base text-ink-2 shadow-soft">
           {config.portalWelcome ?? "Une question ? Écrivez à votre interlocuteur habituel."}
         </p>
       </footer>

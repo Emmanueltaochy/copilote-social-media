@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon, type IconName } from "@/components/ui/Icon";
+import { cn } from "@/lib/cn";
 
-const ONGLETS = [
-  { href: "/portail", label: "Accueil" },
-  { href: "/portail/valider", label: "À valider", cle: "aValider" },
-  { href: "/portail/medias", label: "Médias" },
-  { href: "/portail/documents", label: "Documents" },
-  { href: "/portail/devis", label: "Devis" },
-  { href: "/portail/factures", label: "Factures", cle: "factures" },
-  { href: "/portail/projets", label: "Projets", cle: "projets" },
-  { href: "/portail/charte", label: "Charte" },
-] as const;
+const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" | "factures" | "projets" }[] = [
+  { href: "/portail", label: "Accueil", icon: "home" },
+  { href: "/portail/valider", label: "À valider", icon: "check", cle: "aValider" },
+  { href: "/portail/medias", label: "Médias", icon: "image" },
+  { href: "/portail/documents", label: "Documents", icon: "layers" },
+  { href: "/portail/devis", label: "Devis", icon: "message" },
+  { href: "/portail/factures", label: "Factures", icon: "euro", cle: "factures" },
+  { href: "/portail/projets", label: "Projets", icon: "grid", cle: "projets" },
+  { href: "/portail/charte", label: "Charte", icon: "sparkles" },
+];
 
 /**
  * La navigation du portail.
@@ -31,12 +33,10 @@ const ONGLETS = [
  * fouiller ses mails, ni à nous, qui le croirons absent.
  */
 export function NavPortail({
-  accent,
   aValider,
   projets,
   factures,
 }: {
-  accent: string;
   aValider: number;
   projets: number;
   factures: number;
@@ -47,31 +47,34 @@ export function NavPortail({
   const compte: Record<string, number> = { aValider, projets, factures };
 
   return (
-    <nav className="mx-auto w-full max-w-[1100px] overflow-x-auto px-4 sm:px-6">
-      <ul className="flex list-none gap-1 pb-0">
+    // Aucun menu déroulant ici : la barre peut défiler sans rien couper.
+    <nav className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
+      <ul className="flex w-max list-none items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-soft">
         {ONGLETS.filter((o) => o.href !== "/portail/projets" || projets > 0).map((o) => {
           // « Accueil » ne s'allume que sur sa propre adresse : sans quoi il
           // resterait actif partout, puisque tout commence par /portail.
           const actif = o.href === "/portail" ? chemin === "/portail" : chemin.startsWith(o.href);
-          const n = "cle" in o ? (compte[o.cle] ?? 0) : 0;
+          const n = o.cle ? (compte[o.cle] ?? 0) : 0;
           return (
             <li key={o.href}>
               <Link
                 href={o.href}
-                className="flex items-center gap-[6px] whitespace-nowrap border-b-2 px-3 py-[10px] text-base no-underline hover:no-underline"
-                style={{
-                  borderBottomColor: actif ? accent : "transparent",
-                  color: actif ? "#FFF" : "rgba(255,255,255,0.62)",
-                  fontWeight: actif ? 500 : 400,
-                }}
+                aria-current={actif ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-[7px] rounded-full px-[14px] py-[8px] text-base font-medium whitespace-nowrap no-underline hover:no-underline",
+                  actif ? "bg-night text-white" : "text-ink-2 hover:bg-mute hover:text-ink",
+                )}
               >
+                <Icon name={o.icon} size={16} />
                 {o.label}
                 {n > 0 ? (
                   <span
-                    className="rounded-full px-[6px] py-[1px] text-micro font-medium tabular-nums text-black"
-                    style={{ background: accent }}
+                    className={cn(
+                      "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px] text-[10.5px] font-bold tabular-nums",
+                      o.cle === "aValider" ? "bg-alert text-white" : "bg-accent text-accent-ink",
+                    )}
                   >
-                    {n}
+                    {n > 99 ? "99+" : n}
                   </span>
                 ) : null}
               </Link>

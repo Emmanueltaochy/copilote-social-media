@@ -46,6 +46,8 @@ export function proxy(request: NextRequest) {
     // défaut déjà corrigé dans currentDirection() : une route répond, elle ne
     // renvoie pas ailleurs. La vérification a lieu dans withApiKey().
     pathname.startsWith("/api/agent") ||
+    // Médias sur lien signé, pour Metricool : la route vérifie la signature.
+    pathname.startsWith("/api/media-public") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();

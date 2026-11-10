@@ -9,9 +9,12 @@ import {
   teamActivity,
   upNext,
   weekAhead,
+  audience,
+  topPostThisMonth,
 } from "@/db/home-queries";
+import { AudiencePanel } from "@/components/home/AudiencePanel";
 import { devisNouveaux } from "@/db/queries";
-import { monthLabel, monthPosition } from "@/lib/pacing";
+import { monthLabel } from "@/lib/pacing";
 import { networksOf } from "@/data/content";
 import { cn } from "@/lib/cn";
 import { Cover } from "@/components/ui/Cover";
@@ -40,7 +43,7 @@ import {
 export default async function AujourdhuiPage() {
   const user = await requireDepartment("social");
   const now = new Date();
-  const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis] =
+  const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis, aud, top] =
     await Promise.all([
       upNext(now),
       missedRecently(now),
@@ -52,6 +55,8 @@ export default async function AujourdhuiPage() {
       shootsSoon(now),
       listClientsWithPace(now, "social"),
       devisNouveaux(),
+      audience(90),
+      topPostThisMonth(now),
     ]);
   const covers = await coversFor([...next.map((c) => c.id), ...approvals.map((a) => a.content.id)]);
 
@@ -59,8 +64,6 @@ export default async function AujourdhuiPage() {
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
   const firstName = user.name.split(" ")[0];
   const sold = portfolio.reduce((s, c) => s + c.contentTarget, 0);
-  const { ratio } = monthPosition(now);
-  const expected = Math.round(sold * ratio * 10) / 10;
   const late = portfolio.filter((c) => c.pace.key === "late" || c.pace.key === "risk");
   const thisWeek = week.filter((c) => !c.publishedAt).length;
 
@@ -118,8 +121,15 @@ export default async function AujourdhuiPage() {
         <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
           {greeting},<br className="hidden lg:block" /> {firstName}
         </h1>
+        {aud ? (
+          <Stat
+            icon="users"
+            value={compact(aud.current)}
+            pill={aud.current30ago > 0 ? `${aud.current >= aud.current30ago ? "+" : ""}${(((aud.current - aud.current30ago) / aud.current30ago) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % en 30 j` : undefined}
+            label="abonnés, tous clients et réseaux"
+          />
+        ) : null}
         <Stat icon="send" value={`${published}`} pill={sold ? `${Math.round((published / Math.max(1, sold)) * 100)} % du mois` : undefined} label={`publiés en ${monthLabel(now).split(" ")[0]} sur ${sold} vendus`} />
-        <Stat icon="gauge" value={`${expected.toLocaleString("fr-FR")}`} label="attendus à ce jour, au rythme du contrat" />
         <Stat icon="calendar" value={`${thisWeek}`} label="contenus prévus sur 7 jours" />
         <Link
           href="/contenu"
@@ -241,6 +251,60 @@ export default async function AujourdhuiPage() {
           )}
         </Panel>
 
+      </div>
+
+      {/* Audience et meilleure publication (relevés Metricool) */}
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        <Panel title="Croissance de l'audience" action={{ href: "/rapports", label: "Rapports", icon: "chart" }}>
+          {aud && aud.points.length ? (
+            <AudiencePanel data={aud} />
+          ) : (
+            <Empty
+              text="Les abonnés de vos clients s'afficheront ici dès que Metricool sera raccordé et les clients reliés à leur marque."
+              href="/reglages"
+              cta="Raccorder Metricool"
+            />
+          )}
+        </Panel>
+        <Panel title="Meilleure publication du mois">
+          {top ? (
+            <a
+              href={top.url ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="group relative flex min-h-[300px] flex-1 flex-col justify-end overflow-hidden rounded-[22px] bg-night p-4 text-white no-underline hover:no-underline"
+            >
+              {top.imageUrl ? (
+                // Image hébergée par le réseau social : pas d'optimisation Next possible.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={top.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-90" referrerPolicy="no-referrer" />
+              ) : null}
+              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_30%,rgba(0,0,0,.82))]" />
+              {top.multiple && top.multiple >= 1.5 ? (
+                <span className="absolute top-4 left-4 rounded-full bg-accent px-3 py-[3px] text-small font-semibold text-accent-ink">
+                  {top.multiple.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}× la portée habituelle
+                </span>
+              ) : null}
+              <span className="relative flex items-center gap-2 text-small">
+                <ClientChip name={top.clientName} size={22} /> {top.clientName}
+                <span className="ml-auto">
+                  <NetworkDot network={top.network} size={22} />
+                </span>
+              </span>
+              <p className="relative mt-2 mb-3 line-clamp-2 max-h-[2.9em] overflow-hidden text-base leading-[1.45] font-medium break-words">{top.text || "Publication sans texte"}</p>
+              <span className="relative flex gap-6">
+                <TopStat value={compact(Math.max(top.reach, top.views))} label={top.reach >= top.views ? "portée" : "vues"} />
+                <TopStat value={compact(top.interactions)} label="interactions" />
+                {top.saves ? <TopStat value={compact(top.saves)} label="enregistrements" /> : null}
+              </span>
+            </a>
+          ) : (
+            <Empty text="Aucune publication relevée ce mois-ci pour l'instant." />
+          )}
+        </Panel>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         {/* Engagements du mois */}
         <Panel title={`Engagements · ${monthLabel(now)}`} action={{ href: "/avancement", label: "Avancement" }}>
           <div className="mb-3 flex items-baseline gap-3">
@@ -374,9 +438,6 @@ export default async function AujourdhuiPage() {
                   <span className="w-[74px] text-right text-small text-ink-3 tabular-nums">{n.published} publiés</span>
                 </div>
               ))}
-              <p className="text-small text-ink-3">
-                Les statistiques d&apos;audience (abonnés, portée, engagement) arriveront avec le branchement Metricool.
-              </p>
             </div>
           )}
         </Panel>
@@ -432,7 +493,7 @@ export default async function AujourdhuiPage() {
   );
 }
 
-function Stat({ icon, value, label, pill }: { icon: "send" | "gauge" | "calendar"; value: string; label: string; pill?: string }) {
+function Stat({ icon, value, label, pill }: { icon: "send" | "gauge" | "calendar" | "users"; value: string; label: string; pill?: string }) {
   return (
     <div className="flex items-center gap-3">
       <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full border border-line bg-paper text-ink shadow-soft">
@@ -485,5 +546,19 @@ function Empty({ text, href, cta }: { text: string; href?: string; cta?: string 
         </Link>
       ) : null}
     </div>
+  );
+}
+
+function compact(n: number) {
+  if (Math.abs(n) >= 10_000) return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k`;
+  return n.toLocaleString("fr-FR");
+}
+
+function TopStat({ value, label }: { value: string; label: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className="text-[22px] leading-none font-bold tracking-[-0.02em]">{value}</span>
+      <span className="text-micro text-white/70">{label}</span>
+    </span>
   );
 }

@@ -28,4 +28,11 @@ export async function register() {
     console.error("[pilot] échec des migrations", error);
     throw error;
   }
+
+  // Relevé Metricool : toutes les heures on regarde si le dernier date de
+  // plus de 6 h. Sans clé enregistrée, rien ne part.
+  const { syncIfStale } = await import("@/lib/metricool");
+  const tick = () => syncIfStale(6).catch((e) => console.warn("[pilot] relevé Metricool", e));
+  setTimeout(tick, 60_000);
+  setInterval(tick, 3_600_000).unref?.();
 }

@@ -14,7 +14,7 @@ const champ =
  * tournée au téléphone dépasse largement ce qu'une action serveur accepte, et
  * le dépassement s'y solde par un écran blanc sans explication.
  */
-export function DepotFichiers({ clientId, accent }: { clientId: string; accent: string }) {
+export function DepotFichiers({ clientId }: { clientId: string; accent?: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [progression, setProgression] = useState<number | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -73,8 +73,7 @@ export function DepotFichiers({ clientId, accent }: { clientId: string; accent: 
           type="button"
           onClick={envoyer}
           disabled={progression !== null}
-          style={{ background: accent, borderColor: accent }}
-          className="flex-none cursor-pointer rounded-control border px-3 py-2 text-base font-medium text-paper disabled:opacity-60"
+          className="flex-none cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-4 py-2 text-base disabled:opacity-60"
         >
           {progression !== null ? `Envoi ${progression} %` : "Envoyer"}
         </button>
@@ -98,7 +97,6 @@ export function CharteClient({
   couleurs,
   polices,
   ton,
-  accent,
   clientId,
 }: {
   couleurs: string[];
@@ -164,8 +162,7 @@ export function CharteClient({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          style={{ background: accent, borderColor: accent }}
-          className="cursor-pointer rounded-control border px-3 py-2 text-base font-medium text-paper"
+          className="cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-4 py-2 text-base"
         >
           {état === "envoi" ? "Enregistrement…" : "Enregistrer"}
         </button>
@@ -266,8 +263,7 @@ export function LivrableClient({
             name="decision"
             value="valide"
             disabled={pending}
-            style={{ background: accent, borderColor: accent }}
-            className="flex-none cursor-pointer rounded-control border px-3 py-2 text-base font-medium text-paper disabled:opacity-60"
+            className="flex-none cursor-pointer rounded-full border border-night bg-night font-semibold text-white hover:opacity-85 px-4 py-2 text-base disabled:opacity-60"
           >
             {pending ? "Un instant…" : "Valider"}
           </button>
