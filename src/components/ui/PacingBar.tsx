@@ -65,13 +65,19 @@ export function PacingBar({
 
   if (!markerLabel) return track;
 
+  // The label hangs to the left of the marker so it never covers the bar —
+  // unless the marker sits in the first half, where it would spill out of the
+  // card on a phone: it then hangs to the right.
+  // « calc(33.3% - 1.5px) » ou « 33.3% » : on lit le pourcentage.
+  const pos = parseFloat(/(-?[\d.]+)%/.exec(markerLeft ?? "")?.[1] ?? "");
+  const right = Number.isFinite(pos) && pos < 50;
+
   return (
     <div className="relative pt-5">
       <Eyebrow
         tone="gold"
-        className="absolute top-0 -translate-x-full whitespace-nowrap"
-        // The label hangs to the left of the marker so it never covers the bar.
-        style={{ left: markerLeft, marginLeft: -8 }}
+        className={cn("absolute top-0 whitespace-nowrap", !right && "-translate-x-full")}
+        style={{ left: markerLeft, marginLeft: right ? 8 : -8 }}
       >
         {markerLabel}
       </Eyebrow>

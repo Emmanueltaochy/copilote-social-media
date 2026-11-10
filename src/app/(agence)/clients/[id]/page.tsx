@@ -94,8 +94,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         sub={`${client.sector ?? "Secteur à renseigner"} · ${monthLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {estSocial ? (
           <Card className="flex flex-col gap-4 p-5">
             <div className="flex items-start justify-between gap-4">
@@ -139,13 +139,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             {canSeeMoney(user) ? (
               <div className="flex items-center gap-4 border-t border-line pt-3 text-base">
                 <span className="text-ink-2">
-                  Forfait{" "}
+                  Forfait{""}
                   <strong className="font-medium text-ink">
                     {client.monthlyFeeCents > 0 ? euroFromCents(client.monthlyFeeCents) : "—"}
                   </strong>
                 </span>
                 <span className="text-ink-2">
-                  Heures vendues{" "}
+                  Heures vendues{""}
                   <strong className="font-medium text-ink">{client.hoursSold} h</strong>
                 </span>
               </div>
@@ -160,9 +160,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               meta={lines.length ? `${lines.length} lignes` : undefined}
             />
             {lines.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Aucune ligne pour l&apos;instant. La décomposition (posts feed, stories, reels…)
-                permet de suivre l&apos;engagement type par type — et surtout de{" "}
+                permet de suivre l&apos;engagement type par type — et surtout de{""}
                 <Link href="/preparer">préparer le mois</Link> en un clic plutôt que de ressaisir
                 les mêmes contenus tous les trente jours.
               </p>
@@ -170,7 +170,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               lines.map((l) => (
                 <div
                   key={l.id}
-                  className="flex h-11 items-center gap-3 border-b border-line px-[14px]"
+                  className="flex h-11 items-center gap-3 border-b border-line px-5"
                 >
                   <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
                   <span className="flex-none text-small text-ink-3">
@@ -183,7 +183,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                     <button
                       type="submit"
                       title="Retirer cette ligne"
-                      className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                      className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                     >
                       ✕
                     </button>
@@ -295,7 +295,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   <Link
                     key={project.id}
                     href={`/web/${project.id}`}
-                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3 no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
                   >
                     <span className="clip min-w-0 flex-1 text-base font-medium text-ink">
                       {project.name}
@@ -306,7 +306,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       </span>
                     ) : null}
                     <span className="flex-none text-small text-ink-3">
-                      {PROJECT_TYPE[project.type]?.short ?? project.type} ·{" "}
+                      {PROJECT_TYPE[project.type]?.short ?? project.type} ·{""}
                       {WEB_PHASE[project.phase]?.label}
                     </span>
                   </Link>
@@ -336,7 +336,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   <Link
                     key={brief.id}
                     href={`/web/briefs/${brief.id}`}
-                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px] no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-[10px] no-underline last:border-b-0 hover:bg-canvas hover:no-underline"
                   >
                     <span className="clip min-w-0 flex-1 text-base text-ink-2">{brief.title}</span>
                     <span className="flex-none text-small tabular-nums text-ink-3">
@@ -444,7 +444,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       <input type="hidden" name="clientId" value={client.id} />
                       <button
                         type="submit"
-                        className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-3 hover:border-alert hover:text-alert"
+                        className="cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small text-ink-3 hover:border-alert hover:text-alert"
                       >
                         Révoquer
                       </button>
@@ -483,7 +483,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <input type="hidden" name="id" value={client.id} />
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-base font-medium text-alert hover:border-alert"
+                className="cursor-pointer rounded-full border border-line bg-paper px-3 py-2 text-base font-medium text-alert hover:border-alert"
               >
                 Archiver
               </button>

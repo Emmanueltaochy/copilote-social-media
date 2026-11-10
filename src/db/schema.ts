@@ -171,6 +171,25 @@ export const clients = pgTable(
      */
     metricoolBrandId: text("metricool_brand_id"),
 
+    /**
+     * « validation » : chaque publication passe par le portail du client avant
+     * de partir. « confiance » : le client nous laisse publier sans validation.
+     * L'assistant IA respecte ce réglage, il ne le contourne jamais.
+     */
+    publishMode: text("publish_mode").notNull().default("validation"),
+    /**
+     * Le rythme de publication convenu : [{ day: 1-7 (lundi = 1), time: "18:00",
+     * networks: ["instagram"], kind: "reel", note }]. Sert à planifier le mois.
+     */
+    postingPlan: jsonb("posting_plan")
+      .$type<{ day: number; time: string; networks: string[]; kind: string; note?: string }[]>()
+      .notNull()
+      .default([]),
+    /** Le dossier Google Drive où les vidéastes déposent les rushs de ce client. */
+    driveFolderId: text("drive_folder_id"),
+    /** Le client correspondant chez Abby (facturation). */
+    abbyCustomerId: text("abby_customer_id"),
+
     active: boolean("active").notNull().default(true),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -540,6 +559,8 @@ export const assets = pgTable(
     folderId: uuid("folder_id").references(() => assetFolders.id, { onDelete: "set null" }),
     filename: text("filename").notNull(),
     /** Chemin sur le volume du VPS, jamais une URL publique. */
+    /** Le fichier Google Drive d'origine, quand le média a été importé de là : évite les doublons. */
+    driveFileId: text("drive_file_id"),
     storagePath: text("storage_path").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes"),
@@ -987,6 +1008,8 @@ export const webProjects = pgTable(
       .notNull()
       .references(() => clients.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** Le devis signé chez Abby dont le projet est né : évite de créer deux fois le même projet. */
+    abbyEstimateId: text("abby_estimate_id"),
     type: webProjectType("type").notNull().default("vitrine"),
     phase: webPhase("phase").notNull().default("cadrage"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
@@ -1474,4 +1497,27 @@ export const socialPosts = pgTable(
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("social_posts_client_idx").on(t.clientId), index("social_posts_published_idx").on(t.publishedAt)],
+);
+
+/* -------------------------------------------------------------- Jarvis -- */
+
+/**
+ * Les conversations avec l'assistant IA (Jarvis), une par personne et par
+ * sujet. `messages` garde l'échange complet tel que l'API l'attend, `log` la
+ * liste lisible de ce que l'assistant a fait dans la plateforme.
+ */
+export const agentThreads = pgTable(
+  "agent_threads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Nouvelle conversation"),
+    messages: jsonb("messages").$type<unknown[]>().notNull().default([]),
+    log: jsonb("log").$type<{ at: string; agent: string; text: string; href?: string }[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("agent_threads_user_idx").on(t.userId)],
 );

@@ -50,7 +50,7 @@ export default async function TerrainPublierPage() {
 
             {content.publishedAt ? (
               <span className="text-small text-ok">
-                Publié à{" "}
+                Publié à{""}
                 {content.publishedAt.toLocaleTimeString("fr-FR", {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -68,7 +68,7 @@ export default async function TerrainPublierPage() {
                 />
                 <button
                   type="submit"
-                  className="w-full cursor-pointer rounded-control border border-ink bg-ink px-3 py-[10px] text-base font-medium text-paper"
+                  className="w-full cursor-pointer rounded-full border border-night bg-night px-4 py-[10px] text-base font-semibold text-white"
                 >
                   Marquer comme publié
                 </button>

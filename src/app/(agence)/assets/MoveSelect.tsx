@@ -37,7 +37,7 @@ export function MoveSelect({
         <option value="">Racine</option>
         {dossiers.map((d) => (
           <option key={d.id} value={d.id}>
-            {"  ".repeat(d.niveau)}
+            {"".repeat(d.niveau)}
             {d.name}
           </option>
         ))}

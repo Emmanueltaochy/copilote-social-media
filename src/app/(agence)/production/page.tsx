@@ -43,13 +43,13 @@ export default async function ProductionPage() {
       >
         <Link
           href="/contenu"
-          className="rounded-control border border-ink bg-ink px-[11px] py-[7px] text-small font-medium text-paper no-underline hover:opacity-85 hover:no-underline"
+          className="rounded-full border border-night bg-night px-[11px] py-[7px] text-small font-semibold text-white no-underline hover:opacity-85 hover:no-underline"
         >
           Nouveau contenu
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex h-full min-w-max items-start gap-3">
           {CONTENT_STAGES.map((stage) => {
             const cards = rows.filter((r) => r.content.status === stage);
@@ -107,7 +107,7 @@ export default async function ProductionPage() {
                             <input type="hidden" name="stage" value={next} />
                             <button
                               type="submit"
-                              className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                              className="w-full cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                             >
                               → {CONTENT_STATUS[next].label}
                             </button>

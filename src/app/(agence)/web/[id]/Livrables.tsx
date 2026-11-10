@@ -77,7 +77,7 @@ export function AjoutLivrable({ projectId, clientId }: { projectId: string; clie
       // Désigne ce formulaire sans ambiguïté : la fiche en compte plusieurs,
       // et « le champ libellé » y existe à trois endroits.
       data-form="livrable"
-      className="flex flex-col gap-2 px-[14px] py-3"
+      className="flex flex-col gap-2 px-5 py-3"
     >
       <input type="hidden" name="projectId" value={projectId} />
 
@@ -121,7 +121,7 @@ export function AjoutLivrable({ projectId, clientId }: { projectId: string; clie
         <button
           type="submit"
           disabled={envoi}
-          className="cursor-pointer rounded-control border border-ink bg-ink px-[10px] py-[6px] text-small font-medium text-paper hover:opacity-85 disabled:opacity-60"
+          className="cursor-pointer rounded-full border border-night bg-night px-[10px] py-[6px] text-small font-semibold text-white hover:opacity-85 disabled:opacity-60"
         >
           {envoi ? "Envoi du fichier…" : "Soumettre au client"}
         </button>

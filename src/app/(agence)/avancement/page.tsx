@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/Screen";
+import { ClientChip } from "@/components/home/bits";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
@@ -45,8 +46,8 @@ export default async function AvancementPage() {
         sub={`${monthLabel()} · ${monthProgressLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           <Card className="p-5">
             <Eyebrow>Tous engagements confondus</Eyebrow>
             <KpiGrid columns={4} className="mt-3">
@@ -83,7 +84,10 @@ export default async function AvancementPage() {
             </TableHead>
             {engaged.map((c) => (
               <TableRow key={c.id} cols={COLS}>
-                <span className="clip text-base font-medium">{c.shortName}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <ClientChip name={c.shortName} size={28} />
+                  <span className="clip text-base font-medium">{c.shortName}</span>
+                </span>
                 <PacingBar
                   fillPct={c.pace.fillPct}
                   projPct={c.pace.projPct}

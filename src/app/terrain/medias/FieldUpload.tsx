@@ -91,7 +91,7 @@ export function FieldUpload({ clients }: { clients: { id: string; name: string }
         type="button"
         onClick={send}
         disabled={etat !== null}
-        className="w-full cursor-pointer rounded-control border border-ink bg-ink px-3 py-[10px] text-base font-medium text-paper disabled:opacity-60"
+        className="w-full cursor-pointer rounded-full border border-night bg-night px-4 py-[10px] text-base font-semibold text-white disabled:opacity-60"
       >
         {etat ?? "Envoyer"}
       </button>

@@ -178,7 +178,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
                 type="button"
                 onClick={() => setCurrent(null)}
                 aria-label="Revenir aux conversations"
-                className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-small text-ink-2 hover:border-line-strong hover:text-ink"
+                className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-small text-ink-2 hover:border-line-strong hover:text-ink"
               >
                 ←
               </button>
@@ -190,7 +190,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Fermer la messagerie"
-              className="cursor-pointer rounded-control border border-transparent bg-transparent px-[6px] py-[2px] text-small text-ink-3 hover:border-line hover:text-ink"
+              className="cursor-pointer rounded-full border border-transparent bg-transparent px-[6px] py-[2px] text-small text-ink-3 hover:border-line hover:text-ink"
             >
               ✕
             </button>
@@ -337,7 +337,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
                     type="button"
                     onClick={() => void envoyer()}
                     disabled={sending || draft.trim() === ""}
-                    className="flex-none cursor-pointer rounded-control border border-ink bg-ink px-3 py-[7px] text-base font-medium text-paper hover:opacity-85 disabled:opacity-50"
+                    className="flex-none cursor-pointer rounded-full border border-night bg-night px-4 py-[7px] text-base font-semibold text-white hover:opacity-85 disabled:opacity-50"
                   >
                     {sending ? "…" : "Envoyer"}
                   </button>

@@ -46,7 +46,7 @@ function Rangee({ ligne, now, retard }: { ligne: Ligne; now: Date; retard: boole
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3",
+        "flex flex-wrap items-center gap-3 border-b border-line px-5 py-3",
         retard ? "bg-alert-wash" : "bg-paper",
       )}
     >
@@ -162,15 +162,15 @@ export default async function APublierPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1060px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1060px] flex-col gap-4">
           {enRetard.length > 0 ? (
             <Card>
               <CardHead title="En retard" meta={`${enRetard.length}`} />
               {enRetard.map((l) => (
                 <Rangee key={l.content.id} ligne={l} now={now} retard />
               ))}
-              <p className="px-[14px] py-3 text-small text-ink-3">
+              <p className="px-5 py-3 text-small text-ink-3">
                 L&apos;heure prévue est passée et le lien n&apos;est pas encore là. C&apos;est ce
                 qui manque à l&apos;engagement du mois.
               </p>
@@ -183,14 +183,14 @@ export default async function APublierPage() {
               meta={`${aVenir.length}`}
             />
             {aVenir.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Rien d&apos;autre n&apos;attend. Les contenus arrivent ici dès qu&apos;ils passent à
                 l&apos;étape <strong>Prêt à publier</strong> dans le pipeline.
               </p>
             ) : (
               aVenir.map((l) => <Rangee key={l.content.id} ligne={l} now={now} retard={false} />)
             )}
-            <p className="px-[14px] py-3 text-small text-ink-3">
+            <p className="px-5 py-3 text-small text-ink-3">
               Le lien est enregistré avec l&apos;heure et l&apos;auteur. C&apos;est cette
               publication qui compte dans l&apos;engagement du mois du client.
             </p>
@@ -202,7 +202,7 @@ export default async function APublierPage() {
               {pasPrets.map(({ content, clientName }) => (
                 <div
                   key={content.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px]"
+                  className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-[10px]"
                 >
                   <span className="w-[150px] flex-none text-base tabular-nums text-ink-2">
                     {quand(content.scheduledAt, now)}
@@ -218,7 +218,7 @@ export default async function APublierPage() {
                   </span>
                 </div>
               ))}
-              <p className="px-[14px] py-3 text-small text-ink-3">
+              <p className="px-5 py-3 text-small text-ink-3">
                 Ils sortent aujourd&apos;hui mais ne sont pas encore passés en « prêt à publier ».
               </p>
             </Card>
@@ -230,7 +230,7 @@ export default async function APublierPage() {
               {publiés.map(({ content, clientName }) => (
                 <div
                   key={content.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px]"
+                  className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-[10px]"
                 >
                   <span className="w-[150px] flex-none text-base tabular-nums text-ink-3">
                     {content.publishedAt?.toLocaleTimeString("fr-FR", {

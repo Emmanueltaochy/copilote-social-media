@@ -64,19 +64,19 @@ export default async function RentabilitePage() {
         } · ${monthProgressLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {!hoursEntered || ratesSet === 0 ? (
             <Card className="border-warn bg-warn-bg px-5 py-4">
               <Eyebrow tone="warn">Chiffres incomplets</Eyebrow>
               <p className="mt-1 text-lead text-warn">
                 {!hoursEntered
                   ? "Aucune heure n'a été saisie ce mois."
-                  : "Aucun tarif horaire n'est renseigné."}{" "}
+                  : "Aucun tarif horaire n'est renseigné."}{""}
                 La marge affichée est donc égale au forfait — c&apos;est faux, et flatteur.
                 {!hoursEntered
-                  ? " L'équipe saisit ses heures depuis « Mes heures »."
-                  : " Les tarifs se posent en bas de cet écran."}
+                  ? "L'équipe saisit ses heures depuis « Mes heures »."
+                  : "Les tarifs se posent en bas de cet écran."}
               </p>
             </Card>
           ) : null}
@@ -157,7 +157,7 @@ export default async function RentabilitePage() {
               );
             })}
             </TableScroll>
-            <div className="px-[14px] py-[10px]">
+            <div className="px-5 py-[10px]">
               <span className="text-small text-ink-3">
                 « Reste » compare les heures passées aux heures vendues : négatif, le compte
                 consomme plus que ce qu&apos;il a acheté. La marge en dessous de 30 % du forfait
@@ -175,7 +175,7 @@ export default async function RentabilitePage() {
               <form
                 key={r.userId}
                 action={setRate}
-                className="flex items-center gap-3 border-b border-line px-[14px] py-[10px]"
+                className="flex items-center gap-3 border-b border-line px-5 py-[10px]"
               >
                 <input type="hidden" name="userId" value={r.userId} />
                 <span className="clip min-w-0 flex-1 text-base font-medium">{r.name}</span>
@@ -203,13 +203,13 @@ export default async function RentabilitePage() {
                 </label>
                 <button
                   type="submit"
-                  className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                  className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                 >
                   Enregistrer
                 </button>
               </form>
             ))}
-            <p className="px-[14px] py-3 text-small text-ink-3">
+            <p className="px-5 py-3 text-small text-ink-3">
               Le tarif est historisé : une augmentation vaut à partir de sa date et ne réécrit pas
               la marge des mois déjà clos. C&apos;est un coût de revient interne — salaire chargé
               rapporté aux heures travaillées — pas un taux de facturation.

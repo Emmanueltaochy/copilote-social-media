@@ -14,6 +14,9 @@ import { asc, eq } from "drizzle-orm";
 import { clients, db } from "@/db";
 import { listBrands, metricoolStatus, type MetricoolBrand } from "@/lib/metricool";
 import { MetricoolReglages } from "./Metricool";
+import { CleIntegration, ConnecteurClaude, PublicationClients } from "./Integrations";
+import { getSecret, secretStatus } from "@/lib/secrets";
+import { driveAccountEmail } from "@/lib/drive";
 
 /** « Les Copeaux d'Abord » ↔ « Les Copeaux d'Abord Réunion » : même nom, aux accents et espaces près. */
 function cle(s: string) {
@@ -51,11 +54,19 @@ export default async function ReglagesPage() {
     listPromos(),
     metricoolStatus(),
     db
-      .select({ id: clients.id, name: clients.name, brandId: clients.metricoolBrandId })
+      .select({ id: clients.id, name: clients.name, brandId: clients.metricoolBrandId, publishMode: clients.publishMode, driveFolderId: clients.driveFolderId })
       .from(clients)
       .where(eq(clients.active, true))
       .orderBy(asc(clients.name)),
   ]);
+  const [ai, abby, drive, mcp, driveEmail] = await Promise.all([
+    secretStatus("anthropic"),
+    secretStatus("abby"),
+    secretStatus("google-drive"),
+    getSecret("mcp"),
+    driveAccountEmail(),
+  ]);
+  const mcpUrl = mcp && process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}/api/mcp/${mcp.token}` : mcp ? `/api/mcp/${mcp.token}` : null;
   let brands: MetricoolBrand[] = [];
   let brandsError: string | null = null;
   if (mc.connected) {
@@ -68,10 +79,63 @@ export default async function ReglagesPage() {
 
   return (
     <>
-      <PageHeader title="Réglages" sub="Intégrations et ce que voient vos clients" />
+      <PageHeader title="Réglages" sub="Assistant IA, intégrations et ce que voient vos clients" />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+          <Card>
+            <CardHead title="Assistant IA (Jarvis)" meta={ai.connected ? "Connecté" : "Non connecté"} />
+            <CleIntegration
+              id="anthropic"
+              connected={ai.connected}
+              fromEnv={ai.fromEnv}
+              label="Clé d'API Claude (Anthropic)"
+              help={<>console.anthropic.com → API Keys. Jarvis et ses agents l&apos;utilisent pour agir dans Pilot ; la consommation est facturée par Anthropic.</>}
+            />
+          </Card>
+
+          <Card>
+            <CardHead title="Clients : validation et rushs" meta={`${clientRows.length}`} />
+            <p className="px-5 pt-1 text-small text-ink-3">
+              « Valide avant publication » : chaque contenu passe par le portail du client, et part chez Metricool dès qu&apos;il est validé. « Nous fait
+              confiance » : Jarvis peut programmer directement. Le dossier Drive est celui où les vidéastes déposent les rushs.
+            </p>
+            <PublicationClients rows={clientRows.map((c) => ({ id: c.id, name: c.name, publishMode: c.publishMode, driveFolderId: c.driveFolderId }))} />
+          </Card>
+
+          <Card>
+            <CardHead title="Google Drive (rushs)" meta={drive.connected ? "Connecté" : "Non connecté"} />
+            <CleIntegration
+              id="google-drive"
+              multiline
+              connected={drive.connected}
+              fromEnv={drive.fromEnv}
+              label="Clé JSON du compte de service Google"
+              help={
+                <>
+                  Google Cloud → IAM → Comptes de service → Clés → JSON (API Google Drive activée). Partagez ensuite chaque dossier de rushs, en lecture, avec{" "}
+                  {driveEmail ? <b>{driveEmail}</b> : "l'adresse du compte de service"}.
+                </>
+              }
+            />
+          </Card>
+
+          <Card>
+            <CardHead title="Abby (devis signés)" meta={abby.connected ? "Connecté" : "Non connecté"} />
+            <CleIntegration
+              id="abby"
+              connected={abby.connected}
+              fromEnv={abby.fromEnv}
+              label="Clé d'API Abby"
+              help={<>Abby → Paramètres → Intégrations → Créer une clé. Le chef de projet web IA y lit les devis signés pour lancer les projets.</>}
+            />
+          </Card>
+
+          <Card>
+            <CardHead title="Claude.ai + Canva" meta={mcpUrl ? "Prêt" : "À activer"} />
+            <ConnecteurClaude url={mcpUrl} />
+          </Card>
+
           <Card>
             <CardHead title="Metricool" meta={mc.connected ? "Connecté" : "Non connecté"} />
             <MetricoolReglages

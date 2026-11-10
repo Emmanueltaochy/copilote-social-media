@@ -40,7 +40,7 @@ export default async function TerrainTournagesPage() {
                 {r.shoot.place ? ` · ${r.shoot.place}` : ""}
               </span>
               <span className={`text-small ${state.ready ? "text-ok" : "text-warn"}`}>
-                {state.ready ? "Tout est prêt" : state.blocking.join(" · ")}
+                {state.ready ? "Tout est prêt" : state.blocking.join("·")}
               </span>
             </Link>
           );

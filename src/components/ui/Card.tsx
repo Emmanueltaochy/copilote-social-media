@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { toneText, type Tone } from "@/lib/tone";
-import { Eyebrow } from "./primitives";
 
 /** White panel on the canvas. The only container shape in the product. */
 export function Card({
@@ -16,7 +15,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "flex-none overflow-hidden rounded-card border border-line bg-paper shadow-soft",
+        "flex-none overflow-hidden rounded-[26px] border border-line bg-paper shadow-soft",
         padded && "p-5",
         className,
       )}
@@ -41,11 +40,11 @@ export function CardHead({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-b border-line px-5 py-4",
+        "flex items-center justify-between gap-3 px-5 pt-5 pb-3",
         className,
       )}
     >
-      {typeof title === "string" ? <Eyebrow>{title}</Eyebrow> : title}
+      {typeof title === "string" ? <h2 className="text-lead font-semibold text-ink">{title}</h2> : title}
       {meta ? <span className="text-small text-ink-3 tabular-nums">{meta}</span> : null}
       {children}
     </div>
@@ -66,12 +65,15 @@ export function KpiGrid({
   className?: string;
 }) {
   return (
+    // Sur téléphone, deux colonnes au plus : quatre chiffres côte à côte sur
+    // 390 px se coupent mot par mot.
     <div
       className={cn(
         "grid gap-3",
+        columns > 1 ? "grid-cols-2 lg:grid-cols-[repeat(var(--kpi-cols),minmax(0,1fr))]" : "grid-cols-1",
         className,
       )}
-      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      style={{ "--kpi-cols": columns } as React.CSSProperties}
     >
       {children}
     </div>
@@ -94,12 +96,12 @@ export function Kpi({
   size?: "md" | "lg";
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-card border border-line bg-paper px-5 py-4 shadow-soft">
-      <Eyebrow>{label}</Eyebrow>
+    <div className="flex flex-col gap-1 rounded-[22px] border border-line bg-paper px-5 py-4 shadow-soft">
+      <span className="text-small text-ink-3">{label}</span>
       <span
         className={cn(
-          "font-semibold tabular-nums",
-          size === "lg" ? "text-display" : "text-title",
+          "leading-tight font-bold tracking-[-0.02em] tabular-nums",
+          size === "lg" ? "text-[34px]" : "text-[26px]",
           toneText[valueTone],
         )}
       >

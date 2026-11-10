@@ -53,13 +53,13 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {attente.length > 0 ? (
             <Card className="border-warn bg-warn-bg p-4">
               <p className="text-base text-warn">
                 {attente.length} point{attente.length > 1 ? "s" : ""} attend
-                {attente.length > 1 ? "ent" : ""} le client : {attente.map((j) => j.label).join(" · ")}.
+                {attente.length > 1 ? "ent" : ""} le client : {attente.map((j) => j.label).join("·")}.
                 Ils apparaissent dans son portail, dans « ce qu&apos;on attend de vous ».
               </p>
             </Card>
@@ -68,7 +68,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <Card>
               <CardHead title="Le projet" meta={WEB_PHASE[p.phase]?.label} />
-              <form action={updateProject} className="flex flex-col gap-3 p-[14px]">
+              <form action={updateProject} className="flex flex-col gap-3 px-5 pt-1 pb-5">
                 <input type="hidden" name="id" value={p.id} />
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -141,7 +141,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                 <div className="flex items-center justify-between gap-3">
                   <button
                     type="submit"
-                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
+                    className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85"
                   >
                     Enregistrer
                   </button>
@@ -167,12 +167,12 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                   meta={`${faits}/${jalons.length}`}
                 />
                 {jalons.length === 0 ? (
-                  <p className="px-[14px] py-4 text-base text-ink-2">
+                  <p className="px-5 py-4 text-base text-ink-2">
                     Aucun jalon. Un projet sans jalon se suit au ressenti.
                   </p>
                 ) : (
                   jalons.map((j) => (
-                    <div key={j.id} className="flex items-center gap-3 border-b border-line px-[14px] py-2">
+                    <div key={j.id} className="flex items-center gap-3 border-b border-line px-5 py-2">
                       <form action={toggleMilestone} className="flex flex-none">
                         <input type="hidden" name="id" value={j.id} />
                         <input type="hidden" name="projectId" value={p.id} />
@@ -196,7 +196,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                         <button
                           type="submit"
                           title="Retirer"
-                          className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                          className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                         >
                           ✕
                         </button>
@@ -205,7 +205,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                   ))
                 )}
 
-                <form action={addMilestone} className="flex flex-wrap items-center gap-2 px-[14px] py-3">
+                <form action={addMilestone} className="flex flex-wrap items-center gap-2 px-5 py-3">
                   <input type="hidden" name="projectId" value={p.id} />
                   <input name="label" required placeholder="Maquette page contact validée" className={`min-w-0 flex-1 ${champ}`} />
                   <label className="flex flex-none cursor-pointer items-center gap-[6px] text-small text-ink-2">
@@ -214,7 +214,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                   </label>
                   <button
                     type="submit"
-                    className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                    className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                   >
                     Ajouter
                   </button>
@@ -227,7 +227,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                   <Link
                     key={brief.id}
                     href={`/web/briefs/${brief.id}`}
-                    className="flex items-center gap-3 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
+                    className="flex items-center gap-3 border-b border-line px-5 py-3 no-underline hover:bg-canvas hover:no-underline"
                   >
                     <Dot tone={BRIEF_STATUS[brief.status].tone} solid size={6} />
                     <span className="clip flex-1 text-base text-ink">{brief.title}</span>
@@ -239,7 +239,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                     </StatusPill>
                   </Link>
                 ))}
-                <div className="px-[14px] py-3">
+                <div className="px-5 py-3">
                   <BriefLauncher
                     clientId={p.clientId}
                     projectId={p.id}
@@ -267,14 +267,14 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
             />
 
             {livrables.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Rien de soumis pour l&apos;instant. Une maquette se montre au client sous la forme
                 qui existe déjà : un lien Figma, une préproduction, ou un PDF déposé ici. Il la
                 valide ou dit ce qui doit changer, depuis son espace.
               </p>
             ) : (
               livrables.map(({ livrable, filename }) => (
-                <div key={livrable.id} className="flex flex-col gap-1 border-b border-line px-[14px] py-3">
+                <div key={livrable.id} className="flex flex-col gap-1 border-b border-line px-5 py-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="flex min-w-[180px] flex-1 flex-col">
                       <a
@@ -313,7 +313,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                         <input type="hidden" name="projectId" value={p.id} />
                         <button
                           type="submit"
-                          className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                          className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                         >
                           Resoumettre
                         </button>
@@ -326,7 +326,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
                       <button
                         type="submit"
                         title="Retirer"
-                        className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                        className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                       >
                         ✕
                       </button>
@@ -347,7 +347,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
 
           <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
             <span className="text-small text-ink-2">
-              Le client suit ce projet depuis son portail :{" "}
+              Le client suit ce projet depuis son portail :{""}
               {jalons.filter((j) => j.clientVisible).length} jalon
               {jalons.filter((j) => j.clientVisible).length > 1 ? "s" : ""} visible
               {jalons.filter((j) => j.clientVisible).length > 1 ? "s" : ""}.

@@ -1,9 +1,13 @@
 "use server";
 
+const LECTURE_SEULE =
+  "Aperçu : vous regardez le portail de votre client en lecture seule. Seul le client peut répondre.";
+
 import { revalidatePath } from "next/cache";
 import { and, eq, sql as raw } from "drizzle-orm";
 import { db, brands, briefFields, briefs, clientFiles, webDeliverables, webProjects } from "@/db";
 import { requireUser } from "@/lib/auth";
+import { enApercu } from "@/lib/portail";
 import { majStatutBrief } from "@/app/(agence)/web/actions";
 import { removeStored } from "@/lib/storage";
 import { notify } from "@/lib/notify";
@@ -20,6 +24,7 @@ export type PortailWebState = { ok?: string; error?: string };
 
 /** Répond à une question de son brief. */
 export async function repondreAuBrief(formData: FormData): Promise<void> {
+  if (await enApercu()) return;
   const user = await requireUser();
   if (user.role !== "client" || !user.clientId) return;
 
@@ -62,6 +67,7 @@ export async function repondreAuBrief(formData: FormData): Promise<void> {
  * l'agence complète. Deux documents séparés divergent en une semaine.
  */
 export async function majCharte(formData: FormData): Promise<void> {
+  if (await enApercu()) return;
   const user = await requireUser();
   const clientId =
     user.role === "client" ? user.clientId : String(formData.get("clientId") ?? "");
@@ -92,6 +98,7 @@ export async function majCharte(formData: FormData): Promise<void> {
 
 /** Retire un fichier qu'on a soi-même déposé. */
 export async function retirerFichier(formData: FormData): Promise<void> {
+  if (await enApercu()) return;
   const user = await requireUser();
   if (user.role !== "client" || !user.clientId) return;
 
@@ -117,6 +124,7 @@ export async function retirerFichier(formData: FormData): Promise<void> {
  * jamais.
  */
 export async function terminerBrief(_prev: PortailWebState, formData: FormData): Promise<PortailWebState> {
+  if (await enApercu()) return { error: LECTURE_SEULE };
   const user = await requireUser();
   if (user.role !== "client" || !user.clientId) return { error: "Non autorisé." };
 
@@ -169,6 +177,7 @@ export async function repondreAuLivrable(
   _prev: PortailWebState,
   formData: FormData,
 ): Promise<PortailWebState> {
+  if (await enApercu()) return { error: LECTURE_SEULE };
   const user = await requireUser();
   if (user.role !== "client" || !user.clientId) return { error: "Non autorisé." };
 

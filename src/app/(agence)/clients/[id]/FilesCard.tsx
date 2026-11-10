@@ -96,7 +96,7 @@ export function FilesCard({
             <a
               href={`/api/client-files/archive?clientId=${encodeURIComponent(clientId)}`}
               download
-              className="rounded-control border border-line bg-paper px-[10px] py-[4px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink"
+              className="rounded-full border border-line bg-paper px-[10px] py-[4px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink"
             >
               Tout télécharger (.zip)
             </a>
@@ -105,7 +105,7 @@ export function FilesCard({
       </CardHead>
 
       {files.length === 0 ? (
-        <p className="px-[14px] py-4 text-base text-ink-2">
+        <p className="px-5 py-4 text-base text-ink-2">
           Aucun document. Le contrat, la charte de marque, un devis ou un brief annuel ont leur
           place ici : le jour où quelqu&apos;un cherche ce qui a été signé, il sait où regarder.
           Un document peut rester interne ou être partagé avec le client, qui le retrouve alors
@@ -115,7 +115,7 @@ export function FilesCard({
         files.map((f) => {
           const partagé = f.visibility === "client";
           return (
-          <div key={f.id} data-fichier={f.id} className="flex items-center gap-3 border-b border-line px-[14px] py-[10px]">
+          <div key={f.id} data-fichier={f.id} className="flex items-center gap-3 border-b border-line px-5 py-[10px]">
             <span className="flex min-w-0 flex-1 flex-col">
               <a
                 href={`/api/client-files/${f.id}`}
@@ -148,7 +148,7 @@ export function FilesCard({
                 className={
                   partagé
                     ? "cursor-pointer rounded-control border border-ok bg-ok-bg px-2 py-[2px] text-micro font-medium text-ok"
-                    : "cursor-pointer rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-3 hover:border-line-strong hover:text-ink"
+                    : "cursor-pointer rounded-full border border-line bg-paper px-2 py-[2px] text-micro text-ink-3 hover:border-line-strong hover:text-ink"
                 }
               >
                 {partagé ? "Partagé" : "Interne"}
@@ -158,7 +158,7 @@ export function FilesCard({
               href={`/api/client-files/${f.id}?telecharger`}
               download
               title={`Télécharger ${f.filename}`}
-              className="flex-none rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 no-underline hover:border-line-strong hover:text-ink"
+              className="flex-none rounded-full border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 no-underline hover:border-line-strong hover:text-ink"
             >
               Télécharger
             </a>
@@ -169,7 +169,7 @@ export function FilesCard({
               <button
                 type="submit"
                 title="Supprimer"
-                className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
               >
                 ✕
               </button>
@@ -179,7 +179,7 @@ export function FilesCard({
         })
       )}
 
-      <div className="flex flex-wrap items-end gap-2 border-t border-line px-[14px] py-3">
+      <div className="flex flex-wrap items-end gap-2 border-t border-line px-5 py-3">
         <input
           ref={labelRef}
           placeholder="Intitulé (Contrat 2026, Charte de marque…)"
@@ -206,16 +206,16 @@ export function FilesCard({
           type="button"
           onClick={send}
           disabled={busy}
-          className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-60"
+          className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-60"
         >
           {busy ? "Envoi…" : "Joindre"}
         </button>
       </div>
 
       {error ? (
-        <p className="px-[14px] pb-3 text-small text-alert">{error}</p>
+        <p className="px-5 pb-3 text-small text-alert">{error}</p>
       ) : (
-        <p className="px-[14px] pb-3 text-small text-ink-3">
+        <p className="px-5 pb-3 text-small text-ink-3">
           PDF, Word, Excel, PowerPoint, OpenDocument, texte, CSV, ZIP ou image. Un document reste
           interne à l&apos;agence sauf si tu le partages : le client le retrouve alors dans son
           portail, et peut le télécharger. Chaque ligne se bascule à tout moment.

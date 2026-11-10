@@ -26,7 +26,7 @@ export function ContractLineForm({ clientId }: { clientId: string }) {
         // précédente et on ajoute deux fois la même sans s'en rendre compte.
         ref.current?.reset();
       }}
-      className="flex flex-wrap items-end gap-2 px-[14px] py-3"
+      className="flex flex-wrap items-end gap-2 px-5 py-3"
     >
       <input type="hidden" name="clientId" value={clientId} />
 
@@ -73,7 +73,7 @@ export function ContractLineForm({ clientId }: { clientId: string }) {
 
       <button
         type="submit"
-        className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+        className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
       >
         Ajouter
       </button>

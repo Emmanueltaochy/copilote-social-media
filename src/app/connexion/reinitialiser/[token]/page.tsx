@@ -29,7 +29,7 @@ export default async function ReinitialiserPage({
       >
         <Link
           href="/connexion/oubli"
-          className="block rounded-control border border-ink bg-ink px-3 py-[10px] text-center text-base font-medium text-paper hover:opacity-85"
+          className="block rounded-full border border-night bg-night px-4 py-[10px] text-center text-base font-semibold text-white hover:opacity-85"
         >
           Demander un nouveau lien
         </Link>

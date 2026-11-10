@@ -18,13 +18,13 @@ export function PageHeader({
     // Sur mobile l'action passe sous le titre plutôt que de le comprimer :
     // « Pipeline de production » réduit à une colonne de deux lettres n'aide
     // personne à savoir où il est.
-    <header className="flex flex-none flex-wrap items-end justify-between gap-x-4 gap-y-3 px-4 pt-2 pb-4 lg:flex-nowrap lg:px-7">
-      <div className="flex min-w-0 flex-col gap-px">
-        <h1 className="text-[26px] leading-tight font-bold tracking-[-0.02em] lg:text-display">{title}</h1>
+    <header className="flex flex-none flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pt-1 pb-5 lg:flex-nowrap lg:px-7">
+      <div className="flex min-w-0 flex-col gap-1">
+        <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">{title}</h1>
         <span className="text-base text-ink-3 tabular-nums">{sub}</span>
       </div>
       {/* Aucun bouton décoratif : une action affichée doit faire quelque chose. */}
-      {children ? <div className="flex flex-none items-center gap-2">{children}</div> : null}
+      {children ? <div className="flex max-w-full flex-wrap items-center gap-2 lg:flex-none lg:flex-nowrap">{children}</div> : null}
     </header>
   );
 }

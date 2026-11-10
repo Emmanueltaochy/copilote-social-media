@@ -150,12 +150,12 @@ export async function AuthShell({
         <div className="relative mx-auto w-full max-w-[400px] lg:mx-0">
           <div className="mb-6 hidden items-center gap-2 text-ink lg:flex">{marque("petit")}</div>
 
-          <h1 className="mb-1 text-display font-semibold tracking-[-0.01em] text-white lg:text-ink">
+          <h1 className="mb-1 text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px] text-white lg:text-ink">
             {titre}
           </h1>
           <p className="mb-6 text-base text-night-ink lg:text-ink-2">{sous}</p>
 
-          <div className="rounded-card border border-line bg-paper p-5 shadow-[0_18px_40px_rgba(0,0,0,0.25)] lg:shadow-none">
+          <div className="rounded-[26px] border border-line bg-paper p-6 shadow-[0_18px_40px_rgba(0,0,0,0.25)] lg:shadow-none">
             {children}
           </div>
 

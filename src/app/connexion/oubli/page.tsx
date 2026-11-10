@@ -17,7 +17,7 @@ export default async function OubliPage() {
       sous="Indiquez l'adresse de votre compte : nous vous envoyons un lien pour en choisir un nouveau."
       bas={
         <>
-          Votre compte et tout ce qu&apos;il contient restent intacts.{" "}
+          Votre compte et tout ce qu&apos;il contient restent intacts.{""}
           <Link href="/connexion" className="underline">
             Retour à la connexion
           </Link>

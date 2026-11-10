@@ -48,6 +48,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/agent") ||
     // Médias sur lien signé, pour Metricool : la route vérifie la signature.
     pathname.startsWith("/api/media-public") ||
+    // Connecteur Claude.ai : le jeton secret de l'adresse est vérifié par la route.
+    pathname.startsWith("/api/mcp/") ||
     pathname.startsWith("/api/health");
 
   if (isPublic) return NextResponse.next();

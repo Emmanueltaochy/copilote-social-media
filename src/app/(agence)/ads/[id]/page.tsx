@@ -82,14 +82,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         <StatusPill tone={status.tone}>{status.label}</StatusPill>
         <Link
           href="/ads"
-          className="rounded-control border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+          className="rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
         >
           Retour aux campagnes
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {campaign.budgetCents > 0 ? (
             <Card className="flex flex-col gap-3 p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -165,7 +165,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               <div className="flex flex-col gap-[2px]">
                 <span className="eyebrow text-ink-3">Coût par lead</span>
                 <span className="text-lead tabular-nums">
-                  {money(lastD.cplCents)}{" "}
+                  {money(lastD.cplCents)}{""}
                   {cplTrend ? (
                     <span className={`text-base ${toneText[cplTrend.tone]}`}>{cplTrend.label}</span>
                   ) : null}
@@ -174,7 +174,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               <div className="flex flex-col gap-[2px]">
                 <span className="eyebrow text-ink-3">Retour sur dépense</span>
                 <span className="text-lead tabular-nums">
-                  {times(lastD.roas)}{" "}
+                  {times(lastD.roas)}{""}
                   {roasTrend ? (
                     <span className={`text-base ${toneText[roasTrend.tone]}`}>{roasTrend.label}</span>
                   ) : null}
@@ -186,7 +186,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           <Card>
             <CardHead title="Ensembles de publicités" meta={`${sets.length}`} />
             {sets.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Aucun ensemble. Les chiffres se saisissent par ensemble : c&apos;est le niveau où
                 une audience se compare à une autre, et où l&apos;on décide de couper ou de
                 réallouer.
@@ -200,7 +200,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                 return (
                   <div
                     key={s.id}
-                    className="flex items-center gap-4 border-b border-line px-[14px] py-[10px]"
+                    className="flex items-center gap-4 border-b border-line px-5 py-[10px]"
                   >
                     <span className="clip min-w-0 flex-1 text-base font-medium">{s.name}</span>
                     <span className="w-[100px] flex-none text-right text-base tabular-nums">
@@ -218,7 +218,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                       <button
                         type="submit"
                         title="Retirer"
-                        className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                        className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                       >
                         ✕
                       </button>
@@ -227,7 +227,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                 );
               })
             )}
-            <form action={addAdSet} className="flex flex-wrap items-center gap-2 px-[14px] py-3">
+            <form action={addAdSet} className="flex flex-wrap items-center gap-2 px-5 py-3">
               <input type="hidden" name="campaignId" value={campaign.id} />
               <input
                 name="name"
@@ -237,7 +237,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               />
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
               >
                 Ajouter un ensemble
               </button>
@@ -316,7 +316,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                               <button
                                 type="submit"
                                 title={`Supprimer la saisie${capturedByName ? ` de ${capturedByName}` : ""}`}
-                                className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                                className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                               >
                                 ✕
                               </button>
@@ -380,7 +380,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               </label>
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
+                className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85"
               >
                 Enregistrer
               </button>
@@ -397,7 +397,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               <input type="hidden" name="id" value={campaign.id} />
               <button
                 type="submit"
-                className="flex-none cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-base text-ink-3 hover:border-alert hover:text-alert"
+                className="flex-none cursor-pointer rounded-full border border-line bg-paper px-3 py-2 text-base text-ink-3 hover:border-alert hover:text-alert"
               >
                 Supprimer
               </button>

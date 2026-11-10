@@ -38,7 +38,7 @@ export function InviteLink({ url }: { url: string }) {
               // le champ reste sélectionnable : rien n'est perdu.
             }
           }}
-          className="flex-none cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+          className="flex-none cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
         >
           {copied ? "Copié" : "Copier"}
         </button>

@@ -326,7 +326,7 @@ function AccountMenu() {
             }}
             className="flex w-full cursor-pointer items-center gap-3 rounded-[12px] border-none bg-transparent px-3 py-[9px] text-left text-base text-ink hover:bg-mute"
           >
-            <Icon name="eye" size={16} /> Aperçu du portail client
+            <Icon name="eye" size={16} /> Voir comme mon client
           </button>
           <form action={logout}>
             <button
@@ -649,6 +649,9 @@ export function AppShell({
             className="my-1 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-ink no-underline hover:no-underline hover:brightness-105"
           >
             <Icon name="plus" strokeWidth={2.2} />
+          </Link>
+          <Link href="/jarvis" title="Jarvis — assistant IA" aria-label="Jarvis" className={cn(railBtn, "text-accent")}>
+            <Icon name="sparkles" />
           </Link>
           <Link
             href="/a-publier"

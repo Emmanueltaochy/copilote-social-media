@@ -51,8 +51,8 @@ export default async function EquipePage() {
         }${pending.length > 0 ? ` · ${pending.length} invitation${pending.length > 1 ? "s" : ""} en attente` : ""} · ${monthLabel()}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1000px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-5">
             <div>
               <Eyebrow>Nouveau collaborateur</Eyebrow>
@@ -78,7 +78,7 @@ export default async function EquipePage() {
               return (
                 <div
                   key={t.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3"
+                  className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3"
                 >
                   <Avatar
                     initials={t.initials}
@@ -120,7 +120,7 @@ export default async function EquipePage() {
                     {!lockedRole ? (
                       <button
                         type="submit"
-                        className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                        className="cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-micro font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                       >
                         OK
                       </button>
@@ -132,7 +132,7 @@ export default async function EquipePage() {
                       <input type="hidden" name="id" value={t.id} />
                       <button
                         type="submit"
-                        className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-3 hover:border-alert hover:text-alert"
+                        className="cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small text-ink-3 hover:border-alert hover:text-alert"
                       >
                         Retirer
                       </button>
@@ -167,7 +167,7 @@ export default async function EquipePage() {
                         </select>
                         <button
                           type="submit"
-                          className="cursor-pointer rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+                          className="cursor-pointer rounded-full border border-line bg-paper px-2 py-[2px] text-micro text-ink-2 hover:border-line-strong hover:text-ink"
                         >
                           Prolonger
                         </button>
@@ -189,7 +189,7 @@ export default async function EquipePage() {
                         <input type="hidden" name="id" value={t.id} />
                         <button
                           type="submit"
-                          className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+                          className="cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
                         >
                           Nouveau lien
                         </button>
@@ -199,7 +199,7 @@ export default async function EquipePage() {
                 </div>
               );
             })}
-            <p className="px-[14px] py-3 text-small text-ink-3">
+            <p className="px-5 py-3 text-small text-ink-3">
               La colonne du milieu montre les heures saisies ce mois. Un rôle « Équipe » donne
               accès à tout le travail — clients, production, tournages, campagnes, rapports — mais
               à aucun montant : ni forfaits, ni coûts, ni marges. Une durée d&apos;accès limitée
@@ -212,21 +212,21 @@ export default async function EquipePage() {
             <Card>
               <CardHead title="Comptes retirés" meta={`${gone.length}`} />
               {gone.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 border-b border-line px-[14px] py-[10px]">
+                <div key={t.id} className="flex items-center gap-3 border-b border-line px-5 py-[10px]">
                   <span className="clip min-w-0 flex-1 text-base text-ink-2">{t.name}</span>
                   <span className="clip w-[200px] flex-none text-small text-ink-3">{t.email}</span>
                   <form action={restoreTeammate} className="flex-none">
                     <input type="hidden" name="id" value={t.id} />
                     <button
                       type="submit"
-                      className="cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-2 hover:border-line-strong hover:text-ink"
+                      className="cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small text-ink-2 hover:border-line-strong hover:text-ink"
                     >
                       Réactiver
                     </button>
                   </form>
                 </div>
               ))}
-              <p className="px-[14px] py-3 text-small text-ink-3">
+              <p className="px-5 py-3 text-small text-ink-3">
                 Un compte retiré est désactivé, pas supprimé : ses heures, ses contenus et ses
                 actions restent rattachés à quelqu&apos;un. Ses sessions ouvertes sont fermées
                 immédiatement.

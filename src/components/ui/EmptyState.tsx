@@ -21,16 +21,16 @@ export function EmptyState({
 }) {
   return (
     <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto px-5 pt-16 pb-6">
-      <div className="flex w-full max-w-[520px] flex-col items-start gap-3 rounded-card border border-line bg-paper p-6">
+      <div className="flex w-full max-w-[560px] flex-col items-start gap-3 rounded-[26px] border border-line bg-paper p-7 shadow-soft">
         {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-        <h2 className="text-title font-semibold">{title}</h2>
+        <h2 className="text-[24px] leading-tight font-bold tracking-[-0.02em]">{title}</h2>
         {children ? (
           <div className="text-base leading-relaxed text-pretty text-ink-2">{children}</div>
         ) : null}
         {actionLabel && actionHref ? (
           <Link
             href={actionHref}
-            className="mt-1 rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper no-underline hover:opacity-85 hover:no-underline"
+            className="mt-1 rounded-full bg-night px-5 py-[10px] text-base font-semibold text-white no-underline hover:opacity-85 hover:no-underline"
           >
             {actionLabel}
           </Link>

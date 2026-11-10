@@ -17,11 +17,11 @@ export default async function ComptePage() {
     <>
       <PageHeader title="Mon compte" sub={user.email} />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[720px] flex-col gap-4">
           <Card>
             <CardHead title="Photo de profil" />
-            <div className="p-[14px]">
+            <div className="px-5 pt-1 pb-5">
               <AvatarForm
                 userId={user.id}
                 initials={user.initials}
@@ -32,7 +32,7 @@ export default async function ComptePage() {
 
           <Card>
             <CardHead title="Identité" />
-            <div className="p-[14px]">
+            <div className="px-5 pt-1 pb-5">
               <ProfileForm name={user.name} initials={user.initials} />
               <p className="mt-3 text-small text-ink-3">
                 {ROLE[user.role]}. L&apos;adresse de connexion ({user.email}) ne se change pas
@@ -44,7 +44,7 @@ export default async function ComptePage() {
 
           <Card>
             <CardHead title="Mot de passe" />
-            <div className="p-[14px]">
+            <div className="px-5 pt-1 pb-5">
               <PasswordForm />
               <p className="mt-3 text-small text-ink-3">
                 L&apos;ancien mot de passe est demandé même connecté : sans lui, un écran resté

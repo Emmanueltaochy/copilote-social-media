@@ -55,8 +55,8 @@ export default async function AdsPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <Eyebrow>Nouvelle campagne</Eyebrow>
@@ -112,7 +112,7 @@ export default async function AdsPage() {
                   <Link
                     key={r.campaign.id}
                     href={`/ads/${r.campaign.id}`}
-                    className="flex flex-col gap-2 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
+                    className="flex flex-col gap-2 border-b border-line px-5 py-3 no-underline hover:bg-canvas hover:no-underline"
                   >
                     <span className="flex items-center gap-4">
                       <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
@@ -164,7 +164,7 @@ export default async function AdsPage() {
                   </Link>
                 );
               })}
-              <p className="px-[14px] py-3 text-small text-ink-3">
+              <p className="px-5 py-3 text-small text-ink-3">
                 Colonnes : dépense du mois, leads, coût par lead, retour sur dépense.
               </p>
             </Card>

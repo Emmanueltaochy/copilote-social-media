@@ -62,7 +62,7 @@ export default async function TournagesPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <Card className="mb-4 flex flex-col gap-4 p-4">
           <Eyebrow>Planifier un tournage</Eyebrow>
           <ShootForm clients={clients} />
@@ -132,12 +132,12 @@ export default async function TournagesPage() {
                                 état.ready ? "text-ok" : "text-warn"
                               }`}
                             >
-                              {état.ready ? "Tout est prêt" : état.blocking.join(" · ")}
+                              {état.ready ? "Tout est prêt" : état.blocking.join("·")}
                             </span>
                           </span>
 
                           <span className="text-micro text-ink-3 tabular-nums">
-                            {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""} ·{" "}
+                            {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""} ·{""}
                             {r.crew} personne{r.crew > 1 ? "s" : ""} · {r.gearReserved}/
                             {r.gearTotal} matériel
                           </span>
@@ -153,7 +153,7 @@ export default async function TournagesPage() {
                               <input type="hidden" name="note" value={r.shoot.note ?? ""} />
                               <button
                                 type="submit"
-                                className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                                className="w-full cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                               >
                                 → {SHOOT_STATUS[suivante].label}
                               </button>

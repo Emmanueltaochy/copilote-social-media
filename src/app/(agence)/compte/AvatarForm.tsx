@@ -87,7 +87,7 @@ export function AvatarForm({
               <button
                 type="submit"
                 disabled={busy}
-                className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small text-ink-2 hover:border-alert hover:text-alert disabled:opacity-60"
+                className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small text-ink-2 hover:border-alert hover:text-alert disabled:opacity-60"
               >
                 Retirer
               </button>

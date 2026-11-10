@@ -71,14 +71,14 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
         <StatusPill tone={status.tone}>{status.label}</StatusPill>
         <Link
           href="/tournages"
-          className="rounded-control border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+          className="rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
         >
           Retour au planning
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {/* Ce qui bloque le départ, avant tout le reste : c'est la seule
               information qui change ce qu'on fait dans l'heure. */}
           <Card
@@ -93,8 +93,8 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               <>
                 <Eyebrow tone="warn">Avant le départ</Eyebrow>
                 <p className="mt-1 text-lead text-warn">
-                  {state.blocking.length} point{state.blocking.length > 1 ? "s" : ""} à traiter :{" "}
-                  {state.blocking.join(", ")}.
+                  {state.blocking.length} point{state.blocking.length > 1 ? "s" : ""} à traiter :{""}
+                  {state.blocking.join(",")}.
                 </p>
               </>
             )}
@@ -226,7 +226,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
           <Card>
             <CardHead title="Équipe" meta={`${crew.length}`} />
             {crew.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Personne n&apos;est assigné. Un tournage sans équipe nommée est un tournage que
                 personne ne prépare.
               </p>
@@ -234,7 +234,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               crew.map((c) => (
                 <div
                   key={c.userId}
-                  className="flex items-center gap-3 border-b border-line px-[14px] py-2"
+                  className="flex items-center gap-3 border-b border-line px-5 py-2"
                 >
                   <Avatar
                     initials={c.initials}
@@ -266,7 +266,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                     <button
                       type="submit"
                       title="Retirer"
-                      className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                      className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                     >
                       ✕
                     </button>
@@ -276,7 +276,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
             )}
 
             {available.length > 0 ? (
-              <form action={addCrew} className="flex flex-wrap items-center gap-2 px-[14px] py-3">
+              <form action={addCrew} className="flex flex-wrap items-center gap-2 px-5 py-3">
                 <input type="hidden" name="shootId" value={shoot.id} />
                 <select
                   name="userId"
@@ -300,13 +300,13 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                 />
                 <button
                   type="submit"
-                  className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                  className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                 >
                   Assigner
                 </button>
               </form>
             ) : (
-              <p className="px-[14px] py-3 text-small text-ink-3">
+              <p className="px-5 py-3 text-small text-ink-3">
                 Toute l&apos;équipe est déjà assignée à ce tournage.
               </p>
             )}
@@ -315,7 +315,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
           {media.length > 0 ? (
             <Card>
               <CardHead title="Médias issus de ce tournage" meta={`${media.length}`} />
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-[14px]">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 px-5 pt-1 pb-5">
                 {media.map((a) => (
                   <a
                     key={a.id}
@@ -387,7 +387,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               </label>
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
+                className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85"
               >
                 Enregistrer
               </button>
@@ -404,7 +404,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               <input type="hidden" name="id" value={shoot.id} />
               <button
                 type="submit"
-                className="flex-none cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-base text-ink-3 hover:border-alert hover:text-alert"
+                className="flex-none cursor-pointer rounded-full border border-line bg-paper px-3 py-2 text-base text-ink-3 hover:border-alert hover:text-alert"
               >
                 Supprimer
               </button>

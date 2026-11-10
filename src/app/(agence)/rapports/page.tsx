@@ -36,15 +36,15 @@ export default async function RapportsPage() {
     <>
       <PageHeader title="Rapports" sub={`${monthLabel()} · ${clients.length} client${clients.length > 1 ? "s" : ""}`} />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[900px] flex-col gap-4">
           <Card>
             <CardHead title={`Rapport de ${monthLabel()}`} meta={`${clients.length}`} />
             {clients.map((c) => (
               <Link
                 key={c.id}
                 href={`/rapports/${c.id}`}
-                className="flex items-center gap-4 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
+                className="flex items-center gap-4 border-b border-line px-5 py-3 no-underline hover:bg-canvas hover:no-underline"
               >
                 <span className="clip min-w-0 flex-1 text-lead font-medium text-ink">
                   {c.shortName}
@@ -58,7 +58,7 @@ export default async function RapportsPage() {
                 <StatusPill tone={c.pace.tone}>{c.pace.label}</StatusPill>
               </Link>
             ))}
-            <p className="px-[14px] py-3 text-small text-ink-3">
+            <p className="px-5 py-3 text-small text-ink-3">
               Le rapport s&apos;ouvre en document imprimable : la commande d&apos;impression du
               navigateur produit le PDF à envoyer au client. Les statistiques de chaque publication
               se saisissent depuis le rapport lui-même.

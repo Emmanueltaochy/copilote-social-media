@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { ClientChip } from "@/components/home/bits";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PacingBar } from "@/components/ui/PacingBar";
-import { Dot, StatusPill } from "@/components/ui/primitives";
+import { StatusPill } from "@/components/ui/primitives";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
 import { requireDepartment } from "@/lib/auth";
 import { byUrgency, countMissedPublications, listAwaitingApproval, listClientsWithPace, listTodayQueue, listUpcomingShoots } from "@/db/queries";
@@ -55,7 +56,7 @@ export default async function CockpitPage() {
         sub={`${monthLabel()} · ${monthProgressLabel()} · ${clients.length} ${clients.length > 1 ? "clients actifs" : "client actif"}`}
       />
 
-      <div className="flex flex-none items-stretch overflow-x-auto border-b border-line bg-paper px-5">
+      <div className="flex flex-none items-stretch gap-3 overflow-x-auto px-4 pb-4 lg:px-7">
         {[
           { n: late, label: late > 1 ? "clients en retard sur leur engagement" : "client en retard sur son engagement", tone: "alert" as const, href: "/avancement" },
           { n: missed, label: missed > 1 ? "contenus non publiés à l'heure prévue" : "contenu non publié à l'heure prévue", tone: "alert" as const, href: "/a-publier" },
@@ -65,9 +66,9 @@ export default async function CockpitPage() {
           <Link
             key={a.label}
             href={a.href}
-            className="mr-[18px] flex flex-none items-center gap-[10px] border-r border-line py-[10px] pr-[18px] no-underline hover:opacity-70 hover:no-underline"
+            className="flex flex-none items-center gap-3 rounded-[22px] border border-line bg-paper px-4 py-3 no-underline shadow-soft hover:border-line-strong hover:no-underline"
           >
-            <span className={cn("text-title leading-tight font-semibold tabular-nums", a.n > 0 ? toneText[a.tone] : "text-ink-3")}>
+            <span className={cn("text-[26px] leading-none font-bold tracking-[-0.02em] tabular-nums", a.n > 0 ? toneText[a.tone] : "text-ink-3")}>
               {a.n}
             </span>
             <span className="max-w-[150px] text-small leading-tight text-ink-2">{a.label}</span>
@@ -75,7 +76,7 @@ export default async function CockpitPage() {
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-7 lg:px-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-7 lg:px-7">
         <Card>
           <CardHead
             title="Pilotage des engagements · trié par urgence"
@@ -92,7 +93,7 @@ export default async function CockpitPage() {
           {rows.map((c) => (
             <TableRow key={c.id} cols={COLS}>
               <span className="flex min-w-0 items-center gap-2">
-                <Dot tone={c.pace.tone} />
+                <ClientChip name={c.shortName} size={28} />
                 <Link href={`/clients/${c.id}`} className="clip text-base font-medium text-ink no-underline hover:underline">
                   {c.shortName}
                 </Link>
@@ -111,7 +112,7 @@ export default async function CockpitPage() {
             </TableRow>
           ))}
           </TableScroll>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-[14px] py-[10px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-[10px]">
             <span className="text-small text-ink-3">
               Barre grise claire = projection au rythme actuel en fin de mois
             </span>

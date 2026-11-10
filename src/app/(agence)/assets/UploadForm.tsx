@@ -74,7 +74,7 @@ function upload(
         // de taille, réglée par le script d'installation. Le dire évite de
         // chercher le problème dans le fichier, qui n'a rien.
         message =
-          "Refusé par le serveur web avant d'arriver à l'application : sa limite de taille " +
+          "Refusé par le serveur web avant d'arriver à l'application : sa limite de taille" +
           "n'est pas levée. Relance scripts/setup-vps.sh sur le VPS.";
       }
       try {
@@ -249,7 +249,7 @@ export function UploadForm({
           type="button"
           onClick={() => start()}
           disabled={running}
-          className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85 disabled:opacity-60"
+          className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85 disabled:opacity-60"
         >
           {running ? `Import ${done + 1} sur ${items.length}…` : "Importer"}
         </button>
@@ -309,7 +309,7 @@ export function UploadForm({
 
           {!running && failed.length === 0 ? (
             <p className="rounded-control border border-ok bg-ok-bg px-3 py-2 text-base text-ok">
-              {items.length} média{items.length > 1 ? "s importés" : " importé"}.
+              {items.length} média{items.length > 1 ? "s importés" : "importé"}.
             </p>
           ) : null}
           {!running && failed.length > 0 ? (

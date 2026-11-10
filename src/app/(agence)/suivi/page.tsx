@@ -117,8 +117,8 @@ export default async function SuiviPage({
         sub={`${libelléSemaine} · ${programmes.length} ${programmes.length > 1 ? "contenus programmés" : "contenu programmé"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1400px] flex-col gap-4">
           {/* Ce qui ne va pas, en gros et en premier. Un chiffre à zéro reste
               affiché, en gris : sa présence dit qu'on a regardé. */}
           <div className="flex flex-wrap gap-3">
@@ -134,7 +134,7 @@ export default async function SuiviPage({
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/suivi?semaine=${decalerSemaine(lundi, -1)}`}
-              className="rounded-control border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+              className="rounded-full border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
             >
               ← Semaine précédente
             </Link>
@@ -151,7 +151,7 @@ export default async function SuiviPage({
             </Link>
             <Link
               href={`/suivi?semaine=${decalerSemaine(lundi, 1)}`}
-              className="rounded-control border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+              className="rounded-full border border-line bg-paper px-3 py-[6px] text-base text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
             >
               Semaine suivante →
             </Link>

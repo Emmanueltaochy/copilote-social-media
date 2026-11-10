@@ -44,8 +44,8 @@ export default async function DevisPage() {
         sub={`${demandes.length} demande${demandes.length > 1 ? "s" : ""}${nouvelles > 0 ? ` · ${nouvelles} à ouvrir` : ""}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-3">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1000px] flex-col gap-3">
           {demandes.map(({ devis, clientName, demandeur }) => {
             const statut = DEVIS_STATUS[devis.status] ?? DEVIS_STATUS.nouvelle;
             return (
@@ -57,7 +57,7 @@ export default async function DevisPage() {
                   <span className="flex min-w-0 flex-col gap-[2px]">
                     <span className="text-small text-ink-3">
                       <Link href={`/clients/${devis.clientId}`}>{clientName}</Link>
-                      {demandeur ? ` · ${demandeur}` : ""} ·{" "}
+                      {demandeur ? ` · ${demandeur}` : ""} ·{""}
                       {devis.createdAt.toLocaleDateString("fr-FR", {
                         day: "numeric",
                         month: "long",
@@ -110,7 +110,7 @@ export default async function DevisPage() {
                   </label>
                   <button
                     type="submit"
-                    className="cursor-pointer rounded-control border border-line bg-paper px-3 py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                    className="cursor-pointer rounded-full border border-line bg-paper px-3 py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                   >
                     Enregistrer
                   </button>

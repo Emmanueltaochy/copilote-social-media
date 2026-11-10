@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * s'il l'a déjà déposé.
  */
 export default async function DocumentsPage() {
-  const { user, client, config } = await contextePortail();
+  const { user, client, config, apercu } = await contextePortail();
   const fichiers = await fichiersDuClient(client.id, true);
 
   const deLAgence = fichiers.filter((f) => f.file.uploadedById !== user.id);
@@ -78,7 +78,13 @@ export default async function DocumentsPage() {
             pouvez retirer un fichier tant que nous ne l&apos;avons pas exploité.
           </p>
         </div>
-        <DepotFichiers clientId={client.id} accent={config.primaryColor} />
+        {apercu ? (
+          <p className="mx-4 my-3 rounded-[14px] bg-mute px-4 py-3 text-small text-ink-2 sm:mx-6">
+            Aperçu : ici, votre client dépose ses fichiers. Le dépôt est désactivé en lecture seule.
+          </p>
+        ) : (
+          <DepotFichiers clientId={client.id} accent={config.primaryColor} />
+        )}
         {aMoi.length > 0 ? (
           <div className="flex flex-col border-t border-line">{aMoi.map((f) => ligne(f, true))}</div>
         ) : null}

@@ -3,7 +3,7 @@ import { and, desc, eq, gte, isNotNull, lt, sql as raw } from "drizzle-orm";
 import { db, activity, contents } from "@/db";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { Panel, StatusTag, NetworkStack, countdown, whenLabel } from "@/components/home/bits";
+import { NetworkDot, NetworkStack, Panel, StatusTag, countdown, networkLabel, whenLabel } from "@/components/home/bits";
 import { fr, monthLabel, monthRange, pace } from "@/lib/pacing";
 import { formatBytes } from "@/lib/storage";
 import { actionsDuClient, compteursPortail, fichiersDuClient } from "@/db/web-queries";
@@ -14,6 +14,8 @@ import { BanniereClient } from "./Banniere";
 import { contextePortail } from "@/lib/portail";
 import { versionVideo } from "@/lib/portail-video";
 import { VideoAccueil } from "./VideoAccueil";
+import { audience, topPostThisMonth } from "@/db/home-queries";
+import { AudiencePanel } from "@/components/home/AudiencePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,7 @@ export default async function PortailPage() {
 
   const poles = client.departments?.length ? client.departments : ["social"];
 
-  const [published, upcoming, aValider, answers, actions, compteurs, bannieres, fichiers] = await Promise.all([
+  const [published, upcoming, aValider, answers, actions, compteurs, bannieres, fichiers, aud, top] = await Promise.all([
     db
       .select({ content: contents })
       .from(contents)
@@ -71,6 +73,9 @@ export default async function PortailPage() {
     // Les derniers documents partagés, pour qu'un devis ou une charte se
     // retrouve depuis l'accueil sans passer par l'onglet.
     fichiersDuClient(client.id, true),
+    // Les chiffres de ses réseaux (relevés Metricool), strictement les siens.
+    audience(90, client.id),
+    topPostThisMonth(new Date(), client.id),
   ]);
 
   // Les vignettes de ce qui attend : on ne juge pas un post sur son titre.
@@ -307,6 +312,76 @@ export default async function PortailPage() {
             ) : null}
           </div>
         </Panel>
+      ) : null}
+
+      {/* Ses réseaux : rien ne s'affiche tant que le compte n'est pas relevé. */}
+      {aud && aud.points.length ? (
+        <div className={`grid gap-5 ${top ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : ""}`}>
+          <Panel title="Vos réseaux" action={{ href: "/portail/statistiques", label: "Vos statistiques", icon: "chart" }}>
+            <div className="mb-5 flex flex-wrap gap-2">
+              {aud.networks.map((n) => {
+                const base = n.current - n.gained30;
+                const pc = base > 0 ? (n.gained30 / base) * 100 : null;
+                return (
+                  <span key={n.network} className="flex items-center gap-3 rounded-[16px] border border-line px-3 py-2">
+                    <NetworkDot network={n.network} size={26} />
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-base font-bold tabular-nums">{n.current.toLocaleString("fr-FR")}</span>
+                      <span className="text-micro text-ink-3">
+                        {networkLabel(n.network)}
+                        {pc != null ? (
+                          <span className={n.gained30 >= 0 ? "text-ok" : "text-alert"}>
+                            {" "}
+                            · {n.gained30 >= 0 ? "+" : ""}
+                            {pc.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % en 30 j
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+            <AudiencePanel data={aud} />
+          </Panel>
+          {top ? (
+            <Panel title="Votre meilleure publication du mois">
+              <a
+                href={top.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative flex min-h-[280px] flex-1 flex-col justify-end overflow-hidden rounded-[22px] bg-night p-4 text-white no-underline hover:no-underline"
+              >
+                {top.imageUrl ? (
+                  // Image hébergée par le réseau social.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={top.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" referrerPolicy="no-referrer" />
+                ) : null}
+                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_30%,rgba(0,0,0,.82))]" />
+                {top.multiple && top.multiple >= 1.5 ? (
+                  <span className="absolute top-4 left-4 rounded-full bg-accent px-3 py-[3px] text-small font-semibold text-accent-ink">
+                    {top.multiple.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}× votre portée habituelle
+                  </span>
+                ) : null}
+                <span className="relative flex items-center gap-2 text-small">
+                  <NetworkDot network={top.network} size={22} />
+                  {top.publishedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                </span>
+                <p className="relative mt-2 mb-3 line-clamp-2 text-base font-medium">{top.text || "Publication sans texte"}</p>
+                <span className="relative flex gap-6">
+                  <span className="flex flex-col">
+                    <span className="text-[22px] leading-none font-bold">{Math.max(top.reach, top.views).toLocaleString("fr-FR")}</span>
+                    <span className="text-micro text-white/70">{top.reach >= top.views ? "personnes touchées" : "vues"}</span>
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-[22px] leading-none font-bold">{top.interactions.toLocaleString("fr-FR")}</span>
+                    <span className="text-micro text-white/70">interactions</span>
+                  </span>
+                </span>
+              </a>
+            </Panel>
+          ) : null}
+        </div>
       ) : null}
 
       <div

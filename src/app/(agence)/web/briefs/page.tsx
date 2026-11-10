@@ -32,8 +32,8 @@ export default async function BriefsPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1000px] flex-col gap-4">
           {rows.length === 0 ? (
             <Card className="p-5">
               <p className="text-base text-ink-2">
@@ -56,7 +56,7 @@ export default async function BriefsPage() {
                   <Link
                     key={brief.id}
                     href={`/web/briefs/${brief.id}`}
-                    className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-3 no-underline hover:bg-canvas hover:no-underline"
+                    className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 no-underline hover:bg-canvas hover:no-underline"
                   >
                     <Dot tone={BRIEF_STATUS[brief.status].tone} solid size={6} />
                     <span className="flex min-w-[180px] flex-1 flex-col">

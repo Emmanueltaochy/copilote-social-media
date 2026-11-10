@@ -33,7 +33,7 @@ export function SendByEmail({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-none cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+        className="flex-none cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-micro text-ink-2 hover:border-line-strong hover:text-ink"
       >
         {label}
       </button>
@@ -60,7 +60,7 @@ export function SendByEmail({
       <button
         type="submit"
         disabled={pending}
-        className="flex-none cursor-pointer rounded-control border border-ink bg-ink px-2 py-1 text-micro font-medium text-paper hover:opacity-85 disabled:opacity-60"
+        className="flex-none cursor-pointer rounded-full border border-night bg-night px-2 py-1 text-micro font-semibold text-white hover:opacity-85 disabled:opacity-60"
       >
         {pending ? "Envoi…" : "Envoyer"}
       </button>

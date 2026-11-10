@@ -63,7 +63,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "eyebrow inline-block rounded-full px-2 py-[3px] whitespace-nowrap",
+        "inline-block rounded-full px-[9px] py-[3px] text-small font-medium whitespace-nowrap",
         tonePill[tone],
         className,
       )}

@@ -86,20 +86,20 @@ export function Preparateur({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+    <div className="flex w-full max-w-[1100px] flex-col gap-4">
       <Card className="flex flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <Link
               href={`/preparer?mois=${moisPrecedent}`}
-              className="rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+              className="rounded-full border border-line bg-paper px-2 py-1 text-small text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
             >
               ←
             </Link>
             <span className="text-lead font-medium capitalize">{moisTexte}</span>
             <Link
               href={`/preparer?mois=${moisSuivant}`}
-              className="rounded-control border border-line bg-paper px-2 py-1 text-small text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+              className="rounded-full border border-line bg-paper px-2 py-1 text-small text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
             >
               →
             </Link>
@@ -138,7 +138,7 @@ export function Preparateur({
             <button
               type="submit"
               disabled={toutPending || total === 0}
-              className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85 disabled:cursor-default disabled:opacity-40"
+              className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85 disabled:cursor-default disabled:opacity-40"
             >
               {toutPending
                 ? "Préparation…"
@@ -162,7 +162,7 @@ export function Preparateur({
         <Card className="border-warn bg-warn-bg p-4">
           <p className="text-base text-warn">
             {sansPlan.length === 1 ? "Un client n'a" : `${sansPlan.length} clients n'ont`} pas de
-            décomposition de l&apos;engagement : {sansPlan.map((p) => p.clientName).join(", ")}.
+            décomposition de l&apos;engagement : {sansPlan.map((p) => p.clientName).join(",")}.
             Rien ne peut être généré pour {sansPlan.length === 1 ? "lui" : "eux"} — ouvre sa fiche
             et ajoute ses lignes (posts feed, stories, reels…).
           </p>
@@ -202,8 +202,8 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
       />
 
       {plan.sansDecomposition ? (
-        <p className="px-[14px] py-4 text-base text-ink-2">
-          Sans lignes d&apos;engagement, il n&apos;y a rien à répéter. Ajoute-les sur{" "}
+        <p className="px-5 py-4 text-base text-ink-2">
+          Sans lignes d&apos;engagement, il n&apos;y a rien à répéter. Ajoute-les sur{""}
           <Link href={`/clients/${plan.clientId}`}>sa fiche</Link>.
         </p>
       ) : (
@@ -213,7 +213,7 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
               {plan.lignes.map((l) => (
                 <div
                   key={l.label + l.kind}
-                  className="flex items-center gap-3 border-b border-line px-[14px] py-2"
+                  className="flex items-center gap-3 border-b border-line px-5 py-2"
                 >
                   <Dot tone={l.manquants > 0 ? "warn" : "ok"} solid={l.manquants > 0} />
                   <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
@@ -237,7 +237,7 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
 
           <form
             action={action}
-            className="flex flex-wrap items-center justify-between gap-3 px-[14px] py-3"
+            className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
           >
             {réglages}
             <input type="hidden" name="clientId" value={plan.clientId} />
@@ -247,7 +247,7 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
             <button
               type="submit"
               disabled={pending || plan.aCreer === 0}
-              className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:cursor-default disabled:opacity-40"
+              className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:cursor-default disabled:opacity-40"
             >
               {pending
                 ? "Création…"

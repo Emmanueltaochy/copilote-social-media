@@ -63,7 +63,7 @@ export default async function TerrainPage() {
                 <span className={`text-small ${state.ready ? "text-ok" : "text-warn"}`}>
                   {state.ready
                     ? `Prêt · ${r.shotsDone}/${r.shots} plans tournés`
-                    : state.blocking.join(" · ")}
+                    : state.blocking.join("·")}
                 </span>
               </Link>
             );

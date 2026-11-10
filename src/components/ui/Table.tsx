@@ -19,7 +19,7 @@ export function TableHead({
   return (
     <div
       className={cn(
-        "grid gap-3 border-b border-line bg-mute px-5 py-[10px]",
+        "grid gap-3 border-b border-line bg-paper px-5 py-3",
         sticky && "sticky top-0 z-2",
         className,
       )}
@@ -38,7 +38,7 @@ export function Th({
   align?: "left" | "right";
 }) {
   return (
-    <span className={cn("eyebrow text-ink-2", align === "right" && "text-right")}>
+    <span className={cn("text-small font-medium text-ink-3", align === "right" && "text-right")}>
       {children}
     </span>
   );
@@ -60,7 +60,7 @@ export function TableRow({
 }) {
   const shared = cn(
     "grid items-center gap-3 border-b border-line px-5",
-    height === 44 ? "h-11" : "h-10",
+    height === 44 ? "h-12" : "h-11",
     className,
   );
 
@@ -69,7 +69,7 @@ export function TableRow({
       <button
         type="button"
         onClick={onClick}
-        className={cn(shared, "w-full cursor-pointer border-x-0 border-t-0 text-left hover:bg-canvas")}
+        className={cn(shared, "w-full cursor-pointer border-x-0 border-t-0 text-left hover:bg-mute")}
         style={{ gridTemplateColumns: cols }}
       >
         {children}

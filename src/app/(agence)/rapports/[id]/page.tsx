@@ -62,14 +62,14 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
         </span>
         <Link
           href="/rapports"
-          className="print:hidden rounded-control border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
+          className="print:hidden rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
         >
           Retour
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5 print:overflow-visible print:p-0">
-        <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7 print:overflow-visible print:p-0">
+        <div className="flex w-full max-w-[900px] flex-col gap-4">
           {/* En-tête du document : visible seulement à l'impression, là où la
               barre latérale et le titre de l'écran n'existent plus. */}
           <div className="hidden print:mb-6 print:block">
@@ -112,7 +112,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
               </>
             ) : (
               <p className="text-base text-ink-2">
-                {client.done} contenu{client.done > 1 ? "s publiés" : " publié"} ce mois. Ce compte
+                {client.done} contenu{client.done > 1 ? "s publiés" : "publié"} ce mois. Ce compte
                 n&apos;a pas d&apos;engagement chiffré.
               </p>
             )}
@@ -140,7 +140,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
               }`}
             />
             {published.length === 0 ? (
-              <p className="px-[14px] py-4 text-base text-ink-2">
+              <p className="px-5 py-4 text-base text-ink-2">
                 Aucune publication enregistrée ce mois. Une publication compte à partir du moment où
                 elle est marquée publiée avec son lien.
               </p>
@@ -211,7 +211,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
                             ))}
                             <button
                               type="submit"
-                              className="print:hidden cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-micro font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                              className="print:hidden cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-micro font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                             >
                               OK
                             </button>
@@ -223,7 +223,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
                 </table>
               </div>
             )}
-            <p className="print:hidden px-[14px] py-3 text-small text-ink-3">
+            <p className="print:hidden px-5 py-3 text-small text-ink-3">
               Un champ laissé vide reste une valeur inconnue, pas un zéro : les moyennes ne sont
               calculées que sur les publications réellement mesurées.
             </p>
@@ -237,7 +237,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
                 return (
                   <div
                     key={c.campaign.id}
-                    className="flex items-center gap-4 border-b border-line px-[14px] py-[10px]"
+                    className="flex items-center gap-4 border-b border-line px-5 py-[10px]"
                   >
                     <span className="clip min-w-0 flex-1 text-base font-medium">
                       {c.campaign.name}
@@ -257,7 +257,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
                   </div>
                 );
               })}
-              <div className="flex items-center gap-4 px-[14px] py-[10px]">
+              <div className="flex items-center gap-4 px-5 py-[10px]">
                 <span className="min-w-0 flex-1 text-base font-medium">Total</span>
                 <span className="w-[100px] flex-none text-right text-base font-medium tabular-nums">
                   {euroFromCents(adTotals.spendCents)}
@@ -279,7 +279,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
             <Card>
               <CardHead title="Production" meta={`${mediaCount} média${mediaCount > 1 ? "s" : ""}`} />
               {shoots.map((s) => (
-                <div key={s.id} className="flex items-center gap-4 border-b border-line px-[14px] py-[10px]">
+                <div key={s.id} className="flex items-center gap-4 border-b border-line px-5 py-[10px]">
                   <span className="w-[190px] flex-none text-small tabular-nums text-ink-2">
                     {slotLabel(s.startsAt, s.endsAt)}
                   </span>
@@ -289,10 +289,10 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
                   </StatusPill>
                 </div>
               ))}
-              <p className="px-[14px] py-3 text-base text-ink-2">
+              <p className="px-5 py-3 text-base text-ink-2">
                 {mediaCount === 0
                   ? "Aucun média ajouté à la bibliothèque ce mois."
-                  : `${mediaCount} média${mediaCount > 1 ? "s ont été ajoutés" : " a été ajouté"} à votre bibliothèque ce mois. Ils sont consultables depuis votre portail.`}
+                  : `${mediaCount} média${mediaCount > 1 ? "s ont été ajoutés" : "a été ajouté"} à votre bibliothèque ce mois. Ils sont consultables depuis votre portail.`}
               </p>
             </Card>
           ) : null}

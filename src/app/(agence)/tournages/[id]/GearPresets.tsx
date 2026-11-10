@@ -24,7 +24,7 @@ export function GearPresets({
   alreadyOnShoot: Set<string>;
 }) {
   return (
-    <div className="border-t border-line px-[14px] py-3">
+    <div className="border-t border-line px-5 py-3">
       <span className="eyebrow text-ink-3">Mon matériel</span>
 
       {presets.length === 0 ? (
@@ -64,7 +64,7 @@ export function GearPresets({
           <div className="flex items-center gap-2">
             <button
               type="submit"
-              className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+              className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
             >
               Ajouter les cochés
             </button>
@@ -83,7 +83,7 @@ export function GearPresets({
           />
           <button
             type="submit"
-            className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small text-ink-2 hover:border-line-strong hover:text-ink"
+            className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small text-ink-2 hover:border-line-strong hover:text-ink"
           >
             Mémoriser
           </button>
@@ -99,7 +99,7 @@ export function GearPresets({
               <button
                 type="submit"
                 title={`Retirer « ${p.label} » de ma liste`}
-                className="cursor-pointer rounded-control border border-line bg-paper px-2 py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                className="cursor-pointer rounded-full border border-line bg-paper px-2 py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
               >
                 {p.label} ✕
               </button>

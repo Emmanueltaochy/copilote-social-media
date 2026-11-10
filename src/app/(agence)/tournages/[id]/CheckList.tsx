@@ -50,10 +50,10 @@ export function CheckList({
       <CardHead title={title} meta={meta} />
 
       {items.length === 0 ? (
-        <p className="px-[14px] py-4 text-base text-ink-2">{empty}</p>
+        <p className="px-5 py-4 text-base text-ink-2">{empty}</p>
       ) : (
         items.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 border-b border-line px-[14px] py-2">
+          <div key={item.id} className="flex items-center gap-3 border-b border-line px-5 py-2">
             <form action={toggleAction} className="flex flex-none">
               <input type="hidden" name="id" value={item.id} />
               <input type="hidden" name="shootId" value={shootId} />
@@ -88,7 +88,7 @@ export function CheckList({
               <button
                 type="submit"
                 title="Retirer"
-                className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
               >
                 ✕
               </button>
@@ -97,7 +97,7 @@ export function CheckList({
         ))
       )}
 
-      <form action={addAction} className="flex flex-wrap items-center gap-2 px-[14px] py-3">
+      <form action={addAction} className="flex flex-wrap items-center gap-2 px-5 py-3">
         <input type="hidden" name="shootId" value={shootId} />
         {addFields.map((f) => (
           <input
@@ -111,13 +111,13 @@ export function CheckList({
         ))}
         <button
           type="submit"
-          className="flex-none cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+          className="flex-none cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
         >
           {addLabel}
         </button>
       </form>
 
-      {hint ? <p className="px-[14px] pb-3 text-small text-ink-3">{hint}</p> : null}
+      {hint ? <p className="px-5 pb-3 text-small text-ink-3">{hint}</p> : null}
       {footer}
     </Card>
   );

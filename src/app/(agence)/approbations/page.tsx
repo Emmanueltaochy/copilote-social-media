@@ -47,8 +47,8 @@ export default async function ApprobationsPage() {
         sub={`${rows.length} ${rows.length > 1 ? "contenus en attente" : "contenu en attente"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1000px] flex-col gap-4">
           {rows.map(({ content, clientName, waitingDays }) => {
             const days = waitingDays;
             const stale = days !== null && days >= STALE_DAYS;
@@ -108,7 +108,7 @@ export default async function ApprobationsPage() {
                     <input type="hidden" name="id" value={content.id} />
                     <button
                       type="submit"
-                      className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
+                      className="cursor-pointer rounded-full border border-night bg-night px-4 py-2 text-base font-semibold text-white hover:opacity-85"
                     >
                       Valider
                     </button>
@@ -134,7 +134,7 @@ export default async function ApprobationsPage() {
                     />
                     <button
                       type="submit"
-                      className="cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-base font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                      className="cursor-pointer rounded-full border border-line bg-paper px-3 py-2 text-base font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                     >
                       Demander une modification
                     </button>

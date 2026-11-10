@@ -8,6 +8,7 @@ import { db, activity, assets, assetUsages, comments, contentLinks, contents, co
 import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
 import { notify } from "@/lib/notify";
+import { autoScheduleAfterApproval } from "@/lib/metricool-schedule";
 
 const STAGES = CONTENT_STAGES as readonly string[];
 
@@ -309,6 +310,8 @@ export async function approveContent(formData: FormData): Promise<void> {
     ownerId: before.ownerId,
     exceptUserId: user.id,
   });
+
+  await autoScheduleAfterApproval(id).catch(() => null);
 
   revalidateAll(id);
 }

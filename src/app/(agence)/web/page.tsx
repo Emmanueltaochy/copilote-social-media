@@ -57,7 +57,7 @@ export default async function WebPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-5 lg:px-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <Card className="mb-4 flex flex-col gap-4 p-4">
           <Eyebrow>Nouveau projet</Eyebrow>
           <ProjectForm clients={clients} />
@@ -142,7 +142,7 @@ export default async function WebPage() {
                           <span className="flex flex-wrap items-center gap-x-2 text-micro text-ink-3 tabular-nums">
                             {r.project.dueAt ? (
                               <span className={retard ? "font-medium text-alert" : ""}>
-                                {retard ? "En retard depuis le " : "Mise en ligne "}
+                                {retard ? "En retard depuis le" : "Mise en ligne"}
                                 {r.project.dueAt.toLocaleDateString("fr-FR", {
                                   day: "numeric",
                                   month: "short",
@@ -163,7 +163,7 @@ export default async function WebPage() {
                               <input type="hidden" name="phase" value={suivante} />
                               <button
                                 type="submit"
-                                className="w-full cursor-pointer rounded-control border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                                className="w-full cursor-pointer rounded-full border border-line bg-paper px-2 py-1 text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                               >
                                 → {WEB_PHASE[suivante].label}
                               </button>

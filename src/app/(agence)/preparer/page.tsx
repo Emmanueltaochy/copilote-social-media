@@ -64,7 +64,7 @@ export default async function PreparerPage({
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <Preparateur
           mois={moisEnCode(mois)}
           moisPrecedent={moisEnCode(précédent)}

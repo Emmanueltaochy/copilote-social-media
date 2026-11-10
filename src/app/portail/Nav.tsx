@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" | "factures" | "projets" }[] = [
   { href: "/portail", label: "Accueil", icon: "home" },
   { href: "/portail/valider", label: "À valider", icon: "check", cle: "aValider" },
+  { href: "/portail/statistiques", label: "Statistiques", icon: "chart" },
   { href: "/portail/medias", label: "Médias", icon: "image" },
   { href: "/portail/documents", label: "Documents", icon: "layers" },
   { href: "/portail/devis", label: "Devis", icon: "message" },
@@ -36,10 +37,13 @@ export function NavPortail({
   aValider,
   projets,
   factures,
+  statistiques = false,
 }: {
   aValider: number;
   projets: number;
   factures: number;
+  /** « Statistiques » n'apparaît que pour un compte relié à Metricool. */
+  statistiques?: boolean;
 }) {
   const chemin = usePathname();
   // La pastille des factures ne compte que ce qui reste à régler : un client
@@ -50,7 +54,9 @@ export function NavPortail({
     // Aucun menu déroulant ici : la barre peut défiler sans rien couper.
     <nav className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
       <ul className="flex w-max list-none items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-soft">
-        {ONGLETS.filter((o) => o.href !== "/portail/projets" || projets > 0).map((o) => {
+        {ONGLETS.filter(
+          (o) => (o.href !== "/portail/projets" || projets > 0) && (o.href !== "/portail/statistiques" || statistiques),
+        ).map((o) => {
           // « Accueil » ne s'allume que sur sa propre adresse : sans quoi il
           // resterait actif partout, puisque tout commence par /portail.
           const actif = o.href === "/portail" ? chemin === "/portail" : chemin.startsWith(o.href);

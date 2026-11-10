@@ -1,10 +1,15 @@
 "use server";
 
+const LECTURE_SEULE =
+  "Aperçu : vous regardez le portail de votre client en lecture seule. Seul le client peut répondre.";
+
 import { revalidatePath } from "next/cache";
 import { and, desc, eq } from "drizzle-orm";
 import { db, activity, comments, contents, contentVersions } from "@/db";
 import { requireUser } from "@/lib/auth";
+import { enApercu } from "@/lib/portail";
 import { notify } from "@/lib/notify";
+import { autoScheduleAfterApproval } from "@/lib/metricool-schedule";
 
 export type PortalFormState = { error?: string; ok?: string };
 
@@ -37,6 +42,7 @@ export async function clientApprove(
   _prev: PortalFormState,
   formData: FormData,
 ): Promise<PortalFormState> {
+  if (await enApercu()) return { error: LECTURE_SEULE };
   const found = await ownContentAwaiting(String(formData.get("id") ?? ""));
   if (!found) return { error: "Ce contenu n'attend plus votre réponse." };
   const { user, content } = found;
@@ -77,6 +83,10 @@ export async function clientApprove(
     ownerId: content.ownerId,
   });
 
+  // Tout est prêt (marque Metricool, date, légende, média) : la publication
+  // part chez Metricool sans attendre que quelqu'un y pense.
+  await autoScheduleAfterApproval(content.id).catch(() => null);
+
   refresh(content.id);
   return { ok: `« ${content.title} » est validé. Nous programmons la publication.` };
 }
@@ -85,6 +95,7 @@ export async function clientRequestChange(
   _prev: PortalFormState,
   formData: FormData,
 ): Promise<PortalFormState> {
+  if (await enApercu()) return { error: LECTURE_SEULE };
   const note = String(formData.get("note") ?? "").trim();
   // Un refus sans motif fait repartir la fabrication à l'aveugle : le
   // commentaire est ce qui évite un deuxième aller-retour pour la même raison.

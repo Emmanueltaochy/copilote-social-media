@@ -109,7 +109,7 @@ export function FacturesCard({
       />
 
       {factures.length === 0 ? (
-        <p className="px-[14px] py-4 text-base text-ink-2">
+        <p className="px-5 py-4 text-base text-ink-2">
           Aucune facture. Celles que tu déposes ici apparaissent dans le portail du client, qui
           peut les télécharger pour sa comptabilité — sans avoir à te les redemander en janvier.
         </p>
@@ -120,7 +120,7 @@ export function FacturesCard({
             <div
               key={f.id}
               data-facture={f.id}
-              className="flex flex-wrap items-center gap-3 border-b border-line px-[14px] py-[10px]"
+              className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-[10px]"
             >
               <span className="flex min-w-[200px] flex-1 flex-col">
                 <a
@@ -153,7 +153,7 @@ export function FacturesCard({
                 <input type="hidden" name="paid" value={f.paidOn ? "false" : "true"} />
                 <button
                   type="submit"
-                  className="cursor-pointer rounded-control border border-line bg-paper px-2 py-[3px] text-micro text-ink-2 hover:border-line-strong hover:text-ink"
+                  className="cursor-pointer rounded-full border border-line bg-paper px-2 py-[3px] text-micro text-ink-2 hover:border-line-strong hover:text-ink"
                 >
                   {f.paidOn ? "Marquer impayée" : "Marquer réglée"}
                 </button>
@@ -165,7 +165,7 @@ export function FacturesCard({
                 <button
                   type="submit"
                   title="Supprimer"
-                  className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[3px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                  className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[3px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                 >
                   ✕
                 </button>
@@ -175,7 +175,7 @@ export function FacturesCard({
         })
       )}
 
-      <div className="flex flex-col gap-2 border-t border-line px-[14px] py-3">
+      <div className="flex flex-col gap-2 border-t border-line px-5 py-3">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
           <input ref={numeroRef} placeholder="N° 2026-042" className={champ} />
           <input ref={libelleRef} placeholder="Prestation août" className={`${champ} sm:col-span-2`} />
@@ -207,7 +207,7 @@ export function FacturesCard({
             type="button"
             onClick={envoyer}
             disabled={busy}
-            className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-[6px] text-small font-medium text-paper hover:opacity-85 disabled:opacity-60"
+            className="cursor-pointer rounded-full border border-night bg-night px-4 py-[6px] text-small font-semibold text-white hover:opacity-85 disabled:opacity-60"
           >
             {busy ? "Envoi…" : "Ajouter la facture"}
           </button>

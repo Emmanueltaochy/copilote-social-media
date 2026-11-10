@@ -1,9 +1,13 @@
 "use server";
 
+const LECTURE_SEULE =
+  "Aperçu : vous regardez le portail de votre client en lecture seule. Seul le client peut répondre.";
+
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db, clients, quoteRequests } from "@/db";
 import { requireUser } from "@/lib/auth";
+import { enApercu } from "@/lib/portail";
 import { notify } from "@/lib/notify";
 import { DEVIS_KIND } from "@/data/devis";
 
@@ -24,6 +28,7 @@ export async function demanderDevis(
   _prev: DevisState,
   formData: FormData,
 ): Promise<DevisState> {
+  if (await enApercu()) return { error: LECTURE_SEULE };
   const user = await requireUser();
   if (user.role !== "client" || !user.clientId) {
     return { error: "Seuls les comptes clients peuvent demander un devis." };

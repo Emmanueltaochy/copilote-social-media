@@ -55,13 +55,13 @@ export default async function HeuresPage() {
         sub={`${monthLabel()} · ${formatDuration(totalMinutes)} saisies ce mois`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[900px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4">
             <div>
               <Eyebrow>Nouvelle saisie</Eyebrow>
               <p className="mt-1 text-base text-ink-2">
-                La durée s&apos;écrit comme on la dit : <strong>3</strong>, <strong>3,5</strong>,{" "}
+                La durée s&apos;écrit comme on la dit : <strong>3</strong>, <strong>3,5</strong>,{""}
                 <strong>3h30</strong> ou <strong>45min</strong>.
               </p>
             </div>
@@ -87,7 +87,7 @@ export default async function HeuresPage() {
                   {rows.map(({ entry, clientName }) => (
                     <div
                       key={entry.id}
-                      className="flex items-center gap-4 border-b border-line px-[14px] py-[10px]"
+                      className="flex items-center gap-4 border-b border-line px-5 py-[10px]"
                     >
                       <span className="clip w-[160px] flex-none text-base font-medium">
                         {clientName}
@@ -112,7 +112,7 @@ export default async function HeuresPage() {
                         <button
                           type="submit"
                           title="Retirer cette saisie"
-                          className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                          className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                         >
                           ✕
                         </button>

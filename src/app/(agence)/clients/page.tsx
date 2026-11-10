@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ClientChip } from "@/components/home/bits";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { PacingBar } from "@/components/ui/PacingBar";
@@ -42,8 +43,8 @@ export default async function ClientsPage() {
         sub={`${monthLabel()} · ${clients.length} ${clients.length > 1 ? "comptes actifs" : "compte actif"}`}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1100px] flex-col gap-4">
           {clients.length > 0 ? (
             <Card>
               <CardHead
@@ -124,7 +125,7 @@ export default async function ClientsPage() {
                     {clients.map((c) => (
                       <TableRow key={c.id} cols={cols}>
                         <span className="flex min-w-0 items-center gap-2">
-                          <Dot tone={c.pace.tone} />
+                          <ClientChip name={c.shortName} size={28} />
                           <Link
                             href={`/clients/${c.id}`}
                             className="clip text-base font-medium text-ink no-underline hover:underline"
@@ -156,7 +157,7 @@ export default async function ClientsPage() {
               {/* L'astérisque ne sert à rien si personne n'est en régie : la
                   note n'apparaît qu'au moment où elle explique quelque chose. */}
               {web && money && clients.some((c) => c.webBilling === "heure") ? (
-                <p className="px-[14px] py-[10px] text-small text-ink-3">
+                <p className="px-5 py-[10px] text-small text-ink-3">
                   * Facturé au temps passé : le montant est le cumul des heures saisies sous le
                   pôle web, au tarif horaire du client. Il bouge à chaque saisie.
                 </p>

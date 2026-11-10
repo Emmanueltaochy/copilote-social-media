@@ -31,6 +31,7 @@ export const NAV_MAIN: NavItem[] = [
 ];
 
 export const NAV_MORE: NavItem[] = [
+  { label: "Jarvis", href: "/jarvis", icon: "sparkles", hint: "Votre directeur marketing IA, à la voix ou à l'écrit" },
   { label: "Clients", href: "/clients", icon: "users", hint: "Fiches, contrats et accès portail" },
   { label: "À publier", href: "/a-publier", icon: "send", badge: "publier", hint: "Prêt, daté, pas encore en ligne" },
   { label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité, ensembles de publicités et budget" },

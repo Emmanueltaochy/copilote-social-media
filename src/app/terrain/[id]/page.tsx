@@ -123,12 +123,12 @@ export default async function TerrainShootPage({ params }: { params: Promise<{ i
       >
         {state.ready
           ? "Tout est prêt pour le départ."
-          : `À traiter : ${state.blocking.join(", ")}.`}
+          : `À traiter : ${state.blocking.join(",")}.`}
       </div>
 
       {crew.length > 0 ? (
         <p className="text-small text-ink-2">
-          Équipe : {crew.map((c) => `${c.name}${c.roleLabel ? ` (${c.roleLabel})` : ""}`).join(", ")}
+          Équipe : {crew.map((c) => `${c.name}${c.roleLabel ? ` (${c.roleLabel})` : ""}`).join(",")}
         </p>
       ) : null}
 

@@ -39,8 +39,8 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
         </Link>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[820px] flex-col gap-4">
           <Card className="flex flex-col gap-3 p-4">
             <EnvoiBrief id={row.brief.id} dejaEnvoye={Boolean(row.brief.sentAt)} />
             <p className="text-small text-ink-2">
@@ -51,7 +51,7 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
             </p>
             {manquants > 0 ? (
               <p className="text-small text-warn">
-                {manquants} question{manquants > 1 ? "s" : ""} obligatoire{manquants > 1 ? "s" : ""}{" "}
+                {manquants} question{manquants > 1 ? "s" : ""} obligatoire{manquants > 1 ? "s" : ""}{""}
                 sans réponse. Le brief passera en « complet » tout seul quand elles seront remplies.
               </p>
             ) : (
@@ -92,7 +92,7 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
               <input type="hidden" name="id" value={row.brief.id} />
               <button
                 type="submit"
-                className="cursor-pointer rounded-control border border-line bg-paper px-3 py-2 text-small text-ink-2 hover:border-alert hover:text-alert"
+                className="cursor-pointer rounded-full border border-line bg-paper px-3 py-2 text-small text-ink-2 hover:border-alert hover:text-alert"
               >
                 Supprimer
               </button>

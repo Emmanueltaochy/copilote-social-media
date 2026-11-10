@@ -81,7 +81,7 @@ export function ChampBrief({
   };
 
   return (
-    <div className="flex flex-col gap-[6px] border-b border-line px-[14px] py-3">
+    <div className="flex flex-col gap-[6px] border-b border-line px-5 py-3">
       <span className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-base font-medium">
           {label}

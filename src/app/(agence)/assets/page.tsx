@@ -128,8 +128,8 @@ export default async function AssetsPage({
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+        <div className="flex w-full max-w-[1200px] flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <Eyebrow>Importer des médias</Eyebrow>
@@ -152,7 +152,7 @@ export default async function AssetsPage({
               envoie les fichiers de ton photographe tels quels, quelle que soit leur taille —
               une photo de 60 Mo occupe quelques centaines de kilo-octets une fois traitée.
               Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW) ne sont pas lisibles :
-              exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{" "}
+              exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{""}
               {formatBytes(MAX_VIDEO_BYTES)} — <strong>les rushes de tournage n&apos;ont pas leur
               place ici</strong>, seulement les médias livrés et réutilisables.
             </p>
@@ -161,7 +161,7 @@ export default async function AssetsPage({
                 qu'un disque à 60 % sur une petite machine peut déjà bloquer. */}
             {disk && disk.freeBytes < WARN_FREE_BYTES ? (
               <p className="rounded-control border border-warn bg-warn-bg px-3 py-2 text-base text-warn">
-                Il ne reste que {formatBytes(disk.freeBytes)} sur le serveur. En dessous de{" "}
+                Il ne reste que {formatBytes(disk.freeBytes)} sur le serveur. En dessous de{""}
                 {formatBytes(MIN_FREE_BYTES)}, l&apos;import sera refusé : un disque plein arrête
                 aussi la base de données. Supprime des médias devenus inutiles.
               </p>
@@ -238,7 +238,7 @@ export default async function AssetsPage({
                           <button
                             type="submit"
                             title="Supprimer le dossier — son contenu remonte d'un cran"
-                            className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                            className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[2px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                           >
                             ✕
                           </button>
@@ -264,7 +264,7 @@ export default async function AssetsPage({
                 />
                 <button
                   type="submit"
-                  className="cursor-pointer rounded-control border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                  className="cursor-pointer rounded-full border border-line bg-paper px-[10px] py-[6px] text-small font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                 >
                   Créer le dossier
                 </button>
@@ -295,7 +295,7 @@ export default async function AssetsPage({
                 title={courant ? chemin[chemin.length - 1]?.name ?? "Médias" : "Médias"}
                 meta={`${rows.length}`}
               />
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] items-start gap-3 p-[14px]">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] items-start gap-3 px-5 pt-1 pb-5">
                 {rows.map(({ asset, clientName, authorName }) => {
                   const rights = RIGHTS[asset.rights];
                   const video = isVideo(asset.mimeType);
@@ -372,7 +372,7 @@ export default async function AssetsPage({
                             <button
                               type="submit"
                               title="Supprimer"
-                              className="cursor-pointer rounded-control border border-line bg-paper px-[6px] py-[3px] text-micro text-ink-3 hover:border-alert hover:text-alert"
+                              className="cursor-pointer rounded-full border border-line bg-paper px-[6px] py-[3px] text-micro text-ink-3 hover:border-alert hover:text-alert"
                             >
                               ✕
                             </button>
@@ -383,7 +383,7 @@ export default async function AssetsPage({
                   );
                 })}
               </div>
-              <p className="px-[14px] pb-3 text-small text-ink-3">
+              <p className="px-5 pb-3 text-small text-ink-3">
                 Changer les droits ou de dossier enregistre immédiatement. Les médias ne sont
                 accessibles qu&apos;aux personnes connectées — aucune adresse publique.
               </p>
