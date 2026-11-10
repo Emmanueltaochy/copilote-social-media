@@ -55,7 +55,7 @@ function mapEstimate(d: Raw): AbbyEstimate {
     number: s(d.number),
     title: s(d.title) || s(d.object) || lines[0] || "Devis",
     state: s(d.state),
-    amountHt: cents(d.totalAmountWithoutTaxAfterDiscount ?? d.totalAmountWithoutTax),
+    amountHt: cents(d.totalAmountWithoutTaxAfterDiscount ?? ((d.total ?? {}) as Raw).amountWithoutTaxAfterDiscount ?? d.totalAmountWithoutTax),
     signedAt: s(d.signedAt) || null,
     customer: {
       id: s(cust.id) || s(org?.id) || s(contact.id),
@@ -66,6 +66,18 @@ function mapEstimate(d: Raw): AbbyEstimate {
     },
     lines,
   };
+}
+
+/** Les devis d'un client (recherche sur le nom, le numéro ou l'objet), tous états confondus. */
+export async function searchEstimates(search: string, limit = 10): Promise<AbbyEstimate[]> {
+  const r = await call<{ docs?: Raw[]; data?: Raw[]; billings?: Raw[] }>("/v2/billings", {
+    page: "1",
+    limit: String(limit),
+    type: ["estimate"],
+    search,
+    test: "false",
+  });
+  return (r.docs ?? r.data ?? r.billings ?? []).map(mapEstimate);
 }
 
 /** Les devis signés, du plus récent au plus ancien. */

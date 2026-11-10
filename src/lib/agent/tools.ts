@@ -11,6 +11,7 @@ import {
   briefFields,
   briefs,
   clients,
+  contacts,
   contents,
   contentVersions,
   db,
@@ -26,7 +27,7 @@ import { initialsFrom } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { sendMail } from "@/lib/mail";
 import { scheduleContent } from "@/lib/metricool-schedule";
-import { estimate as abbyEstimate, signedEstimates } from "@/lib/abby";
+import { estimate as abbyEstimate, searchEstimates, signedEstimates, type AbbyEstimate } from "@/lib/abby";
 import { importDriveFile, newDriveFiles } from "@/lib/drive";
 import { competitorPosts } from "@/lib/metricool-competitors";
 import { trendReports } from "@/db";
@@ -109,6 +110,77 @@ const rythmeItem = z.object({
   kind: z.enum(KINDS),
   note: z.string().optional().describe("Thème ou rubrique de ce créneau"),
 });
+
+/**
+ * Crée le client web, le projet (jalons) et le cahier des charges (brouillon)
+ * à partir d'un devis Abby. N'envoie rien au client.
+ */
+export async function lancerProjet(
+  e: AbbyEstimate,
+  i: { type_projet: string; nom_projet?: string; echeance?: string; contact_nom?: string; contact_email?: string },
+  ctx: ToolCtx,
+) {
+  const nom = e.customer.name || i.contact_nom;
+  if (!nom) throw new Error("Le devis n'indique pas de client : précise contact_nom.");
+  const email = (i.contact_email || e.customer.email || "").toLowerCase();
+  const contactNom = i.contact_nom || e.customer.contactName || nom;
+
+  // 1. Client
+  let [client] = await db.select().from(clients).where(eq(clients.name, nom)).limit(1);
+  if (!client) {
+    [client] = await db.insert(clients).values({ name: nom, shortName: nom.slice(0, 24), departments: ["web"], abbyCustomerId: e.customer.id || null }).returning();
+    await db.insert(brands).values({ clientId: client.id }).onConflictDoNothing();
+  } else if (!client.departments.includes("web")) {
+    await db.update(clients).set({ departments: [...client.departments, "web"] }).where(eq(clients.id, client.id));
+  }
+
+  // Le contact du devis, gardé sur la fiche pour l'invitation à venir.
+  if (email) {
+    const [known] = await db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.clientId, client.id), eq(contacts.reach, email))).limit(1);
+    if (!known) await db.insert(contacts).values({ clientId: client.id, name: contactNom, role: "Contact du devis", reach: email });
+  }
+
+  // 2. Projet + jalons
+  const [projet] = await db
+    .insert(webProjects)
+    .values({
+      clientId: client.id,
+      name: i.nom_projet || `${PROJECT_TYPE[i.type_projet]?.label ?? "Projet web"} — ${nom}`,
+      type: i.type_projet as "vitrine",
+      dueAt: i.echeance ? new Date(`${i.echeance}T12:00:00Z`) : null,
+      priceCents: e.amountHt ? Math.round(e.amountHt * 100) : 0,
+      abbyEstimateId: e.id,
+    })
+    .returning();
+  const jalons = jalonsParDefaut(i.type_projet);
+  await db.insert(webMilestones).values(jalons.map((j, k) => ({ projectId: projet.id, label: j.label, waitingClient: j.attendClient, position: k })));
+
+  // 3. Cahier des charges
+  const [brief] = await db
+    .insert(briefs)
+    .values({
+      clientId: client.id,
+      projectId: projet.id,
+      title: `Cahier des charges — ${projet.name}`,
+      intro: "Quelques questions pour cadrer votre projet. Répondez à votre rythme : tout est enregistré au fur et à mesure.",
+      createdById: ctx.userId,
+      status: "brouillon",
+    })
+    .returning();
+  const modele = modeleBrief(i.type_projet);
+  await db.insert(briefFields).values(
+    modele.map((f, k) => ({ briefId: brief.id, section: f.section, label: f.label, help: f.help ?? null, kind: f.kind, options: f.options ?? [], required: f.required ?? false, position: k })),
+  );
+
+  // 4. Rien n'est envoyé : le PDG vérifie avant (envoyer_invitation_projet).
+  const invitation = email
+    ? `rien n'est envoyé : invitation prête pour ${contactNom} <${email}>, à envoyer après vérification`
+    : "aucun e-mail sur le devis : à préciser avant l'envoi de l'invitation";
+
+  await journal(ctx, client.id, `Projet web « ${projet.name} » lancé depuis le devis Abby ${e.number || `« ${e.title} »`}`);
+  ctx.log(`${nom} · projet « ${projet.name} » lancé (devis ${e.number || e.state}) — ${invitation}`, `/web/${projet.id}`);
+  return { ok: true, client_id: client.id, projet_id: projet.id, cahier_des_charges_id: brief.id, contact: { nom: contactNom, email: email || null }, invitation, lien: `/web/${projet.id}` };
+}
 
 /* ================================================================ outils == */
 
@@ -557,22 +629,23 @@ const TOOLS: ToolDef[] = [
   /* ------------------------------------------- chef de projet web -- */
   {
     name: "devis_signes_abby",
-    description: "Les devis signés dans Abby (facturation), avec leur client, et s'ils ont déjà donné lieu à un projet dans Pilot.",
-    schema: z.object({}),
+    description:
+      "Les devis signés dans Abby (facturation), avec leur client, et s'ils ont déjà donné lieu à un projet dans Pilot. Avec « recherche » (nom du client, numéro…), cherche les devis de ce client dans tous les états (draft = brouillon, finalized, signed, refused) : le champ etat dit lequel.",
+    schema: z.object({ recherche: z.string().optional() }),
     roles: ["chef_de_projet_web", "directeur"],
-    run: async () => {
-      const list = await signedEstimates(20);
+    run: async ({ recherche }: { recherche?: string }) => {
+      const list = recherche ? await searchEstimates(recherche) : await signedEstimates(20);
       const known = list.length
         ? await db.select({ id: webProjects.abbyEstimateId, projet: webProjects.id }).from(webProjects).where(inArray(webProjects.abbyEstimateId, list.map((e) => e.id)))
         : [];
       const km = new Map(known.map((k) => [k.id, k.projet]));
-      return list.map((e) => ({ devis_id: e.id, numero: e.number, objet: e.title, client: e.customer.name, contact: e.customer.contactName, email: e.customer.email, montant_ht: e.amountHt, signe_le: e.signedAt, lignes: e.lines.slice(0, 8), projet_pilot: km.get(e.id) ?? null }));
+      return list.map((e) => ({ devis_id: e.id, etat: e.state, numero: e.number, objet: e.title, client: e.customer.name, contact: e.customer.contactName, email: e.customer.email, montant_ht: e.amountHt, signe_le: e.signedAt, lignes: e.lines.slice(0, 8), projet_pilot: km.get(e.id) ?? null }));
     },
   },
   {
     name: "lancer_projet_depuis_devis",
     description:
-      "Depuis un devis signé Abby, fait tout d'un coup : crée (ou retrouve) le client web, crée le projet avec ses jalons, crée le cahier des charges adapté au type de projet, crée l'accès portail du contact et lui envoie l'invitation par e-mail (création du compte, puis cahier des charges à remplir et suivi d'avancement). Ne refait rien si le devis a déjà un projet.",
+      "Depuis un devis Abby : crée (ou retrouve) le client web, crée le projet avec ses jalons et le cahier des charges (brouillon) adapté au type de projet. N'envoie RIEN au client : le PDG vérifie d'abord, puis demande l'envoi (outil envoyer_invitation_projet). Ne refait rien si le devis a déjà un projet.",
     schema: z.object({
       devis_id: z.string(),
       type_projet: z.enum(PROJECT_TYPES as [string, ...string[]]),
@@ -580,86 +653,60 @@ const TOOLS: ToolDef[] = [
       echeance: z.string().optional().describe("AAAA-MM-JJ"),
       contact_nom: z.string().optional().describe("Si absent du devis"),
       contact_email: z.string().email().optional().describe("Si absent du devis"),
+      devis_non_signe_accepte: z.boolean().optional().describe("true seulement si le PDG a dit de partir d'un devis pas encore signé (brouillon ou finalisé)"),
     }),
     roles: ["chef_de_projet_web"],
-    run: async (i: { devis_id: string; type_projet: string; nom_projet?: string; echeance?: string; contact_nom?: string; contact_email?: string }, ctx: ToolCtx) => {
+    run: async (i: { devis_id: string; type_projet: string; nom_projet?: string; echeance?: string; contact_nom?: string; contact_email?: string; devis_non_signe_accepte?: boolean }, ctx: ToolCtx) => {
       const [exists] = await db.select({ id: webProjects.id }).from(webProjects).where(eq(webProjects.abbyEstimateId, i.devis_id)).limit(1);
       if (exists) return { deja_fait: true, projet_id: exists.id, lien: `/web/${exists.id}` };
       const e = await abbyEstimate(i.devis_id);
-      const nom = e.customer.name || i.contact_nom;
-      if (!nom) throw new Error("Le devis n'indique pas de client : précise contact_nom.");
-      const email = (i.contact_email || e.customer.email || "").toLowerCase();
-      const contactNom = i.contact_nom || e.customer.contactName || nom;
-
-      // 1. Client
-      let [client] = await db.select().from(clients).where(eq(clients.name, nom)).limit(1);
-      if (!client) {
-        [client] = await db.insert(clients).values({ name: nom, shortName: nom.slice(0, 24), departments: ["web"], abbyCustomerId: e.customer.id || null }).returning();
-        await db.insert(brands).values({ clientId: client.id }).onConflictDoNothing();
-      } else if (!client.departments.includes("web")) {
-        await db.update(clients).set({ departments: [...client.departments, "web"] }).where(eq(clients.id, client.id));
+      if (e.state !== "signed" && !i.devis_non_signe_accepte)
+        return { fait: false, raison: `Le devis ${e.number || e.id} est « ${e.state} » dans Abby, pas signé. Demande au PDG s'il faut partir de ce devis quand même.` };
+      return lancerProjet(e, i, ctx);
+    },
+  },
+  {
+    name: "envoyer_invitation_projet",
+    description:
+      "À n'utiliser que lorsque le PDG demande explicitement l'envoi, après vérification. Crée l'accès portail du contact d'un projet web, envoie l'invitation par e-mail (création du compte, cahier des charges à remplir, suivi d'avancement) et ouvre le cahier des charges au client.",
+    schema: z.object({
+      projet_id: z.string(),
+      contact_email: z.string().email().optional().describe("Par défaut : le contact du devis enregistré sur la fiche client"),
+      contact_nom: z.string().optional(),
+    }),
+    roles: ["chef_de_projet_web"],
+    run: async (i: { projet_id: string; contact_email?: string; contact_nom?: string }, ctx: ToolCtx) => {
+      const [projet] = await db.select().from(webProjects).where(eq(webProjects.id, i.projet_id)).limit(1);
+      if (!projet) throw new Error("Projet introuvable.");
+      const [fiche] = await db.select().from(contacts).where(and(eq(contacts.clientId, projet.clientId), eq(contacts.role, "Contact du devis"))).limit(1);
+      const email = (i.contact_email || (fiche?.reach?.includes("@") ? fiche.reach : "") || "").toLowerCase();
+      const contactNom = i.contact_nom || fiche?.name || "";
+      if (!email || !contactNom) throw new Error("Aucun contact enregistré pour ce projet : précise le nom et l'e-mail du contact.");
+      const [already] = await db.select({ id: users.id, clientId: users.clientId }).from(users).where(eq(users.email, email)).limit(1);
+      let invitation: string;
+      if (already) {
+        if (already.clientId !== projet.clientId) throw new Error("Cette adresse sert déjà à un autre compte : à vérifier.");
+        invitation = "le contact a déjà un compte : il retrouve le projet dans son espace";
+      } else {
+        const token = randomBytes(32).toString("base64url");
+        await db.insert(users).values({ name: contactNom, email, initials: initialsFrom(contactNom), role: "client", clientId: projet.clientId, inviteToken: token, inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000) });
+        const mail = await sendMail({
+          pole: "web",
+          to: email,
+          subject: `Votre espace projet — ${projet.name}`,
+          text:
+            `Bonjour ${contactNom},\n\n` +
+            `Merci pour votre confiance. Votre projet « ${projet.name} » est lancé.\n\n` +
+            "Votre espace client est prêt : créez votre mot de passe avec le lien ci-dessous. Vous y trouverez le cahier des charges à remplir (à votre rythme, tout est enregistré au fur et à mesure), puis l'avancement de votre projet étape par étape.",
+          actionUrl: `${origin()}/invitation/${token}`,
+          actionLabel: "Créer mon accès",
+        });
+        invitation = mail.error ? `accès créé, mais l'e-mail n'est pas parti (${mail.error}) : renvoyez le lien depuis la fiche client` : `invitation envoyée à ${email}`;
       }
-
-      // 2. Projet + jalons
-      const [projet] = await db
-        .insert(webProjects)
-        .values({
-          clientId: client.id,
-          name: i.nom_projet || `${PROJECT_TYPE[i.type_projet]?.label ?? "Projet web"} — ${nom}`,
-          type: i.type_projet as "vitrine",
-          dueAt: i.echeance ? new Date(`${i.echeance}T12:00:00Z`) : null,
-          priceCents: e.amountHt ? Math.round(e.amountHt * 100) : 0,
-          abbyEstimateId: e.id,
-        })
-        .returning();
-      const jalons = jalonsParDefaut(i.type_projet);
-      await db.insert(webMilestones).values(jalons.map((j, k) => ({ projectId: projet.id, label: j.label, waitingClient: j.attendClient, position: k })));
-
-      // 3. Cahier des charges
-      const [brief] = await db
-        .insert(briefs)
-        .values({
-          clientId: client.id,
-          projectId: projet.id,
-          title: `Cahier des charges — ${projet.name}`,
-          intro: "Quelques questions pour cadrer votre projet. Répondez à votre rythme : tout est enregistré au fur et à mesure.",
-          createdById: ctx.userId,
-          status: "envoye",
-          sentAt: new Date(),
-        })
-        .returning();
-      const modele = modeleBrief(i.type_projet);
-      await db.insert(briefFields).values(
-        modele.map((f, k) => ({ briefId: brief.id, section: f.section, label: f.label, help: f.help ?? null, kind: f.kind, options: f.options ?? [], required: f.required ?? false, position: k })),
-      );
-
-      // 4. Accès portail + invitation
-      let invitation = "aucun e-mail sur le devis : accès à créer depuis la fiche client";
-      if (email) {
-        const [already] = await db.select({ id: users.id, clientId: users.clientId }).from(users).where(eq(users.email, email)).limit(1);
-        if (already) {
-          invitation = already.clientId === client.id ? "le contact a déjà un compte : il retrouve le projet dans son espace" : "cette adresse sert déjà à un autre compte : à vérifier";
-        } else {
-          const token = randomBytes(32).toString("base64url");
-          await db.insert(users).values({ name: contactNom, email, initials: initialsFrom(contactNom), role: "client", clientId: client.id, inviteToken: token, inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000) });
-          const mail = await sendMail({
-            pole: "web",
-            to: email,
-            subject: `Votre espace projet — ${projet.name}`,
-            text:
-              `Bonjour ${contactNom},\n\n` +
-              `Merci pour votre confiance. Votre projet « ${projet.name} » est lancé.\n\n` +
-              "Votre espace client est prêt : créez votre mot de passe avec le lien ci-dessous. Vous y trouverez le cahier des charges à remplir (à votre rythme, tout est enregistré au fur et à mesure), puis l'avancement de votre projet étape par étape.",
-            actionUrl: `${origin()}/invitation/${token}`,
-            actionLabel: "Créer mon accès",
-          });
-          invitation = mail.error ? `accès créé, mais l'e-mail n'est pas parti (${mail.error}) : renvoyez le lien depuis la fiche client` : `invitation envoyée à ${email}`;
-        }
-      }
-
-      await journal(ctx, client.id, `Projet web « ${projet.name} » lancé depuis le devis Abby ${e.number}`);
-      ctx.log(`${nom} · projet « ${projet.name} » lancé (devis ${e.number}) — ${invitation}`, `/web/${projet.id}`);
-      return { ok: true, client_id: client.id, projet_id: projet.id, cahier_des_charges_id: brief.id, invitation, lien: `/web/${projet.id}` };
+      await db.update(briefs).set({ status: "envoye", sentAt: new Date() }).where(and(eq(briefs.projectId, projet.id), eq(briefs.status, "brouillon")));
+      await journal(ctx, projet.clientId, `Invitation au projet « ${projet.name} » : ${invitation}`);
+      ctx.log(`${projet.name} — ${invitation}`, `/web/${projet.id}`);
+      return { ok: true, invitation, lien: `/web/${projet.id}` };
     },
   },
   {
