@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
+import { Orb, type OrbMode } from "@/components/jarvis/Orb";
 
 type Turn = { role: "user" | "assistant"; text: string };
 type Log = { at: string; agent: string; text: string; href?: string };
@@ -58,6 +59,7 @@ export function JarvisChat({
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voice, setVoice] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const recRef = useRef<SR | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +102,9 @@ export function JarvisChat({
         .getVoices()
         .find((v) => v.lang.startsWith("fr"));
       if (fr) u.voice = fr;
+      u.onstart = () => setSpeaking(true);
+      u.onend = () => setSpeaking(false);
+      u.onerror = () => setSpeaking(false);
       window.speechSynthesis.speak(u);
     },
     [voice],
@@ -188,6 +193,14 @@ export function JarvisChat({
     rec.start();
   };
 
+  const orbMode: OrbMode = listening
+    ? "listening"
+    : busy
+      ? "thinking"
+      : speaking
+        ? "speaking"
+        : "idle";
+
   const newThread = () => {
     setThreadId(null);
     setTurns([]);
@@ -229,16 +242,42 @@ export function JarvisChat({
         ))}
       </aside>
 
-      {/* Échange */}
-      <section className="flex min-h-[70vh] min-w-0 flex-col overflow-hidden rounded-[26px] border border-line bg-paper shadow-soft lg:min-h-0">
-        <div className="min-h-0 flex-1 overflow-auto p-5">
+      {/* Échange : la scène noir et or de Jarvis */}
+      <section className="relative flex min-h-[78vh] min-w-0 flex-col overflow-hidden rounded-[26px] bg-[#070706] text-white shadow-soft lg:min-h-0">
+        {/* L'orbe : grand au repos, plus discret pendant la conversation. Toucher l'orbe = parler. */}
+        <div
+          className={cn(
+            "relative flex-none transition-[height] duration-700",
+            turns.length === 0
+              ? "h-[52vh] lg:h-[58%]"
+              : "h-[200px] lg:h-[230px]",
+          )}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_55%,rgba(206,173,111,.16),transparent_60%)]" />
+          <Orb
+            mode={orbMode}
+            onClick={ready && !busy ? toggleMic : undefined}
+          />
+          <span className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-small tracking-[0.18em] text-[#cead6f]/80 uppercase">
+            {orbMode === "listening"
+              ? "Je vous écoute…"
+              : orbMode === "thinking"
+                ? "Jarvis et son équipe travaillent…"
+                : orbMode === "speaking"
+                  ? "Jarvis parle"
+                  : ready
+                    ? "Touchez l'orbe pour parler"
+                    : "Jarvis"}
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto px-5 pb-4">
           {turns.length === 0 ? (
-            <div className="mx-auto flex max-w-[560px] flex-col items-center pt-8 text-center">
-              <Orb active={busy || listening} />
-              <h1 className="mt-5 text-[30px] leading-tight font-bold tracking-[-0.03em]">
+            <div className="mx-auto flex max-w-[620px] flex-col items-center text-center">
+              <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] text-white">
                 Bonjour {firstName}, que fait-on ?
               </h1>
-              <p className="mt-2 text-base text-ink-2">
+              <p className="mt-2 text-base text-white/60">
                 Je suis Jarvis, votre directeur marketing. Je pilote un
                 community manager et un chef de projet web IA, qui agissent
                 directement dans Pilot.
@@ -246,18 +285,18 @@ export function JarvisChat({
               {!ready ? (
                 <Link
                   href="/reglages"
-                  className="mt-5 rounded-full bg-night px-4 py-2 text-base font-medium text-white no-underline hover:no-underline"
+                  className="mt-5 rounded-full bg-[#cead6f] px-4 py-2 text-base font-semibold text-[#0d0c0a] no-underline hover:no-underline"
                 >
                   Raccorder l&apos;assistant (Réglages → Assistant IA)
                 </Link>
               ) : (
-                <div className="mt-6 flex flex-col gap-2">
+                <div className="mt-5 grid w-full gap-2 sm:grid-cols-2">
                   {EXEMPLES.map((e) => (
                     <button
                       key={e}
                       type="button"
                       onClick={() => send(e)}
-                      className="cursor-pointer rounded-[16px] border border-line bg-canvas px-4 py-3 text-left text-base text-ink hover:border-line-strong"
+                      className="cursor-pointer rounded-[16px] border border-white/10 bg-white/[.04] px-4 py-3 text-left text-small text-white/85 hover:border-[#cead6f]/60 hover:bg-white/[.07]"
                     >
                       {e}
                     </button>
@@ -266,7 +305,7 @@ export function JarvisChat({
               )}
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="mx-auto flex max-w-[760px] flex-col gap-4">
               {turns.map((t, i) => (
                 <div
                   key={i}
@@ -275,26 +314,21 @@ export function JarvisChat({
                     t.role === "user" ? "items-end self-end" : "self-start",
                   )}
                 >
-                  <span className="text-micro text-ink-3">
+                  <span className="text-micro text-white/40">
                     {t.role === "user" ? "Vous" : "Jarvis"}
                   </span>
                   <span
                     className={cn(
                       "rounded-[20px] px-4 py-3 text-base whitespace-pre-wrap",
                       t.role === "user"
-                        ? "rounded-br-[6px] bg-night text-white"
-                        : "rounded-bl-[6px] bg-mute text-ink",
+                        ? "rounded-br-[6px] bg-[#cead6f] text-[#0d0c0a]"
+                        : "rounded-bl-[6px] border border-white/10 bg-white/[.06] text-white",
                     )}
                   >
                     {t.text}
                   </span>
                 </div>
               ))}
-              {busy ? (
-                <div className="flex items-center gap-3 self-start rounded-[20px] bg-mute px-4 py-3 text-base text-ink-2">
-                  <Orb active small /> Jarvis et son équipe travaillent…
-                </div>
-              ) : null}
               <div ref={endRef} />
             </div>
           )}
@@ -305,24 +339,22 @@ export function JarvisChat({
             e.preventDefault();
             void send(draft);
           }}
-          className="flex items-end gap-2 border-t border-line p-3"
+          className="flex items-end gap-2 border-t border-white/10 p-3"
         >
-          {
-            <button
-              type="button"
-              onClick={toggleMic}
-              disabled={!ready || busy}
-              title={listening ? "Arrêter" : "Parler à Jarvis"}
-              className={cn(
-                "flex h-12 w-12 flex-none cursor-pointer items-center justify-center rounded-full border-none disabled:opacity-50",
-                listening
-                  ? "animate-pulse bg-alert text-white"
-                  : "bg-accent text-accent-ink hover:brightness-105",
-              )}
-            >
-              <Icon name="mic" size={20} />
-            </button>
-          }
+          <button
+            type="button"
+            onClick={toggleMic}
+            disabled={!ready || busy}
+            title={listening ? "Arrêter" : "Parler à Jarvis"}
+            className={cn(
+              "flex h-12 w-12 flex-none cursor-pointer items-center justify-center rounded-full border-none disabled:opacity-40",
+              listening
+                ? "animate-pulse bg-alert text-white"
+                : "bg-[#cead6f] text-[#0d0c0a] hover:brightness-110",
+            )}
+          >
+            <Icon name="mic" size={20} />
+          </button>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -335,19 +367,19 @@ export function JarvisChat({
             rows={1}
             disabled={!ready}
             placeholder={
-              listening ? "Je vous écoute…" : "Écrivez ou appuyez sur le micro…"
+              listening ? "Je vous écoute…" : "Écrivez ou touchez l'orbe…"
             }
-            className="max-h-40 min-h-12 flex-1 resize-none rounded-[18px] border border-line bg-canvas px-4 py-3 text-base text-ink outline-none focus:border-gold"
+            className="max-h-40 min-h-12 flex-1 resize-none rounded-[18px] border border-white/10 bg-white/[.05] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-[#cead6f]/70"
           />
           <button
             type="submit"
             disabled={!ready || busy || !draft.trim()}
-            className="h-12 flex-none cursor-pointer rounded-full border-none bg-night px-5 text-base font-medium text-white hover:opacity-85 disabled:opacity-40"
+            className="h-12 flex-none cursor-pointer rounded-full border border-white/15 bg-transparent px-5 text-base font-medium text-white hover:border-[#cead6f] disabled:opacity-30"
           >
             Envoyer
           </button>
         </form>
-        <label className="flex items-center gap-2 px-4 pb-3 text-small text-ink-3">
+        <label className="flex items-center gap-2 px-4 pb-3 text-small text-white/45">
           <input
             type="checkbox"
             checked={voice}
@@ -361,7 +393,7 @@ export function JarvisChat({
               } catch {}
             }}
           />
-          Lire les réponses à voix haute
+          Jarvis répond à voix haute
         </label>
       </section>
 
@@ -397,26 +429,5 @@ export function JarvisChat({
         </div>
       </aside>
     </div>
-  );
-}
-
-function Orb({ active, small }: { active?: boolean; small?: boolean }) {
-  const s = small ? 22 : 96;
-  return (
-    <span
-      className={cn(
-        "relative block flex-none rounded-full",
-        active && "animate-pulse",
-      )}
-      style={{
-        width: s,
-        height: s,
-        background:
-          "radial-gradient(circle at 35% 30%, #fff6d8, var(--c-accent) 45%, #8a6a22 100%)",
-        boxShadow: active
-          ? "0 0 0 8px color-mix(in srgb, var(--c-accent) 25%, transparent), 0 0 40px var(--c-accent)"
-          : "0 10px 30px color-mix(in srgb, var(--c-accent) 35%, transparent)",
-      }}
-    />
   );
 }
