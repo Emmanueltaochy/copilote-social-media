@@ -28,7 +28,7 @@ export function AjoutConcurrent({ clientId }: { clientId: string }) {
         </select>
         <input name="handle" placeholder="@compte ou lien du profil" className={champ} />
         <button type="submit" disabled={pending} className="cursor-pointer rounded-full border-none bg-night px-4 py-2 text-base font-medium text-white hover:opacity-85 disabled:opacity-60">
-          {pending ? "Ajout…" : "Ajouter"}
+          {pending ? "Ajout… (Metricool peut mettre une minute)" : "Ajouter"}
         </button>
       </div>
       <Msg s={state} />

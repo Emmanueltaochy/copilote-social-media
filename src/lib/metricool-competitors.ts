@@ -12,13 +12,24 @@ const BASE = "https://app.metricool.com/api";
 export const COMPETITOR_NETWORKS = ["instagram", "facebook", "youtube"] as const;
 export type CompetitorNetwork = (typeof COMPETITOR_NETWORKS)[number];
 
-async function call<T>(path: string, params: Record<string, string>, method = "GET"): Promise<T> {
+/** Délai dépassé côté Metricool (et non une vraie erreur) : l'opération a pu aboutir quand même. */
+export class MetricoolLent extends Error {}
+
+async function call<T>(path: string, params: Record<string, string>, method = "GET", timeoutMs = 30_000): Promise<T> {
   const cfg = await metricoolConfig();
   if (!cfg) throw new Error("Metricool n'est pas raccordé (Réglages → Metricool).");
   const url = new URL(BASE + path);
   url.searchParams.set("userId", cfg.userId);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url, { method, headers: { "X-Mc-Auth": cfg.token, Accept: "application/json" }, signal: AbortSignal.timeout(30_000), cache: "no-store" });
+  let res: Response;
+  try {
+    res = await fetch(url, { method, headers: { "X-Mc-Auth": cfg.token, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs), cache: "no-store" });
+  } catch (e) {
+    if ((e as Error).name === "TimeoutError" || (e as Error).name === "AbortError") {
+      throw new MetricoolLent(`Metricool n'a pas répondu en ${Math.round(timeoutMs / 1000)} secondes.`);
+    }
+    throw new Error(`Metricool injoignable : ${(e as Error).message}`);
+  }
   const text = await res.text();
   if (!res.ok) {
     let detail = text.slice(0, 160);
@@ -81,8 +92,26 @@ export function normalizeHandle(network: CompetitorNetwork, input: string) {
   return v.replace(/^@/, "");
 }
 
-export async function addCompetitor(brandId: string, network: CompetitorNetwork, handle: string) {
-  return call<{ data?: boolean }>(`/v2/analytics/competitors/${network}`, { blogId: brandId, id: normalizeHandle(network, handle) }, "POST");
+/**
+ * Ajoute un compte suivi. Metricool va chercher le profil sur le réseau avant de répondre, ce qui peut
+ * prendre plus d'une minute : on attend 90 s, puis, s'il n'a toujours pas répondu, on regarde si le
+ * compte figure déjà dans sa liste (l'ajout aboutit souvent malgré le délai).
+ * Retourne "ajoute" ou "en_cours" (Metricool travaille encore : le compte apparaîtra sous peu).
+ */
+export async function addCompetitor(brandId: string, network: CompetitorNetwork, handle: string): Promise<"ajoute" | "en_cours"> {
+  const id = normalizeHandle(network, handle);
+  try {
+    await call<{ data?: boolean }>(`/v2/analytics/competitors/${network}`, { blogId: brandId, id }, "POST", 90_000);
+    return "ajoute";
+  } catch (e) {
+    if (!(e instanceof MetricoolLent)) throw e;
+    try {
+      const list = await listCompetitors(brandId, network);
+      const k = id.replace(/^@/, "").toLowerCase();
+      if (list.some((c) => c.handle.replace(/^@/, "").toLowerCase() === k)) return "ajoute";
+    } catch {}
+    return "en_cours";
+  }
 }
 
 export async function removeCompetitor(brandId: string, network: CompetitorNetwork, competitorId: string) {

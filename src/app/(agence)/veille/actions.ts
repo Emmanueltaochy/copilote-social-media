@@ -28,15 +28,19 @@ export async function ajouterConcurrent(_prev: VeilleState, formData: FormData):
   if (!COMPETITOR_NETWORKS.includes(network)) return { error: "Réseau non suivi." };
   try {
     const c = await brandOf(clientId);
-    await addCompetitor(c.brandId!, network, handle);
+    const etat = await addCompetitor(c.brandId!, network, handle);
     await db
       .insert(veilleAccounts)
       .values({ clientId, network, handle: cle(normalizeHandle(network, handle)), kind })
       .onConflictDoUpdate({ target: [veilleAccounts.clientId, veilleAccounts.network, veilleAccounts.handle], set: { kind } });
     revalidatePath("/veille");
-    return {
-      ok: `${kind === "inspiration" ? "Inspiration" : "Concurrent"} ajouté. Metricool relève ses publications : comptez jusqu'à 24 h pour les premiers chiffres.`,
-    };
+    const quoi = kind === "inspiration" ? "Inspiration" : "Concurrent";
+    if (etat === "en_cours") {
+      return {
+        ok: `${quoi} noté. Metricool met du temps à trouver ce compte : rechargez la page dans quelques minutes. S'il n'apparaît toujours pas, vérifiez l'identifiant (@nom exact du compte, profil public).`,
+      };
+    }
+    return { ok: `${quoi} ajouté. Metricool relève ses publications : comptez jusqu'à 24 h pour les premiers chiffres.` };
   } catch (e) {
     return { error: (e as Error).message };
   }
