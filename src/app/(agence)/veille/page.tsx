@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { scopeClientId } from "@/lib/scope";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
-import { clients, db, trendReports } from "@/db";
+import { clients, db, trendReports, veilleAccounts } from "@/db";
 import { requireDepartment } from "@/lib/auth";
 import { secretStatus } from "@/lib/secrets";
 import { COMPETITOR_NETWORKS, competitorPosts, listCompetitors, type Competitor } from "@/lib/metricool-competitors";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
 import { ClientChip, NetworkDot, Panel } from "@/components/home/bits";
 import { fmt } from "@/components/stats/Charts";
-import { copierIdee, retirerConcurrent, supprimerAnalyse } from "./actions";
+import { changerRole, copierIdee, retirerConcurrent, supprimerAnalyse } from "./actions";
 import { AjoutConcurrent, BoutonAnalyse } from "./Forms";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * Veille — les concurrents de chaque client, ce qui marche chez eux, et
  * l'analyse de l'IA pour en tirer des idées à adapter.
  */
-export default async function VeillePage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
+export default async function VeillePage({ searchParams }: { searchParams: Promise<{ client?: string; vue?: string }> }) {
   await requireDepartment("social");
   const sp = await searchParams;
   const linked = await db
@@ -54,7 +54,18 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
     ),
   );
   const competitors = lists.flat();
-  const { posts, errors: postErrors } = competitors.length ? await competitorPosts(client.brandId!, 30) : { posts: [], errors: [] };
+  // Le rôle de chaque compte pour Pilot (Metricool les suit tous comme concurrents).
+  const roles = await db.select().from(veilleAccounts).where(eq(veilleAccounts.clientId, client.id));
+  const cle = (h: string) => h.replace(/^@/, "").trim().toLowerCase();
+  const roleMap = new Map(roles.map((r) => [`${r.network}:${r.handle}`, r.kind]));
+  const roleOf = (network: string, handle: string) => (roleMap.get(`${network}:${cle(handle)}`) === "inspiration" ? "inspiration" : "concurrent");
+  const groupes = [
+    { kind: "concurrent" as const, titre: "Concurrents directs", vide: "Aucun concurrent suivi.", items: competitors.filter((c) => roleOf(c.network, c.handle) === "concurrent") },
+    { kind: "inspiration" as const, titre: "Inspirations du secteur", vide: "Aucune inspiration : ajoutez des comptes du même métier ailleurs, ou d'un secteur voisin dont les formats s'adaptent.", items: competitors.filter((c) => roleOf(c.network, c.handle) === "inspiration") },
+  ];
+  const vue = sp.vue === "concurrents" || sp.vue === "inspirations" ? sp.vue : "tout";
+  const { posts: allPosts, errors: postErrors } = competitors.length ? await competitorPosts(client.brandId!, 30) : { posts: [], errors: [] };
+  const posts = allPosts.filter((p) => vue === "tout" || (vue === "inspirations") === (roleOf(p.network, p.author) === "inspiration"));
   const [report] = await db.select().from(trendReports).where(eq(trendReports.clientId, client.id)).orderBy(desc(trendReports.createdAt)).limit(1);
   const ai = await secretStatus("anthropic");
 
@@ -62,7 +73,7 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">Veille</h1>
-        <span className="text-base text-ink-3">Ce qui marche chez les concurrents de vos clients, et comment le reprendre à votre façon.</span>
+        <span className="text-base text-ink-3">Ce qui marche chez les concurrents de vos clients, dans leur secteur et ailleurs, et comment le reprendre à votre façon.</span>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -81,50 +92,66 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-        <Panel title={`Concurrents de ${client.name}`}>
+        <Panel title={`Comptes suivis pour ${client.name}`}>
           <AjoutConcurrent clientId={client.id} />
-          <div className="mt-4 flex flex-col divide-y divide-line">
-            {competitors.length === 0 ? (
-              <p className="py-3 text-base text-ink-3">Aucun concurrent suivi. Ajoutez leurs comptes Instagram, Facebook ou YouTube.</p>
-            ) : null}
-            {competitors.map((c) => (
-              <div key={`${c.network}-${c.id}`} className="flex items-center gap-3 py-3">
-                <span className="relative flex-none">
-                  {c.picture ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.picture} alt="" className="h-10 w-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slot text-small font-bold uppercase">{c.handle.slice(0, 2)}</span>
-                  )}
-                  <span className="absolute -right-1 -bottom-1">
-                    <NetworkDot network={c.network} size={18} />
-                  </span>
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="clip text-base font-semibold">{c.name || c.handle}</span>
-                  <span className="clip text-small text-ink-3">
-                    @{c.handle}
-                    {c.followers != null ? ` · ${fmt(c.followers)} abonnés` : " · première collecte en cours"}
-                  </span>
-                </span>
-                <form action={retirerConcurrent}>
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <input type="hidden" name="network" value={c.network} />
-                  <input type="hidden" name="competitorId" value={c.id} />
-                  <button type="submit" title="Ne plus suivre" className="cursor-pointer rounded-full border border-line bg-paper px-3 py-[5px] text-small text-ink-2 hover:border-line-strong">
-                    Retirer
-                  </button>
-                </form>
+          {groupes.map((g) => (
+            <div key={g.kind} className="mt-4">
+              <span className="eyebrow text-ink-3">{g.titre}</span>
+              <div className="flex flex-col divide-y divide-line">
+                {g.items.length === 0 ? <p className="py-3 text-small text-ink-3">{g.vide}</p> : null}
+                {g.items.map((c) => (
+                  <div key={`${c.network}-${c.id}`} className="flex items-center gap-3 py-3">
+                    <span className="relative flex-none">
+                      {c.picture ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.picture} alt="" className="h-10 w-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slot text-small font-bold uppercase">{c.handle.slice(0, 2)}</span>
+                      )}
+                      <span className="absolute -right-1 -bottom-1">
+                        <NetworkDot network={c.network} size={18} />
+                      </span>
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="clip text-base font-semibold">{c.name || c.handle}</span>
+                      <span className="clip text-small text-ink-3">
+                        @{c.handle}
+                        {c.followers != null ? ` · ${fmt(c.followers)} abonnés` : " · première collecte en cours"}
+                      </span>
+                    </span>
+                    <form action={changerRole}>
+                      <input type="hidden" name="clientId" value={client.id} />
+                      <input type="hidden" name="network" value={c.network} />
+                      <input type="hidden" name="handle" value={c.handle} />
+                      <input type="hidden" name="kind" value={g.kind === "concurrent" ? "inspiration" : "concurrent"} />
+                      <button type="submit" title="Changer le rôle de ce compte" className="cursor-pointer rounded-full border border-line bg-paper px-3 py-[5px] text-small text-ink-2 hover:border-line-strong">
+                        {g.kind === "concurrent" ? "→ Inspiration" : "→ Concurrent"}
+                      </button>
+                    </form>
+                    <form action={retirerConcurrent}>
+                      <input type="hidden" name="clientId" value={client.id} />
+                      <input type="hidden" name="network" value={c.network} />
+                      <input type="hidden" name="competitorId" value={c.id} />
+                      <input type="hidden" name="handle" value={c.handle} />
+                      <button type="submit" title="Ne plus suivre" className="cursor-pointer rounded-full border border-line bg-paper px-3 py-[5px] text-small text-ink-2 hover:border-line-strong">
+                        Retirer
+                      </button>
+                    </form>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
           {errors.length ? <p className="mt-2 text-small text-warn">{errors.join(" · ")}</p> : null}
         </Panel>
 
         <Panel title="Analyse des tendances par l'IA" right={report ? <span className="text-small text-ink-3">{report.createdAt.toLocaleDateString("fr-FR")}</span> : null}>
-          <BoutonAnalyse clientId={client.id} ready={ai.connected && posts.length >= 3} />
-          {!report && ai.connected && posts.length < 3 ? (
-            <p className="mt-2 text-small text-ink-3">L&apos;analyse s&apos;ouvre dès que Metricool a relevé quelques publications concurrentes.</p>
+          <BoutonAnalyse clientId={client.id} ready={ai.connected} />
+          {!report && ai.connected ? (
+            <p className="mt-2 text-small text-ink-3">
+              L&apos;IA lit les publications des concurrents et des inspirations, et cherche sur le web les tendances actuelles du secteur du client
+              (renseignez son secteur dans sa fiche).
+            </p>
           ) : null}
           {report ? (
             <div className="mt-4 flex flex-col gap-4">
@@ -179,13 +206,38 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
         </Panel>
       </div>
 
-      <Panel title="Ce qui marche chez eux · 30 derniers jours" className="mt-5">
+      <Panel
+        title="Ce qui marche · 30 derniers jours"
+        className="mt-5"
+        right={
+          <span className="flex gap-1">
+            {[
+              ["tout", "Tout"],
+              ["concurrents", "Concurrents"],
+              ["inspirations", "Inspirations"],
+            ].map(([k, l]) => (
+              <Link
+                key={k}
+                href={`/veille?client=${client.id}${k === "tout" ? "" : `&vue=${k}`}`}
+                className={cn(
+                  "rounded-full border px-3 py-[4px] text-small no-underline hover:no-underline",
+                  vue === k ? "border-night bg-night text-white" : "border-line bg-paper text-ink hover:border-line-strong",
+                )}
+              >
+                {l}
+              </Link>
+            ))}
+          </span>
+        }
+      >
         {postErrors.length ? <p className="mb-2 text-small text-warn">{postErrors.join(" · ")}</p> : null}
         {posts.length === 0 ? (
           <p className="text-base text-ink-3">
             {competitors.length
-              ? "Metricool collecte les publications des concurrents : les premières arrivent sous 24 h environ après l'ajout."
-              : "Ajoutez des concurrents pour voir leurs publications les plus engageantes."}
+              ? vue === "tout"
+                ? "Metricool collecte les publications des comptes suivis : les premières arrivent sous 24 h environ après l'ajout."
+                : "Aucune publication pour ce filtre sur 30 jours."
+              : "Ajoutez des concurrents ou des inspirations pour voir leurs publications les plus engageantes."}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -202,7 +254,12 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
                   </span>
                 </a>
                 <div className="flex flex-1 flex-col gap-1 p-3">
-                  <span className="clip text-small font-semibold">@{p.author}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="clip text-small font-semibold">@{p.author}</span>
+                    {roleOf(p.network, p.author) === "inspiration" ? (
+                      <span className="flex-none rounded-full bg-mute px-2 py-[1px] text-micro text-ink-2">Inspiration</span>
+                    ) : null}
+                  </span>
                   <span className="line-clamp-2 text-small text-ink-2">{p.text || "(sans texte)"}</span>
                   <span className="text-micro text-ink-3">
                     {fmt(p.likes)} j&apos;aime · {fmt(p.comments)} comm.{p.views ? ` · ${fmt(p.views)} vues` : ""}

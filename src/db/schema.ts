@@ -1528,6 +1528,27 @@ export const agentThreads = pgTable(
  * Les analyses de tendances faites par l'IA à partir des publications des
  * concurrents d'un client : ce qui marche chez eux, et comment l'adapter.
  */
+/**
+ * Les comptes suivis en veille, avec leur rôle pour Pilot. Metricool les
+ * suit tous comme des « concurrents » ; ici on distingue le concurrent
+ * direct de l'inspiration du secteur (un compte du même métier ailleurs, ou
+ * d'un secteur voisin dont les formats s'adaptent).
+ */
+export const veilleAccounts = pgTable(
+  "veille_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    network: text("network").notNull(),
+    handle: text("handle").notNull(),
+    kind: text("kind").notNull().default("concurrent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("veille_accounts_unique").on(t.clientId, t.network, t.handle)],
+);
+
 export const trendReports = pgTable(
   "trend_reports",
   {

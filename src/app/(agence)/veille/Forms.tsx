@@ -17,6 +17,10 @@ export function AjoutConcurrent({ clientId }: { clientId: string }) {
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="clientId" value={clientId} />
       <div className="flex flex-wrap gap-2">
+        <select name="kind" defaultValue="concurrent" className="rounded-control border border-line bg-paper px-2 py-2 text-base text-ink" aria-label="Rôle du compte">
+          <option value="concurrent">Concurrent direct</option>
+          <option value="inspiration">Inspiration du secteur</option>
+        </select>
         <select name="network" className="rounded-control border border-line bg-paper px-2 py-2 text-base text-ink">
           <option value="instagram">Instagram</option>
           <option value="facebook">Facebook</option>

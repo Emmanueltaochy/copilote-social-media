@@ -176,6 +176,13 @@
       "when": 1794344873236,
       "tag": "0024_veille",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794389731343,
+      "tag": "0025_veille_inspirations",
+      "breakpoints": true
     }
   ]
 }

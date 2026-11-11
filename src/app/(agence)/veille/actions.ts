@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
-import { activity, clients, contents, contentVersions, db, trendReports } from "@/db";
+import { and, eq } from "drizzle-orm";
+import { activity, clients, contents, contentVersions, db, trendReports, veilleAccounts } from "@/db";
 import { requireStaff } from "@/lib/auth";
-import { addCompetitor, COMPETITOR_NETWORKS, removeCompetitor, type CompetitorNetwork } from "@/lib/metricool-competitors";
+import { addCompetitor, COMPETITOR_NETWORKS, normalizeHandle, removeCompetitor, type CompetitorNetwork } from "@/lib/metricool-competitors";
+
+/** Clé d'un compte suivi : réseau + identifiant en minuscules, sans @. */
+const cle = (h: string) => h.replace(/^@/, "").trim().toLowerCase();
 import { analyseTrends } from "@/lib/agent/trends";
 
 export type VeilleState = { ok?: string; error?: string };
@@ -20,13 +23,20 @@ export async function ajouterConcurrent(_prev: VeilleState, formData: FormData):
   const clientId = String(formData.get("clientId") ?? "");
   const network = String(formData.get("network") ?? "instagram") as CompetitorNetwork;
   const handle = String(formData.get("handle") ?? "").trim();
-  if (!handle) return { error: "Indiquez le compte du concurrent (@nom ou lien)." };
+  const kind = formData.get("kind") === "inspiration" ? "inspiration" : "concurrent";
+  if (!handle) return { error: "Indiquez le compte (@nom ou lien)." };
   if (!COMPETITOR_NETWORKS.includes(network)) return { error: "Réseau non suivi." };
   try {
     const c = await brandOf(clientId);
     await addCompetitor(c.brandId!, network, handle);
+    await db
+      .insert(veilleAccounts)
+      .values({ clientId, network, handle: cle(normalizeHandle(network, handle)), kind })
+      .onConflictDoUpdate({ target: [veilleAccounts.clientId, veilleAccounts.network, veilleAccounts.handle], set: { kind } });
     revalidatePath("/veille");
-    return { ok: `Concurrent ajouté. Metricool relève ses publications : comptez jusqu'à 24 h pour les premiers chiffres.` };
+    return {
+      ok: `${kind === "inspiration" ? "Inspiration" : "Concurrent"} ajouté. Metricool relève ses publications : comptez jusqu'à 24 h pour les premiers chiffres.`,
+    };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -35,7 +45,26 @@ export async function ajouterConcurrent(_prev: VeilleState, formData: FormData):
 export async function retirerConcurrent(formData: FormData): Promise<void> {
   await requireStaff();
   const c = await brandOf(String(formData.get("clientId") ?? ""));
-  await removeCompetitor(c.brandId!, String(formData.get("network")) as CompetitorNetwork, String(formData.get("competitorId")));
+  const clientId = String(formData.get("clientId") ?? "");
+  const network = String(formData.get("network"));
+  await removeCompetitor(c.brandId!, network as CompetitorNetwork, String(formData.get("competitorId")));
+  const handle = String(formData.get("handle") ?? "");
+  if (handle) await db.delete(veilleAccounts).where(and(eq(veilleAccounts.clientId, clientId), eq(veilleAccounts.network, network), eq(veilleAccounts.handle, cle(handle))));
+  revalidatePath("/veille");
+}
+
+/** Passe un compte suivi de « concurrent » à « inspiration du secteur », ou l'inverse. */
+export async function changerRole(formData: FormData): Promise<void> {
+  await requireStaff();
+  const clientId = String(formData.get("clientId") ?? "");
+  const network = String(formData.get("network") ?? "");
+  const handle = cle(String(formData.get("handle") ?? ""));
+  const kind = formData.get("kind") === "inspiration" ? "inspiration" : "concurrent";
+  if (!clientId || !network || !handle) return;
+  await db
+    .insert(veilleAccounts)
+    .values({ clientId, network, handle, kind })
+    .onConflictDoUpdate({ target: [veilleAccounts.clientId, veilleAccounts.network, veilleAccounts.handle], set: { kind } });
   revalidatePath("/veille");
 }
 
