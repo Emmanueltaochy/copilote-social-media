@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { enregistrerCle, genererMcp, majClientPublication, oublierCle, type IntegState } from "./integrations-actions";
 
 const champ = "min-w-0 flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base text-ink outline-none focus:border-gold";
@@ -103,22 +103,64 @@ export function PublicationClients({ rows }: { rows: { id: string; name: string;
   return (
     <div className="flex flex-col divide-y divide-line">
       {rows.map((c) => (
-        <form key={c.id} action={majClientPublication} className="flex flex-wrap items-center gap-3 px-5 py-3">
-          <input type="hidden" name="clientId" value={c.id} />
-          <span className="min-w-[140px] flex-1 text-base font-medium">{c.name}</span>
-          <select name="publishMode" defaultValue={c.publishMode} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="rounded-control border border-line bg-paper px-2 py-[6px] text-base text-ink">
-            <option value="validation">Valide avant publication</option>
-            <option value="confiance">Nous fait confiance</option>
-          </select>
-          <input
-            name="drive"
-            defaultValue={c.driveFolderId ? `https://drive.google.com/drive/folders/${c.driveFolderId}` : ""}
-            placeholder="Lien du dossier Drive des rushs"
-            onBlur={(e) => e.currentTarget.form?.requestSubmit()}
-            className="w-full max-w-[340px] rounded-control border border-line bg-paper px-3 py-[6px] text-small text-ink outline-none focus:border-gold"
-          />
-        </form>
+        <LignePublication key={c.id} c={c} />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Une ligne par client. Le choix est gardé dans l'état de la page et envoyé
+ * directement à l'action : un formulaire React 19 se remet à sa valeur de
+ * départ après l'envoi, ce qui faisait revenir « Valide avant publication »
+ * à l'écran.
+ */
+function LignePublication({ c }: { c: { id: string; name: string; publishMode: string; driveFolderId: string | null } }) {
+  const [mode, setMode] = useState(c.publishMode === "confiance" ? "confiance" : "validation");
+  const [etat, setEtat] = useState<"" | "ok" | "erreur">("");
+  const [pending, start] = useTransition();
+  const drive = useRef<HTMLInputElement>(null);
+
+  const enregistrer = (nextMode: string) => {
+    const fd = new FormData();
+    fd.set("clientId", c.id);
+    fd.set("publishMode", nextMode);
+    fd.set("drive", drive.current?.value ?? "");
+    start(async () => {
+      try {
+        await majClientPublication(fd);
+        setEtat("ok");
+      } catch {
+        setEtat("erreur");
+      }
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+      <span className="min-w-[140px] flex-1 text-base font-medium">{c.name}</span>
+      <select
+        value={mode}
+        onChange={(e) => {
+          setMode(e.target.value);
+          enregistrer(e.target.value);
+        }}
+        className="rounded-control border border-line bg-paper px-2 py-[6px] text-base text-ink"
+        aria-label={`Mode de publication de ${c.name}`}
+      >
+        <option value="validation">Valide avant publication</option>
+        <option value="confiance">Nous fait confiance</option>
+      </select>
+      <input
+        ref={drive}
+        defaultValue={c.driveFolderId ? `https://drive.google.com/drive/folders/${c.driveFolderId}` : ""}
+        placeholder="Lien du dossier Drive des rushs"
+        onBlur={() => enregistrer(mode)}
+        className="w-full max-w-[340px] rounded-control border border-line bg-paper px-3 py-[6px] text-small text-ink outline-none focus:border-gold"
+      />
+      <span className="w-[90px] text-small text-ink-3" aria-live="polite">
+        {pending ? "Enregistrement…" : etat === "ok" ? "Enregistré" : etat === "erreur" ? "Erreur, réessayez" : ""}
+      </span>
     </div>
   );
 }
