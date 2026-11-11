@@ -125,6 +125,8 @@ export type CompetitorPost = {
   text: string;
   url: string | null;
   imageUrl: string | null;
+  /** Vidéo (Reel, Short) quand Metricool ne donne pas de miniature : la première image sert d'aperçu. */
+  videoUrl: string | null;
   type: string;
   publishedAt: string | null;
   likes: number;
@@ -141,6 +143,21 @@ const POSTS_PATH: Record<CompetitorNetwork, string> = {
   youtube: "/v2/analytics/competitors/youtube/posts",
 };
 
+// Fichier vidéo : extension, vidéos Instagram (…/o1/v/t16/…) ou serveur vidéo de Facebook (video.xx.fbcdn.net)
+const isVideo = (u: string) => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u) || /\/o1\/v\/t16\//.test(u) || /\/\/video[.-][^/]*fbcdn\.net\//i.test(u);
+
+/**
+ * Aperçu d'une publication : pour un Reel, Metricool met souvent l'adresse de la VIDÉO dans le champ
+ * image (une balise <img> ne l'affiche pas). On prend d'abord une vraie miniature, et on garde la vidéo à part.
+ */
+function preview(r: Raw): { imageUrl: string | null; videoUrl: string | null } {
+  const thumbs = [r.thumbnailUrl, r.thumbnail, r.thumbnailSrc, r.previewUrl, r.coverUrl, r.coverImageUrl, r.imageUrl, r.picture, r.fullPicture, r.image, r.mediaUrl]
+    .map(str)
+    .filter((u): u is string => !!u);
+  const videos = [r.videoUrl, r.videoSrc, r.mediaUrl, r.imageUrl].map(str).filter((u): u is string => !!u && isVideo(u));
+  return { imageUrl: thumbs.find((u) => !isVideo(u)) ?? null, videoUrl: videos[0] ?? null };
+}
+
 function mapPost(network: CompetitorNetwork, r: Raw): CompetitorPost {
   const likes = num(r.likes) ?? num(r.likeCount) ?? num(r.reactions) ?? 0;
   const comments = num(r.comments) ?? num(r.commentCount) ?? 0;
@@ -155,7 +172,7 @@ function mapPost(network: CompetitorNetwork, r: Raw): CompetitorPost {
     author: String(r.ownerScreenName ?? r.screenName ?? r.userId ?? r.handle ?? r.pageName ?? ""),
     text: String(r.content ?? r.text ?? r.message ?? r.title ?? r.description ?? ""),
     url: str(r.url) ?? str(r.link) ?? str(r.permalink) ?? str(r.watchUrl),
-    imageUrl: str(r.imageUrl) ?? str(r.picture) ?? str(r.thumbnailUrl) ?? str(r.fullPicture) ?? str(r.mediaUrl),
+    ...preview(r),
     type: String(r.type ?? (r.reelId ? "REEL" : "POST")),
     publishedAt,
     likes,

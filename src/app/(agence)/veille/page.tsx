@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Vignette } from "./Vignette";
 import { scopeClientId } from "@/lib/scope";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { clients, db, trendReports, veilleAccounts } from "@/db";
@@ -244,10 +245,7 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
             {posts.slice(0, 16).map((p, i) => (
               <div key={`${p.id}-${i}`} className="flex flex-col overflow-hidden rounded-[18px] border border-line">
                 <a href={p.url ?? "#"} target="_blank" rel="noreferrer" className="relative block aspect-[4/5] bg-mute">
-                  {p.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                  ) : null}
+                  <Vignette imageUrl={p.imageUrl} videoUrl={p.videoUrl} type={p.type} />
                   <span className="absolute top-2 left-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-small font-bold text-accent-ink">{i + 1}</span>
                   <span className="absolute right-2 bottom-2">
                     <NetworkDot network={p.network} size={22} />
