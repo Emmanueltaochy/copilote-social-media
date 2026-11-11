@@ -110,27 +110,61 @@ export function JarvisChat({
     } catch {}
   }, []);
 
+  // Le dernier état du bouton « répond à voix haute », lu au moment où la
+  // réponse arrive (plusieurs secondes après l'envoi).
+  const voiceRef = useRef(false);
+  useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
+
+  /*
+   * Les navigateurs (Safari sur iPhone, Chrome) ne laissent une page parler
+   * qu'à la suite d'un geste de l'utilisateur. La réponse de Jarvis arrive
+   * bien après le clic : sans ce « déverrouillage », la lecture est bloquée
+   * sans message. On fait donc dire un silence au moment du clic ; ensuite,
+   * la page a le droit de parler.
+   */
+  const unlocked = useRef(false);
+  const unlockSpeech = useCallback(() => {
+    if (unlocked.current || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+      unlocked.current = true;
+    } catch {}
+  }, []);
+
+  const say = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    // Phrase par phrase : Chrome coupe les longues lectures au bout de
+    // quelques secondes.
+    const clean = text.replace(/[*_#`>]/g, "").replace(/https?:\/\/\S+/g, "le lien");
+    const parts = clean.match(/[^.!?\n]+[.!?]*|\n+/g)?.map((x) => x.trim()).filter(Boolean) ?? [clean];
+    const fr = synth.getVoices().find((v) => v.lang.startsWith("fr"));
+    // Un court délai après cancel() : sinon Chrome ignore parfois la suite.
+    setTimeout(() => {
+      parts.forEach((part, i) => {
+        const u = new SpeechSynthesisUtterance(part);
+        u.lang = "fr-FR";
+        if (fr) u.voice = fr;
+        if (i === 0) u.onstart = () => setSpeaking(true);
+        if (i === parts.length - 1) {
+          u.onend = () => setSpeaking(false);
+          u.onerror = () => setSpeaking(false);
+        }
+        synth.speak(u);
+      });
+    }, 80);
+  }, []);
+
   const speak = useCallback(
     (text: string) => {
-      if (
-        !voice ||
-        typeof window === "undefined" ||
-        !("speechSynthesis" in window)
-      )
-        return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
-      u.lang = "fr-FR";
-      const fr = window.speechSynthesis
-        .getVoices()
-        .find((v) => v.lang.startsWith("fr"));
-      if (fr) u.voice = fr;
-      u.onstart = () => setSpeaking(true);
-      u.onend = () => setSpeaking(false);
-      u.onerror = () => setSpeaking(false);
-      window.speechSynthesis.speak(u);
+      if (voiceRef.current) say(text);
     },
-    [voice],
+    [say],
   );
 
   const open = async (id: string) => {
@@ -191,6 +225,7 @@ export function JarvisChat({
   };
 
   const toggleMic = () => {
+    unlockSpeech();
     if (listening) {
       recRef.current?.stop();
       return;
@@ -332,7 +367,10 @@ export function JarvisChat({
                     <button
                       key={e}
                       type="button"
-                      onClick={() => send(e)}
+                      onClick={() => {
+                        unlockSpeech();
+                        void send(e);
+                      }}
                       className="cursor-pointer rounded-[16px] border border-white/10 bg-white/[.04] px-4 py-3 text-left text-small text-white/85 hover:border-[#cead6f]/60 hover:bg-white/[.07]"
                     >
                       {e}
@@ -364,6 +402,18 @@ export function JarvisChat({
                   >
                     {t.text}
                   </span>
+                  {t.role === "assistant" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        unlockSpeech();
+                        say(t.text);
+                      }}
+                      className="w-fit cursor-pointer border-none bg-transparent p-0 text-micro text-white/45 hover:text-[#cead6f]"
+                    >
+                      ▶ Écouter
+                    </button>
+                  ) : null}
                 </div>
               ))}
               <div ref={endRef} />
@@ -374,6 +424,7 @@ export function JarvisChat({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            unlockSpeech();
             void send(draft);
           }}
           className="flex items-end gap-2 border-t border-white/10 p-3"
@@ -422,6 +473,7 @@ export function JarvisChat({
             checked={voice}
             onChange={(e) => {
               setVoice(e.target.checked);
+              if (e.target.checked) unlockSpeech();
               try {
                 localStorage.setItem(
                   "jarvis-voice",
