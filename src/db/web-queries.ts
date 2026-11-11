@@ -255,6 +255,10 @@ export type ActionClient = {
   detail: string;
   href: string;
   urgent: boolean;
+  /** Le libellé du bouton (« Remplir », « Valider »…). */
+  bouton?: string;
+  /** Avancement, pour un questionnaire : réponses données sur le total. */
+  progression?: { fait: number; total: number };
 };
 
 /**
@@ -270,7 +274,9 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
       .select({
         id: briefs.id,
         title: briefs.title,
-        manquants: raw<number>`(select count(*)::int from brief_fields f where f.brief_id = ${briefs.id} and f.required and coalesce(f.answer, '') = '')`,
+        manquants: raw<number>`(select count(*)::int from brief_fields f where f.brief_id = "briefs"."id" and f.required and coalesce(f.answer, '') = '')`,
+        total: raw<number>`(select count(*)::int from brief_fields f where f.brief_id = "briefs"."id")`,
+        remplis: raw<number>`(select count(*)::int from brief_fields f where f.brief_id = "briefs"."id" and coalesce(f.answer, '') <> '')`,
       })
       .from(briefs)
       .where(and(eq(briefs.clientId, clientId), raw`${briefs.status} <> 'complete'`, raw`${briefs.status} <> 'brouillon'`)),
@@ -306,6 +312,7 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
       detail: `Projet ${l.projet} — à regarder et valider`,
       href: `/portail/valider#livrable-${l.id}`,
       urgent: true,
+      bouton: "Regarder et valider",
     });
   }
 
@@ -315,10 +322,14 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
       titre: b.title,
       detail:
         Number(b.manquants) > 0
-          ? `${b.manquants} question${Number(b.manquants) > 1 ? "s" : ""} obligatoire${Number(b.manquants) > 1 ? "s" : ""} sans réponse`
-          : "À relire et valider",
+          ? `${b.manquants} question${Number(b.manquants) > 1 ? "s" : ""} obligatoire${Number(b.manquants) > 1 ? "s" : ""} sans réponse · étape par étape, enregistré au fur et à mesure`
+          : Number(b.remplis) < Number(b.total)
+            ? "Les questions obligatoires sont remplies : complétez le reste si vous le souhaitez, puis terminez"
+            : "Tout est rempli : relisez, puis cliquez sur « J'ai rempli le brief »",
       href: `/portail/brief/${b.id}`,
       urgent: Number(b.manquants) > 0,
+      bouton: Number(b.remplis) === 0 ? "Commencer" : Number(b.manquants) > 0 ? "Continuer" : "Relire et terminer",
+      progression: { fait: Number(b.remplis), total: Number(b.total) },
     });
   }
 
@@ -339,6 +350,7 @@ export async function actionsDuClient(clientId: string): Promise<ActionClient[]>
         detail: `Projet ${projet} — nous attendons votre retour`,
         href: "/portail/projets",
         urgent: false,
+        bouton: "Voir le détail",
       });
     }
     if (liste.length > 2) {

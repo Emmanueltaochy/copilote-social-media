@@ -14,6 +14,7 @@ import { BanniereClient } from "./Banniere";
 import { contextePortail } from "@/lib/portail";
 import { versionVideo } from "@/lib/portail-video";
 import { VideoAccueil } from "./VideoAccueil";
+import { AFaire } from "./AFaire";
 import { audience, topPostThisMonth } from "@/db/home-queries";
 import { AudiencePanel } from "@/components/home/AudiencePanel";
 
@@ -119,6 +120,27 @@ export default async function PortailPage() {
           <Chiffre icon="calendar" valeur={upcoming.length} libelle="à venir" />
         </div>
       </div>
+
+      {/* Ce que le client doit faire passe avant tout : numéroté, avec un
+          bouton par étape. Les contenus à valider en font partie. */}
+      <AFaire
+        accent={config.primaryColor}
+        actions={[
+          ...(aValider.length
+            ? [
+                {
+                  id: "contenus",
+                  titre: aValider.length > 1 ? `Valider ${aValider.length} contenus` : "Valider un contenu",
+                  detail: "Avant publication : validez, ou demandez une modification",
+                  href: "/portail/valider",
+                  urgent: true,
+                  bouton: "Valider",
+                },
+              ]
+            : []),
+          ...actions,
+        ]}
+      />
 
       {/* La vidéo d'accueil : en grand à la première visite, puis une simple
           vignette pour la revoir, qui laisse remonter le reste. */}
@@ -229,29 +251,7 @@ export default async function PortailPage() {
             </Panel>
           ) : null}
 
-          {actions.length > 0 ? (
-            <Panel title="Ce que nous attendons de vous">
-              <p className="-mt-2 mb-3 text-small text-ink-3">
-                Tant que ces points ne sont pas réglés, le projet reste en attente de votre côté.
-              </p>
-              <div className="flex flex-col gap-2">
-                {actions.map((a) => (
-                  <a
-                    key={a.id}
-                    href={a.href}
-                    className="flex items-center gap-3 rounded-[18px] border border-line px-4 py-3 no-underline hover:border-line-strong hover:no-underline"
-                  >
-                    <span className={`h-2 w-2 flex-none rounded-full ${a.urgent ? "bg-alert" : "bg-line-strong"}`} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="clip text-base font-semibold text-ink">{a.titre}</span>
-                      <span className="clip text-small text-ink-3">{a.detail}</span>
-                    </span>
-                    <Icon name="arrowUpRight" size={16} className="flex-none text-ink-2" />
-                  </a>
-                ))}
-              </div>
-            </Panel>
-          ) : null}
+
         </div>
       </div>
 

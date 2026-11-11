@@ -9,6 +9,7 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { Eyebrow } from "@/components/ui/primitives";
 import { ChampPortail } from "./ChampPortail";
 import { Terminer } from "./Terminer";
+import { EtapesBrief } from "./Etapes";
 
 export const dynamic = "force-dynamic";
 
@@ -55,46 +56,51 @@ export default async function BriefClientPage({ params }: { params: Promise<{ id
             {remplis} réponse{remplis > 1 ? "s" : ""} sur {champs.length}
             {manquants > 0
               ? ` · ${manquants} question${manquants > 1 ? "s" : ""} obligatoire${manquants > 1 ? "s" : ""} à remplir`
-              : " · tout est rempli, merci"}
-. Chaque réponse est enregistrée dès que vous passez au champ suivant, et nous
-            arrive aussitôt : vous pouvez fermer cette page et revenir plus tard. Un bouton en bas
-            nous dira que vous avez terminé.
+              : remplis < champs.length
+                ? " · les questions obligatoires sont remplies"
+                : " · tout est rempli, merci"}
+. Le questionnaire se remplit étape par étape. Chaque réponse est enregistrée dès que
+            vous passez au champ suivant : vous pouvez fermer cette page et reprendre plus tard. À la
+            dernière étape, un bouton nous dit que vous avez terminé.
           </p>
         </Card>
 
-        {sections.map((section) => (
-          <Card key={section}>
-            <CardHead
-              title={section}
-              meta={`${champs.filter((c) => c.field.section === section && (c.field.answer ?? "").trim()).length}/${champs.filter((c) => c.field.section === section).length}`}
-            />
-            {champs
-              .filter((c) => c.field.section === section)
-              .map(({ field }) => (
-                <ChampPortail
-                  key={field.id}
-                  id={field.id}
-                  briefId={brief.id}
-                  label={field.label}
-                  help={field.help}
-                  kind={field.kind}
-                  options={field.options}
-                  required={field.required}
-                  answer={field.answer}
-                  accent={config.primaryColor}
-                />
-              ))}
-          </Card>
-        ))}
-
-        <Card className="flex flex-col gap-3 p-4">
-          <Terminer
-            id={brief.id}
-            manquants={manquants}
-            dejaTermine={brief.status === "complete"}
-            accent={config.primaryColor}
-          />
-        </Card>
+        <EtapesBrief
+          briefId={brief.id}
+          accent={config.primaryColor}
+          etapes={sections.map((section) => {
+            const liste = champs.filter((c) => c.field.section === section);
+            return {
+              titre: section,
+              total: liste.length,
+              remplis: liste.filter((c) => (c.field.answer ?? "").trim()).length,
+              contenu: (
+                <Card>
+                  <CardHead title={section} />
+                  {liste.map(({ field }) => (
+                    <ChampPortail
+                      key={field.id}
+                      id={field.id}
+                      briefId={brief.id}
+                      label={field.label}
+                      help={field.help}
+                      kind={field.kind}
+                      options={field.options}
+                      required={field.required}
+                      answer={field.answer}
+                      accent={config.primaryColor}
+                    />
+                  ))}
+                </Card>
+              ),
+            };
+          })}
+          fin={
+            <Card className="flex flex-col gap-3 p-4">
+              <Terminer id={brief.id} manquants={manquants} dejaTermine={brief.status === "complete"} accent={config.primaryColor} />
+            </Card>
+          }
+        />
 
         <p className="pb-2 text-base text-ink-3">
           Une question sur le questionnaire ? Répondez simplement au courriel que vous avez reçu.
