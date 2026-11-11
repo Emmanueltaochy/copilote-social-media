@@ -39,6 +39,8 @@ export type AbbyEstimate = {
   signedAt: string | null;
   customer: { id: string; kind: "contact" | "organization" | "inconnu"; name: string; email: string; contactName: string };
   lines: string[];
+  /** Le contenu détaillé des lignes (descriptions sans balises), pour comprendre le projet. */
+  details: string;
 };
 
 function mapEstimate(d: Raw): AbbyEstimate {
@@ -49,6 +51,11 @@ function mapEstimate(d: Raw): AbbyEstimate {
   const emails = (contact.emails as unknown[]) ?? [];
   const email = s(contact.email) || s(emails[0]) || s(org?.email);
   const lines = ((d.lines as Raw[]) ?? []).map((l) => s(l.designation) || s(l.description)).filter(Boolean);
+  const details = ((d.lines as Raw[]) ?? [])
+    .map((l) => [s(l.designation), s(l.description).replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim()].filter(Boolean).join(" : "))
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 3000);
   const cents = (v: unknown) => (typeof v === "number" ? v / 100 : null);
   return {
     id: s(d.id),
@@ -65,6 +72,7 @@ function mapEstimate(d: Raw): AbbyEstimate {
       contactName,
     },
     lines,
+    details,
   };
 }
 

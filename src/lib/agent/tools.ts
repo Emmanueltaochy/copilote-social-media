@@ -117,9 +117,17 @@ const rythmeItem = z.object({
  */
 export async function lancerProjet(
   e: AbbyEstimate,
-  i: { type_projet: string; nom_projet?: string; echeance?: string; contact_nom?: string; contact_email?: string },
+  i: {
+    type_projet: string;
+    nom_projet?: string;
+    echeance?: string;
+    contact_nom?: string;
+    contact_email?: string;
+    cahier_des_charges?: { intro?: string; champs: ChampBrief[] };
+  },
   ctx: ToolCtx,
 ) {
+  const sur_mesure = i.cahier_des_charges?.champs?.length ? champsValides(i.cahier_des_charges.champs) : null;
   const nom = e.customer.name || i.contact_nom;
   if (!nom) throw new Error("Le devis n'indique pas de client : précise contact_nom.");
   const email = (i.contact_email || e.customer.email || "").toLowerCase();
@@ -162,15 +170,18 @@ export async function lancerProjet(
       clientId: client.id,
       projectId: projet.id,
       title: `Cahier des charges — ${projet.name}`,
-      intro: "Quelques questions pour cadrer votre projet. Répondez à votre rythme : tout est enregistré au fur et à mesure.",
+      intro:
+        i.cahier_des_charges?.intro ||
+        "Quelques questions pour cadrer votre projet. Répondez à votre rythme : tout est enregistré au fur et à mesure.",
       createdById: ctx.userId,
       status: "brouillon",
     })
     .returning();
-  const modele = modeleBrief(i.type_projet);
-  await db.insert(briefFields).values(
-    modele.map((f, k) => ({ briefId: brief.id, section: f.section, label: f.label, help: f.help ?? null, kind: f.kind, options: f.options ?? [], required: f.required ?? false, position: k })),
-  );
+  // Les questions conçues par l'agent pour ce projet ; à défaut, le modèle du type de projet.
+  const champs =
+    sur_mesure ??
+    modeleBrief(i.type_projet).map((f, k) => ({ section: f.section, label: f.label, help: f.help ?? null, kind: f.kind, options: f.options ?? [], required: f.required ?? false, position: k }));
+  await db.insert(briefFields).values(champs.map((f) => ({ ...f, briefId: brief.id })));
 
   // 4. Rien n'est envoyé : le PDG vérifie avant (envoyer_invitation_projet).
   const invitation = email
@@ -180,6 +191,26 @@ export async function lancerProjet(
   await journal(ctx, client.id, `Projet web « ${projet.name} » lancé depuis le devis Abby ${e.number || `« ${e.title} »`}`);
   ctx.log(`${nom} · projet « ${projet.name} » lancé (devis ${e.number || e.state}) — ${invitation}`, `/web/${projet.id}`);
   return { ok: true, client_id: client.id, projet_id: projet.id, cahier_des_charges_id: brief.id, contact: { nom: contactNom, email: email || null }, invitation, lien: `/web/${projet.id}` };
+}
+
+/* Un cahier des charges conçu par l'agent : ses sections, ses questions. */
+const champBrief = z.object({
+  section: z.string().min(1).describe("Titre de la section (ex. « Votre activité », « Contenus », « Style »)"),
+  label: z.string().min(3).describe("La question, posée simplement au client"),
+  help: z.string().optional().describe("Une aide ou un exemple sous la question"),
+  kind: z.enum(["texte", "long", "choix", "oui_non", "url", "nombre"]).describe("texte = réponse courte, long = paragraphe, choix = liste d'options"),
+  options: z.array(z.string()).optional().describe("Obligatoire pour kind « choix »"),
+  required: z.boolean().optional(),
+});
+type ChampBrief = z.infer<typeof champBrief>;
+const cahierSchema = z.object({
+  intro: z.string().optional().describe("Le mot d'introduction affiché en haut du cahier des charges"),
+  champs: z.array(champBrief).min(3).max(60),
+});
+
+function champsValides(champs: ChampBrief[]) {
+  for (const c of champs) if (c.kind === "choix" && !(c.options?.length && c.options.length >= 2)) throw new Error(`La question « ${c.label} » est un choix sans options.`);
+  return champs.map((f, k) => ({ section: f.section, label: f.label, help: f.help ?? null, kind: f.kind, options: f.kind === "choix" ? (f.options ?? []) : [], required: f.required ?? false, position: k }));
 }
 
 /* ================================================================ outils == */
@@ -639,7 +670,7 @@ const TOOLS: ToolDef[] = [
         ? await db.select({ id: webProjects.abbyEstimateId, projet: webProjects.id }).from(webProjects).where(inArray(webProjects.abbyEstimateId, list.map((e) => e.id)))
         : [];
       const km = new Map(known.map((k) => [k.id, k.projet]));
-      return list.map((e) => ({ devis_id: e.id, etat: e.state, numero: e.number, objet: e.title, client: e.customer.name, contact: e.customer.contactName, email: e.customer.email, montant_ht: e.amountHt, signe_le: e.signedAt, lignes: e.lines.slice(0, 8), projet_pilot: km.get(e.id) ?? null }));
+      return list.map((e) => ({ devis_id: e.id, etat: e.state, numero: e.number, objet: e.title, client: e.customer.name, contact: e.customer.contactName, email: e.customer.email, montant_ht: e.amountHt, signe_le: e.signedAt, lignes: e.lines.slice(0, 8), details: e.details, projet_pilot: km.get(e.id) ?? null }));
     },
   },
   {
@@ -654,15 +685,87 @@ const TOOLS: ToolDef[] = [
       contact_nom: z.string().optional().describe("Si absent du devis"),
       contact_email: z.string().email().optional().describe("Si absent du devis"),
       devis_non_signe_accepte: z.boolean().optional().describe("true seulement si le PDG a dit de partir d'un devis pas encore signé (brouillon ou finalisé)"),
+      cahier_des_charges: cahierSchema
+        .optional()
+        .describe("Le cahier des charges que TU conçois pour ce client et ce devis (sections et questions libres). Sans lui, un modèle générique est utilisé."),
     }),
     roles: ["chef_de_projet_web"],
-    run: async (i: { devis_id: string; type_projet: string; nom_projet?: string; echeance?: string; contact_nom?: string; contact_email?: string; devis_non_signe_accepte?: boolean }, ctx: ToolCtx) => {
+    run: async (
+      i: {
+        devis_id: string;
+        type_projet: string;
+        nom_projet?: string;
+        echeance?: string;
+        contact_nom?: string;
+        contact_email?: string;
+        devis_non_signe_accepte?: boolean;
+        cahier_des_charges?: { intro?: string; champs: ChampBrief[] };
+      },
+      ctx: ToolCtx,
+    ) => {
       const [exists] = await db.select({ id: webProjects.id }).from(webProjects).where(eq(webProjects.abbyEstimateId, i.devis_id)).limit(1);
       if (exists) return { deja_fait: true, projet_id: exists.id, lien: `/web/${exists.id}` };
       const e = await abbyEstimate(i.devis_id);
       if (e.state !== "signed" && !i.devis_non_signe_accepte)
         return { fait: false, raison: `Le devis ${e.number || e.id} est « ${e.state} » dans Abby, pas signé. Demande au PDG s'il faut partir de ce devis quand même.` };
       return lancerProjet(e, i, ctx);
+    },
+  },
+  {
+    name: "rediger_cahier_des_charges",
+    description:
+      "Écrit (ou réécrit) le cahier des charges d'un projet web : tu choisis librement les sections, les questions, leur type et l'introduction, d'après le devis, l'activité du client et ce que le PDG demande. « remplacer » efface les questions actuelles (refusé si le client a déjà répondu) ; « ajouter » complète à la fin. N'envoie rien au client.",
+    schema: z.object({
+      projet_id: z.string(),
+      mode: z.enum(["remplacer", "ajouter"]),
+      titre: z.string().optional(),
+      intro: z.string().optional(),
+      champs: z.array(champBrief).min(1).max(60),
+    }),
+    roles: ["chef_de_projet_web"],
+    run: async (i: { projet_id: string; mode: "remplacer" | "ajouter"; titre?: string; intro?: string; champs: ChampBrief[] }, ctx: ToolCtx) => {
+      const [projet] = await db.select().from(webProjects).where(eq(webProjects.id, i.projet_id)).limit(1);
+      if (!projet) throw new Error("Projet introuvable.");
+      const nouveaux = champsValides(i.champs);
+      let [brief] = await db.select().from(briefs).where(eq(briefs.projectId, projet.id)).limit(1);
+      if (!brief) {
+        [brief] = await db
+          .insert(briefs)
+          .values({ clientId: projet.clientId, projectId: projet.id, title: i.titre || `Cahier des charges — ${projet.name}`, intro: i.intro ?? null, createdById: ctx.userId, status: "brouillon" })
+          .returning();
+      } else if (i.titre || i.intro !== undefined) {
+        await db.update(briefs).set({ ...(i.titre ? { title: i.titre } : {}), ...(i.intro !== undefined ? { intro: i.intro } : {}) }).where(eq(briefs.id, brief.id));
+      }
+      const actuels = await db.select({ id: briefFields.id, answer: briefFields.answer, position: briefFields.position }).from(briefFields).where(eq(briefFields.briefId, brief.id));
+      let depart = 0;
+      if (i.mode === "remplacer") {
+        if (actuels.some((f) => f.answer && f.answer.trim())) throw new Error("Le client a déjà commencé à répondre : utilise le mode « ajouter » ou demande au PDG.");
+        await db.delete(briefFields).where(eq(briefFields.briefId, brief.id));
+      } else {
+        depart = actuels.reduce((m, f) => Math.max(m, f.position + 1), 0);
+      }
+      await db.insert(briefFields).values(nouveaux.map((f) => ({ ...f, position: f.position + depart, briefId: brief.id })));
+      await journal(ctx, projet.clientId, `Cahier des charges « ${projet.name} » ${i.mode === "remplacer" ? "rédigé" : "complété"} (${nouveaux.length} questions)`);
+      ctx.log(`${projet.name} — cahier des charges ${i.mode === "remplacer" ? "rédigé" : "complété"} : ${nouveaux.length} questions`, `/web/${projet.id}`);
+      return { ok: true, cahier_des_charges_id: brief.id, questions: nouveaux.length, statut: brief.status, lien: `/web/${projet.id}` };
+    },
+  },
+  {
+    name: "lire_cahier_des_charges",
+    description: "Le cahier des charges d'un projet web : introduction, sections, questions et réponses déjà données par le client.",
+    schema: z.object({ projet_id: z.string() }),
+    roles: ["chef_de_projet_web", "directeur"],
+    run: async ({ projet_id }: { projet_id: string }) => {
+      const [brief] = await db.select().from(briefs).where(eq(briefs.projectId, projet_id)).limit(1);
+      if (!brief) return { cahier_des_charges: null };
+      const champs = await db.select().from(briefFields).where(eq(briefFields.briefId, brief.id)).orderBy(asc(briefFields.position));
+      return {
+        id: brief.id,
+        titre: brief.title,
+        intro: brief.intro,
+        statut: brief.status,
+        questions: champs.map((f) => ({ section: f.section, question: f.label, type: f.kind, options: f.options, obligatoire: f.required, reponse: f.answer })),
+      };
     },
   },
   {
