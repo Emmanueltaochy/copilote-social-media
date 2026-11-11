@@ -4,8 +4,8 @@ import { useState } from "react";
 
 /**
  * Aperçu d'une publication suivie : la miniature si elle existe, sinon la première image de la vidéo
- * (Reel, Short), sinon un cadre « ▶ Reel » — jamais un carré vide. Les adresses d'Instagram expirent au
- * bout de quelques jours : une image qui ne se charge plus passe à l'étape suivante.
+ * (Reel, Short), sinon un cadre « ▶ Reel » — jamais un carré vide. L'image passe par /api/vignette, qui la
+ * garde sur notre serveur dès la première visite (les adresses d'Instagram expirent au bout de quelques jours).
  */
 export function Vignette({ imageUrl, videoUrl, type }: { imageUrl: string | null; videoUrl: string | null; type: string }) {
   const [etape, setEtape] = useState<"image" | "video" | "rien">(imageUrl ? "image" : videoUrl ? "video" : "rien");
@@ -15,7 +15,7 @@ export function Vignette({ imageUrl, videoUrl, type }: { imageUrl: string | null
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={imageUrl}
+        src={`/api/vignette?u=${encodeURIComponent(imageUrl)}`}
         alt=""
         className="h-full w-full object-cover"
         referrerPolicy="no-referrer"
