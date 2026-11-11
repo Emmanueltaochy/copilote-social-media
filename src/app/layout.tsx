@@ -27,6 +27,16 @@ export const metadata: Metadata = {
   title: "Taochy Pilot",
   description:
     "Le poste de pilotage de Taochy Agency : contenus, publication, clients, campagnes et rentabilité.",
+  // Écran d'accueil (iPhone surtout) : plein écran, titre court, icône.
+  applicationName: "Taochy Pilot",
+  appleWebApp: { capable: true, title: "Pilot", statusBarStyle: "black" },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 /*

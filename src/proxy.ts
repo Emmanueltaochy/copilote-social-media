@@ -50,7 +50,9 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/media-public") ||
     // Connecteur Claude.ai : le jeton secret de l'adresse est vérifié par la route.
     pathname.startsWith("/api/mcp/") ||
-    pathname.startsWith("/api/health");
+    pathname.startsWith("/api/health") ||
+    // Manifeste de l'application : lu par le téléphone sans cookie.
+    pathname === "/manifest.webmanifest";
 
   if (isPublic) return NextResponse.next();
 
