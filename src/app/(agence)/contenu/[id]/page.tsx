@@ -245,8 +245,16 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 <Eyebrow tone="ok">Publié</Eyebrow>
                 <p className="mt-1 text-base text-ink-2">
                   Le {content.publishedAt.toLocaleString("fr-FR")}
-                  {content.metricoolState === "publie" ? " · par Metricool" : ""}
+                  {content.metricoolState === "publie" || content.metricoolState === "partiel" ? " · par Metricool" : ""}
                 </p>
+                {content.metricoolNetworks
+                  .filter((n) => n.status === "ERROR")
+                  .map((n) => (
+                    <p key={n.network} className="mt-1 text-small text-alert">
+                      Pas publié sur {n.network}
+                      {n.detail ? ` : ${n.detail}` : ""}. À publier à la main sur ce réseau.
+                    </p>
+                  ))}
                 {content.metricoolNetworks.some((n) => n.url) ? (
                   <p className="mt-1 flex flex-wrap gap-3 text-small">
                     {content.metricoolNetworks

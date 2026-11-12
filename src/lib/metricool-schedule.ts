@@ -229,7 +229,7 @@ export async function autoScheduleAfterApproval(id: string): Promise<ScheduleRes
 
 /* ---------------------------------------------- suivi chez Metricool -- */
 
-async function markPublishedFromMetricool(c: typeof contents.$inferSelect, nets: NetworkState[]) {
+async function markPublishedFromMetricool(c: typeof contents.$inferSelect, nets: NetworkState[], state = "publie") {
   const url = nets.find((n) => n.network === "instagram" && n.url)?.url ?? nets.find((n) => n.url)?.url ?? null;
   await db
     .update(contents)
@@ -237,7 +237,7 @@ async function markPublishedFromMetricool(c: typeof contents.$inferSelect, nets:
       status: "publie",
       publishedAt: new Date(),
       publishedUrl: url,
-      metricoolState: "publie",
+      metricoolState: state,
       metricoolNetworks: nets,
       metricoolCheckedAt: new Date(),
       publishBlocker: null,
@@ -248,7 +248,7 @@ async function markPublishedFromMetricool(c: typeof contents.$inferSelect, nets:
     clientId: c.clientId,
     contentId: c.id,
     actorLabel: "Metricool",
-    text: `« ${c.title} » publié sur ${nets.map((n) => n.network).join(", ")}`,
+    text: `« ${c.title} » publié sur ${nets.filter((n) => n.status === "PUBLISHED").map((n) => n.network).join(", ")}`,
   });
   const lien = url ? `\n${url}` : "";
   await notify({
@@ -339,16 +339,19 @@ export async function syncPublications(opts: { contentIds?: string[] } = {}) {
       }));
       const done = nets.filter((n) => n.status === "PUBLISHED").length;
       const failed = nets.filter((n) => n.status === "ERROR");
-      if (nets.length && done === nets.length) {
-        await markPublishedFromMetricool(c, nets);
-        published++;
-        continue;
-      }
+      const pending = nets.filter((n) => n.status !== "PUBLISHED" && n.status !== "ERROR").length;
       const state = failed.length ? (done ? "partiel" : "erreur") : "programme";
-      await db
-        .update(contents)
-        .set({ metricoolState: state, metricoolNetworks: nets, metricoolCheckedAt: new Date() })
-        .where(eq(contents.id, c.id));
+      if (nets.length && done > 0 && pending === 0) {
+        // En ligne sur au moins un réseau : c'est une publication, elle compte
+        // dans l'engagement du mois. Un réseau en échec reste signalé (« partiel »).
+        await markPublishedFromMetricool(c, nets, failed.length ? "partiel" : "publie");
+        published++;
+      } else {
+        await db
+          .update(contents)
+          .set({ metricoolState: state, metricoolNetworks: nets, metricoolCheckedAt: new Date() })
+          .where(eq(contents.id, c.id));
+      }
       if (failed.length && c.metricoolState !== state) {
         errors++;
         await notify({

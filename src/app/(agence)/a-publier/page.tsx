@@ -323,6 +323,11 @@ export default async function APublierPage() {
                     {clientName} · {content.title}
                   </Link>
                   {content.metricoolState === "publie" ? <span className="flex-none text-small text-ink-3">par Metricool</span> : null}
+                  {content.metricoolState === "partiel" ? (
+                    <span className="flex-none text-small text-alert">
+                      Échec sur {content.metricoolNetworks.filter((n) => n.status === "ERROR").map((n) => NETWORK_LABEL[n.network] ?? n.network).join(", ")}
+                    </span>
+                  ) : null}
                   {content.publishedUrl ? (
                     <a href={content.publishedUrl} target="_blank" rel="noreferrer" className="flex-none text-small">
                       Voir le post
