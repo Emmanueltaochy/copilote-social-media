@@ -17,7 +17,8 @@ import { audienceDaily, clients, db, integrations, socialPosts } from "@/db";
  *   - /v2/scheduler/posts : programmation.
  */
 
-const BASE = "https://app.metricool.com/api";
+// Surchargeable pour les tests (faux serveur local) ; en production, l'API de Metricool.
+const BASE = process.env.METRICOOL_API_BASE || "https://app.metricool.com/api";
 const ID = "metricool";
 
 export type MetricoolConfig = { token: string; userId: string };
@@ -480,13 +481,7 @@ export async function audienceAvailable(since: Date) {
 
 /* ---------------------------------------------------------- programmer -- */
 
-/** Les réseaux de Pilot que Metricool sait publier. */
-export const SCHEDULABLE = [
-  "instagram",
-  "facebook",
-  "linkedin",
-  "tiktok",
-] as const;
+export { SCHEDULABLE } from "@/lib/publication";
 
 export async function schedulePost(input: {
   brandId: string;
@@ -563,4 +558,45 @@ export async function schedulePost(input: {
   return res?.data?.id != null
     ? String(res.data.id)
     : (res?.data?.uuid ?? "envoyé");
+}
+
+/* ------------------------------------------------- suivi des publications -- */
+
+export type SchedulerProvider = { network: string; status: string; publicUrl?: string | null; detailedStatus?: string | null };
+export type SchedulerPost = { id: string; draft: boolean; providers: SchedulerProvider[] };
+
+/**
+ * Les publications programmées d'une marque sur une période (heure locale de la
+ * marque, « 2026-11-12T00:00:00 »), avec l'état de chaque réseau : PENDING,
+ * PUBLISHED (et le lien du post) ou ERROR (et la raison donnée par le réseau).
+ */
+export async function listSchedulerPosts(brandId: string, start: string, end: string, timezone: string): Promise<SchedulerPost[]> {
+  const cfg = await metricoolConfig();
+  if (!cfg) throw new Error("Metricool n'est pas raccordé (Réglages → Intégrations).");
+  const res = await call<{ data?: Record<string, unknown>[] }>(cfg, "/v2/scheduler/posts", {
+    blogId: brandId,
+    start,
+    end,
+    timezone,
+    extendedRange: "true",
+  });
+  return (res?.data ?? []).map((p) => ({
+    id: String(p.id),
+    draft: p.draft === true,
+    providers: Array.isArray(p.providers)
+      ? (p.providers as Record<string, unknown>[]).map((v) => ({
+          network: String(v.network ?? ""),
+          status: String(v.status ?? "PENDING").toUpperCase(),
+          publicUrl: typeof v.publicUrl === "string" ? v.publicUrl : null,
+          detailedStatus: typeof v.detailedStatus === "string" ? v.detailedStatus : null,
+        }))
+      : [],
+  }));
+}
+
+/** Retire une publication programmée (avant de la renvoyer modifiée, ou pour l'annuler). */
+export async function deleteSchedulerPost(brandId: string, postId: string) {
+  const cfg = await metricoolConfig();
+  if (!cfg) throw new Error("Metricool n'est pas raccordé (Réglages → Intégrations).");
+  await call<unknown>(cfg, `/v2/scheduler/posts/${encodeURIComponent(postId)}`, { blogId: brandId }, { method: "DELETE" });
 }

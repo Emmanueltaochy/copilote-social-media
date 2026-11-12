@@ -19,7 +19,9 @@ import { CONTENT_KIND, CONTENT_STAGES, CONTENT_STATUS, networksLabel } from "@/d
 import { ContentForm } from "../ContentForm";
 import { AssignPicker } from "../../production/AssignPicker";
 import { MediaCard } from "./MediaCard";
-import { ProgrammerMetricool } from "./ProgrammerMetricool";
+import { PublicationPanel } from "./PublicationPanel";
+import { metricoolConfig } from "@/lib/metricool";
+import { publicationChecks, realInstant } from "@/lib/publication";
 import {
   addComment,
   approveContent,
@@ -48,7 +50,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
   if (!row) notFound();
   const { content, client, ownerName } = row;
 
-  const [thread, versions, history, clients, staff, attached, library, links] = await Promise.all([
+  const [thread, versions, history, clients, staff, attached, library, links, mcfg] = await Promise.all([
     listComments(id),
     listVersions(id),
     listActivity(id),
@@ -57,11 +59,26 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     listContentMedia(id),
     listAssets(content.clientId),
     listContentLinks(id),
+    metricoolConfig(),
   ]);
 
   const st = CONTENT_STATUS[content.status];
   const overdue =
-    !content.publishedAt && content.scheduledAt && content.scheduledAt < new Date();
+    !content.publishedAt && content.scheduledAt && realInstant(content.scheduledAt) < new Date();
+  const pubInput = {
+    ...content,
+    publishMode: client.publishMode,
+    brandId: client.metricoolBrandId,
+    mediaCount: attached.length,
+    metricoolConnected: Boolean(mcfg),
+  };
+  const scheduledLabel = content.scheduledAt
+    ? content.scheduledAt.toLocaleString("fr-FR", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : null;
+  // Modifié après l'envoi (quelques secondes de marge : l'envoi lui-même touche la date).
+  const stale = Boolean(
+    content.metricoolSentAt && content.updatedAt.getTime() > content.metricoolSentAt.getTime() + 5_000,
+  );
 
   return (
     <>
@@ -172,44 +189,53 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : null}
 
-          {client.metricoolBrandId && !content.publishedAt && (content.status === "pret" || content.status === "validation") ? (
-            <Card className="p-4">
-              <Eyebrow>Metricool</Eyebrow>
-              <p className="mt-1 mb-3 text-base text-ink-2">
-                Envoie la légende, les médias (dans l&apos;ordre) et la date à Metricool, qui publiera tout seul.
-              </p>
-              <ProgrammerMetricool
-                id={content.id}
-                sentAt={content.metricoolSentAt ? content.metricoolSentAt.toISOString() : null}
-                draftOnly={process.env.METRICOOL_DRAFT_ONLY === "1"}
-              />
-            </Card>
-          ) : null}
-
-          {content.status === "pret" ? (
+          {!content.publishedAt ? (
             <Card className="p-4">
               <Eyebrow>Publication</Eyebrow>
               <p className="mt-1 mb-3 text-base text-ink-2">
-                Le lien du post est demandé : sans lui, « publié » n&apos;est qu&apos;une
-                déclaration, et c&apos;est cette publication qui compte dans l&apos;engagement du
-                mois.
+                {client.metricoolBrandId
+                  ? "Pilot envoie la légende, les médias (dans l'ordre) et la date à Metricool, qui publie tout seul. Après la validation du client, c'est automatique."
+                  : "Ce client n'est pas relié à Metricool : la publication se fait à la main, puis on colle le lien ci-dessous."}
               </p>
-              <form action={markPublished} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="id" value={content.id} />
-                <input
-                  name="url"
-                  type="url"
-                  required
-                  placeholder="https://instagram.com/p/…"
-                  className="min-w-[280px] flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
+              {client.metricoolBrandId ? (
+                <PublicationPanel
+                  id={content.id}
+                  state={content.metricoolState}
+                  networks={content.metricoolNetworks}
+                  checks={publicationChecks(pubInput)}
+                  checksNow={publicationChecks(pubInput, { now: true })}
+                  scheduledLabel={scheduledLabel}
+                  sentAt={content.metricoolSentAt ? content.metricoolSentAt.toISOString() : null}
+                  checkedAt={content.metricoolCheckedAt ? content.metricoolCheckedAt.toISOString() : null}
+                  stale={stale}
+                  blocker={content.publishBlocker}
+                  draftOnly={process.env.METRICOOL_DRAFT_ONLY === "1"}
                 />
-                <button
-                  type="submit"
-                  className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
-                >
-                  Marquer comme publié
-                </button>
-              </form>
+              ) : null}
+              <details className="mt-3" open={!client.metricoolBrandId && content.status === "pret"}>
+                <summary className="cursor-pointer text-small font-medium text-ink-2">
+                  Publié à la main ? Indiquer le lien du post
+                </summary>
+                <form action={markPublished} className="mt-2 flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="id" value={content.id} />
+                  <input
+                    name="url"
+                    type="url"
+                    required
+                    placeholder="https://instagram.com/p/…"
+                    className="min-w-[260px] flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
+                  />
+                  <button
+                    type="submit"
+                    className="cursor-pointer rounded-control border border-ink bg-ink px-3 py-2 text-base font-medium text-paper hover:opacity-85"
+                  >
+                    Marquer comme publié
+                  </button>
+                </form>
+                <p className="mt-1 text-small text-ink-3">
+                  Le lien est demandé : c&apos;est cette publication qui compte dans l&apos;engagement du mois.
+                </p>
+              </details>
             </Card>
           ) : null}
 
@@ -219,7 +245,19 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 <Eyebrow tone="ok">Publié</Eyebrow>
                 <p className="mt-1 text-base text-ink-2">
                   Le {content.publishedAt.toLocaleString("fr-FR")}
+                  {content.metricoolState === "publie" ? " · par Metricool" : ""}
                 </p>
+                {content.metricoolNetworks.some((n) => n.url) ? (
+                  <p className="mt-1 flex flex-wrap gap-3 text-small">
+                    {content.metricoolNetworks
+                      .filter((n) => n.url)
+                      .map((n) => (
+                        <a key={n.network} href={n.url!} target="_blank" rel="noreferrer">
+                          Voir sur {n.network} ↗
+                        </a>
+                      ))}
+                  </p>
+                ) : null}
               </div>
               <form action={unmarkPublished}>
                 <input type="hidden" name="id" value={content.id} />
@@ -367,7 +405,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
               <div key={entry.id} className="flex items-baseline gap-2 border-b border-line px-[14px] py-2">
                 <span className="min-w-0 flex-1 text-small text-ink-2">{entry.text}</span>
                 <span className="text-micro whitespace-nowrap text-ink-3">
-                  {actorName ?? "Système"} · {entry.createdAt.toLocaleDateString("fr-FR")}
+                  {actorName ?? entry.actorLabel ?? "Système"} · {entry.createdAt.toLocaleDateString("fr-FR")}
                 </span>
               </div>
             ))}

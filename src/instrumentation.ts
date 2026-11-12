@@ -39,4 +39,12 @@ export async function register() {
   const tick = () => syncIfStale(6).catch((e) => console.warn("[pilot] relevé Metricool", e));
   setTimeout(tick, 60_000);
   setInterval(tick, 3_600_000).unref?.();
+
+  // Publications programmées : toutes les 10 minutes, on demande à Metricool
+  // ce qui est parti (le contenu passe « publié » avec son lien) ou ce qui a
+  // échoué (le responsable est prévenu).
+  const { syncPublications } = await import("@/lib/metricool-schedule");
+  const pubTick = () => syncPublications().catch((e) => console.warn("[pilot] suivi des publications", e));
+  setTimeout(pubTick, 90_000);
+  setInterval(pubTick, 10 * 60_000).unref?.();
 }

@@ -322,6 +322,22 @@ export const contents = pgTable(
     /** La publication programmée chez Metricool, si elle a été envoyée d'ici. */
     metricoolPostId: text("metricool_post_id"),
     metricoolSentAt: timestamp("metricool_sent_at", { withTimezone: true }),
+    /**
+     * Ce que Metricool dit de la publication, relevé toutes les 10 minutes :
+     * « programme » (en attente de l'heure), « publie », « partiel » (un réseau
+     * en erreur) ou « erreur ». Le détail par réseau vit dans `metricoolNetworks`.
+     */
+    metricoolState: text("metricool_state"),
+    metricoolNetworks: jsonb("metricool_networks")
+      .$type<{ network: string; status: string; url?: string | null; detail?: string | null }[]>()
+      .notNull()
+      .default([]),
+    metricoolCheckedAt: timestamp("metricool_checked_at", { withTimezone: true }),
+    /**
+     * Pourquoi la programmation automatique (après validation) n'a pas pu
+     * partir : « la légende est vide », « date passée »… Vide quand tout va bien.
+     */
+    publishBlocker: text("publish_blocker"),
 
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     shootId: uuid("shoot_id"),
@@ -801,6 +817,7 @@ export const notificationKind = pgEnum("notification_kind", [
   "tournage",
   "message",
   "devis",
+  "publication_bloquee",
 ]);
 
 /**

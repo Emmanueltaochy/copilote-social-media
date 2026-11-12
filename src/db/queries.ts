@@ -390,7 +390,13 @@ export async function listTodayQueue(now: Date = new Date(), clientId?: string) 
  */
 export async function listReadyToPublish(clientId?: string) {
   return db
-    .select({ content: contents, clientName: clients.shortName })
+    .select({
+      content: contents,
+      clientName: clients.shortName,
+      publishMode: clients.publishMode,
+      brandId: clients.metricoolBrandId,
+      mediaCount: raw<number>`(select count(*) from asset_usages au where au.content_id = ${contents.id})::int`,
+    })
     .from(contents)
     .innerJoin(clients, eq(clients.id, contents.clientId))
     .where(

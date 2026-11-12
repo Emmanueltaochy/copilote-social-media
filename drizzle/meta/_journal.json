@@ -183,6 +183,13 @@
       "when": 1794389731343,
       "tag": "0025_veille_inspirations",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794469645218,
+      "tag": "0026_publication_metricool",
+      "breakpoints": true
     }
   ]
 }

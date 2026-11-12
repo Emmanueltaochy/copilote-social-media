@@ -85,10 +85,23 @@ export async function clientApprove(
 
   // Tout est prêt (marque Metricool, date, légende, média) : la publication
   // part chez Metricool sans attendre que quelqu'un y pense.
-  await autoScheduleAfterApproval(content.id).catch(() => null);
+  const r = await autoScheduleAfterApproval(content.id).catch(() => null);
 
   refresh(content.id);
-  return { ok: `« ${content.title} » est validé. Nous programmons la publication.` };
+  if (r?.ok && content.scheduledAt) {
+    const quand = content.scheduledAt.toLocaleString("fr-FR", {
+      timeZone: "UTC",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return { ok: `« ${content.title} » est validé. Publication programmée le ${quand}, elle partira toute seule.` };
+  }
+  // Rien d'automatique (client publié à la main, ou un détail à régler) :
+  // l'équipe est prévenue et s'en occupe ; le client n'a rien à faire.
+  return { ok: `« ${content.title} » est validé. L'équipe s'occupe de la publication.` };
 }
 
 export async function clientRequestChange(

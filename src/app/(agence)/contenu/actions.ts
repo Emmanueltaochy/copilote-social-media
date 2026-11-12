@@ -8,7 +8,7 @@ import { db, activity, assets, assetUsages, comments, contentLinks, contents, co
 import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
 import { notify } from "@/lib/notify";
-import { autoScheduleAfterApproval } from "@/lib/metricool-schedule";
+import { autoScheduleAfterApproval, scheduleContent } from "@/lib/metricool-schedule";
 
 const STAGES = CONTENT_STAGES as readonly string[];
 
@@ -41,6 +41,14 @@ function reseauxDe(formData: FormData): Reseau[] {
     .map(String)
     .filter((n): n is Reseau => (RESEAUX as readonly string[]).includes(n));
   return cochés.length > 0 ? cochés : ["instagram"];
+}
+
+/**
+ * Les médias d'un contenu ont changé : la date de modification avance, ce
+ * qui signale sur la fiche qu'une publication déjà programmée est à mettre à jour.
+ */
+async function touch(contentId: string) {
+  await db.update(contents).set({ updatedAt: new Date() }).where(eq(contents.id, contentId));
 }
 
 /** Rafraîchit tous les écrans qui comptent les contenus. */
@@ -109,7 +117,7 @@ export async function updateContent(
   _prev: ContentFormState,
   formData: FormData,
 ): Promise<ContentFormState> {
-  await requireStaff();
+  const user = await requireStaff();
   const id = String(formData.get("id") ?? "");
   if (!id) return { error: "Contenu introuvable." };
 
@@ -119,6 +127,11 @@ export async function updateContent(
   }
   const v = parsed.data;
   const reseaux = reseauxDe(formData);
+  const [before] = await db
+    .select({ state: contents.metricoolState, publishedAt: contents.publishedAt })
+    .from(contents)
+    .where(eq(contents.id, id))
+    .limit(1);
 
   await db
     .update(contents)
@@ -137,6 +150,15 @@ export async function updateContent(
       updatedAt: new Date(),
     })
     .where(eq(contents.id, id));
+
+  // Déjà programmé chez Metricool : la publication suit la fiche (légende,
+  // date, réseaux). En cas d'échec, l'ancienne programmation reste en place
+  // et la fiche le signale.
+  if (before?.state === "programme" && !before.publishedAt) {
+    const r = await scheduleContent(id, { userId: user.id });
+    revalidateAll(id);
+    return r.ok ? {} : { error: `Enregistré, mais Metricool n'a pas été mis à jour : ${r.error}` };
+  }
 
   revalidateAll(id);
   return {};
@@ -260,7 +282,17 @@ export async function unmarkPublished(formData: FormData): Promise<void> {
   if (!id) return;
   await db
     .update(contents)
-    .set({ status: "pret", publishedAt: null, publishedUrl: null, publishedById: null })
+    .set({
+      status: "pret",
+      publishedAt: null,
+      publishedUrl: null,
+      publishedById: null,
+      // Une publication relevée chez Metricool repart de zéro : rien n'est plus programmé.
+      metricoolState: null,
+      metricoolPostId: null,
+      metricoolSentAt: null,
+      metricoolNetworks: [],
+    })
     .where(eq(contents.id, id));
   revalidateAll(id);
 }
@@ -435,6 +467,7 @@ export async function attachAsset(formData: FormData): Promise<void> {
     .insert(assetUsages)
     .values({ contentId, assetId, position: (last?.n ?? -1) + 1 })
     .onConflictDoNothing();
+  await touch(contentId);
   revalidateAll(contentId);
 }
 
@@ -447,6 +480,7 @@ export async function detachAsset(formData: FormData): Promise<void> {
   await db
     .delete(assetUsages)
     .where(and(eq(assetUsages.contentId, contentId), eq(assetUsages.assetId, assetId)));
+  await touch(contentId);
   revalidateAll(contentId);
 }
 
@@ -525,6 +559,7 @@ export async function moveAsset(formData: FormData): Promise<void> {
       .where(and(eq(assetUsages.contentId, contentId), eq(assetUsages.assetId, row.assetId)));
   }
 
+  await touch(contentId);
   revalidateAll(contentId);
 }
 

@@ -71,7 +71,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
         <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.03em] sm:text-[36px]">{c.title}</h1>
         <span className="text-base text-ink-2">
           {c.scheduledAt
-            ? `Prévu le ${c.scheduledAt.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`
+            ? `Prévu le ${c.scheduledAt.toLocaleString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}`
             : "Date à définir"}
           {c.publishedAt
             ? ` · publié le ${c.publishedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
@@ -142,8 +142,19 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             {c.submittedAt
               ? `En attente depuis le ${c.submittedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.`
               : "Ce contenu attend votre réponse."}
+            {client.metricoolBrandId && c.scheduledAt
+              ? " Dès votre validation, la publication est programmée pour la date prévue : vous n'avez rien d'autre à faire."
+              : ""}
           </p>
           <ActionsValidation id={c.id} taille="grand" />
+        </Card>
+      ) : !c.publishedAt && (c.metricoolState === "programme") && c.scheduledAt ? (
+        <Card className="flex flex-col gap-1 px-4 py-4 sm:px-6">
+          <span className="text-title font-semibold">Publication programmée</span>
+          <p className="text-base text-ink-2">
+            Elle partira toute seule le{" "}
+            {c.scheduledAt.toLocaleString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}.
+          </p>
         </Card>
       ) : c.publishedUrl ? (
         <a
