@@ -9,13 +9,14 @@ import { db, integrations } from "@/db";
  * secours. Aucune n'est jamais renvoyée au navigateur.
  */
 
-export type SecretId = "anthropic" | "abby" | "google-drive" | "mcp";
+export type SecretId = "anthropic" | "abby" | "google-drive" | "mcp" | "stock-videos";
 
 const ENV: Record<SecretId, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   abby: "ABBY_API_KEY",
   "google-drive": "GOOGLE_SERVICE_ACCOUNT_JSON",
   mcp: "PILOT_MCP_TOKEN",
+  "stock-videos": "STOCK_VIDEOS_KEY",
 };
 
 export async function getSecret(id: SecretId): Promise<{ token: string; account: string | null } | null> {

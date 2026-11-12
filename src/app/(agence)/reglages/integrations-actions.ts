@@ -7,6 +7,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { clients, db } from "@/db";
 import { requireDirection } from "@/lib/auth";
 import { forgetSecret, setSecret, type SecretId } from "@/lib/secrets";
+import { verifyStockKey } from "@/lib/stock-videos";
 
 export type IntegState = { ok?: string; error?: string };
 
@@ -32,6 +33,14 @@ async function verify(id: SecretId, token: string): Promise<string | null> {
       return "Collez le fichier JSON complet du compte de service.";
     }
   }
+  if (id === "stock-videos") {
+    try {
+      await verifyStockKey(token);
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
   return null;
 }
 
@@ -40,7 +49,7 @@ export async function enregistrerCle(_prev: IntegState, formData: FormData): Pro
   await requireDirection();
   const id = String(formData.get("id")) as SecretId;
   const token = String(formData.get("token") ?? "").trim();
-  if (!["anthropic", "abby", "google-drive"].includes(id)) return { error: "Intégration inconnue." };
+  if (!["anthropic", "abby", "google-drive", "stock-videos"].includes(id)) return { error: "Intégration inconnue." };
   if (token.length < 10) return { error: "Collez la clé." };
   const err = await verify(id, token);
   if (err) return { error: err };
@@ -52,7 +61,7 @@ export async function enregistrerCle(_prev: IntegState, formData: FormData): Pro
 export async function oublierCle(formData: FormData): Promise<void> {
   await requireDirection();
   const id = String(formData.get("id")) as SecretId;
-  if (["anthropic", "abby", "google-drive", "mcp"].includes(id)) await forgetSecret(id);
+  if (["anthropic", "abby", "google-drive", "mcp", "stock-videos"].includes(id)) await forgetSecret(id);
   revalidatePath("/reglages");
 }
 

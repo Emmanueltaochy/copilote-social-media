@@ -27,6 +27,7 @@ import { initialsFrom } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { sendMail } from "@/lib/mail";
 import { scheduleContent } from "@/lib/metricool-schedule";
+import { importStockVideo, listStock } from "@/lib/stock-videos";
 import { estimate as abbyEstimate, searchEstimates, signedEstimates, type AbbyEstimate } from "@/lib/abby";
 import { importDriveFile, newDriveFiles } from "@/lib/drive";
 import { competitorPosts } from "@/lib/metricool-competitors";
@@ -654,6 +655,51 @@ const TOOLS: ToolDef[] = [
       if (!r.ok) throw new Error(r.error);
       ctx.log(r.message, `/contenu/${contenu_id}`);
       return { ok: true, message: r.message };
+    },
+  },
+
+  {
+    name: "stock_videos_taochy",
+    description:
+      "Le stock de Reels montés par l'agent monteur sur taochyagency.com (page Vidéos du tableau de bord) : titre, légende proposée, état (stock, importee, programmee, publiee, a_refaire). Par défaut, seulement celles en stock, prêtes à importer.",
+    schema: z.object({ etat: z.enum(["stock", "importee", "programmee", "publiee", "a_refaire", "toutes"]).optional() }),
+    roles: ["community_manager"],
+    run: async ({ etat }: { etat?: string }) => {
+      const all = await listStock();
+      const list = etat === "toutes" ? all : all.filter((v) => v.status === (etat ?? "stock"));
+      return list.slice(0, 60).map((v) => ({ video_id: v.id, titre: v.title, legende: v.caption, notes: v.notes || undefined, etat: v.status, cree_le: v.created }));
+    },
+  },
+  {
+    name: "importer_video_stock",
+    description:
+      "Importe une vidéo du stock taochyagency.com chez un client (en général Taochy Agency) : le fichier arrive dans sa bibliothèque, un contenu Reel est créé avec la légende (celle du stock, ou la tienne), et le site affiche « Importée dans Pilot ». Avec une date (AAAA-MM-JJTHH:MM, heure de La Réunion) et programmer=true, la publication part chez Metricool (client « confiance ») ; client « validation » : elle part dans son portail et sera programmée à sa validation. Une fois publiée, la vidéo se range seule dans « Publiées ».",
+    schema: z.object({
+      video_id: z.string(),
+      client_id: z.string(),
+      date: z.string().optional(),
+      programmer: z.boolean().optional(),
+      reseaux: z.array(z.enum(NETS)).optional(),
+      legende: z.string().optional(),
+    }),
+    roles: ["community_manager"],
+    run: async (i: { video_id: string; client_id: string; date?: string; programmer?: boolean; reseaux?: string[]; legende?: string }, ctx: ToolCtx) => {
+      const c = await clientOrThrow(i.client_id);
+      const r = await importStockVideo({
+        stockId: i.video_id,
+        clientId: i.client_id,
+        scheduledAt: i.date ? reunion(i.date) : null,
+        networks: i.reseaux,
+        caption: i.legende ?? null,
+        actor: { userId: ctx.userId, label: ROLE_LABEL[ctx.role] },
+      });
+      let programme: string | null = null;
+      if (i.programmer && i.date && !r.already) {
+        const s = await scheduleContent(r.contentId, { label: ROLE_LABEL[ctx.role] });
+        programme = s.ok ? s.message : `Pas programmée : ${s.error}`;
+      }
+      ctx.log(`${c.shortName} · vidéo du stock « ${i.video_id} » ${r.already ? "déjà importée" : "importée"}${programme ? ` · ${programme}` : ""}`, `/contenu/${r.contentId}`);
+      return { ok: true, contenu_id: r.contentId, deja_importee: r.already, statut: r.status, programmation: programme };
     },
   },
 

@@ -14,6 +14,7 @@ import {
 } from "@/lib/metricool";
 import { signedMediaUrl } from "@/lib/media-sign";
 import { notify } from "@/lib/notify";
+import { reportStockStatus } from "@/lib/stock-videos";
 import { firstBlocker, publicationChecks, realInstant, wallNow, type NetworkState } from "@/lib/publication";
 
 /*
@@ -149,6 +150,7 @@ export async function scheduleContent(id: string, actor: Actor, opts: { now?: bo
       actorLabel: actor.label ?? null,
       text: `« ${content.title} » ${verb} dans Metricool`,
     });
+    if (!draft) await reportStockStatus(id, "programmee");
     const skipped = missing.length ? ` (${missing.join(", ")} non connecté chez Metricool, ignoré)` : "";
     return {
       ok: true,
@@ -194,6 +196,7 @@ export async function cancelSchedule(id: string, actor: Actor): Promise<Schedule
     actorLabel: actor.label ?? null,
     text: `Programmation de « ${content.title} » annulée`,
   });
+  await reportStockStatus(id, "importee");
   return { ok: true, postId: "", message: "Programmation annulée : la publication est retirée de Metricool." };
 }
 
@@ -250,6 +253,7 @@ async function markPublishedFromMetricool(c: typeof contents.$inferSelect, nets:
     actorLabel: "Metricool",
     text: `« ${c.title} » publié sur ${nets.filter((n) => n.status === "PUBLISHED").map((n) => n.network).join(", ")}`,
   });
+  await reportStockStatus(c.id, "publiee");
   const lien = url ? `\n${url}` : "";
   await notify({
     kind: "publie",

@@ -577,6 +577,8 @@ export const assets = pgTable(
     /** Chemin sur le volume du VPS, jamais une URL publique. */
     /** Le fichier Google Drive d'origine, quand le média a été importé de là : évite les doublons. */
     driveFileId: text("drive_file_id"),
+    /** Vidéo venue du stock de taochyagency.com (identifiant là-bas) : évite de l'importer deux fois et y renvoie son état. */
+    stockVideoId: text("stock_video_id"),
     storagePath: text("storage_path").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes"),

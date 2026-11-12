@@ -22,7 +22,7 @@ export function CleIntegration({
   help,
   multiline,
 }: {
-  id: "anthropic" | "abby" | "google-drive";
+  id: "anthropic" | "abby" | "google-drive" | "stock-videos";
   connected: boolean;
   fromEnv: boolean;
   label: string;

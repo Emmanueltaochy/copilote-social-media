@@ -59,12 +59,13 @@ export default async function ReglagesPage() {
       .where(eq(clients.active, true))
       .orderBy(asc(clients.name)),
   ]);
-  const [ai, abby, drive, mcp, driveEmail] = await Promise.all([
+  const [ai, abby, drive, mcp, driveEmail, stockV] = await Promise.all([
     secretStatus("anthropic"),
     secretStatus("abby"),
     secretStatus("google-drive"),
     getSecret("mcp"),
     driveAccountEmail(),
+    secretStatus("stock-videos"),
   ]);
   const mcpUrl = mcp && process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}/api/mcp/${mcp.token}` : mcp ? `/api/mcp/${mcp.token}` : null;
   let brands: MetricoolBrand[] = [];
@@ -128,6 +129,17 @@ export default async function ReglagesPage() {
               fromEnv={abby.fromEnv}
               label="Clé d'API Abby"
               help={<>Abby → Paramètres → Intégrations → Créer une clé. Le chef de projet web IA y lit les devis signés pour lancer les projets.</>}
+            />
+          </Card>
+
+          <Card>
+            <CardHead title="Stock vidéos taochyagency.com" meta={stockV.connected ? "Relié" : "Non relié"} />
+            <CleIntegration
+              id="stock-videos"
+              connected={stockV.connected}
+              fromEnv={stockV.fromEnv}
+              label="Clé Pilot du stock vidéos"
+              help={<>taochyagency.com/admin/videos.php → « Relier à Pilot ». Les Reels montés s&apos;importent alors depuis « Vidéos du stock », et Jarvis peut les programmer ; le site affiche leur état (importée, programmée, publiée).</>}
             />
           </Card>
 

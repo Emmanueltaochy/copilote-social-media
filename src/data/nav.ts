@@ -37,6 +37,7 @@ export const NAV_MORE: NavItem[] = [
   { label: "À publier", href: "/a-publier", icon: "send", badge: "publier", hint: "Prêt, daté, pas encore en ligne" },
   { label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité, ensembles de publicités et budget" },
   { label: "Bibliothèque", href: "/assets", icon: "image", hint: "Photos et vidéos par client" },
+  { label: "Vidéos du stock", href: "/videos-stock", icon: "camera", hint: "Les Reels montés sur taochyagency.com, à importer et programmer" },
   { label: "Rapports", href: "/rapports", icon: "chart", hint: "Le rapport mensuel de chaque client" },
   { label: "Semaine de suivi", href: "/suivi", icon: "list", hint: "Les contenus de la semaine, jour par jour" },
   { label: "Avancement", href: "/avancement", icon: "gauge", hint: "Livré contre vendu, client par client" },

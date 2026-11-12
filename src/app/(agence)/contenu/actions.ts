@@ -9,6 +9,7 @@ import { requireStaff } from "@/lib/auth";
 import { CONTENT_STAGES } from "@/data/content";
 import { notify } from "@/lib/notify";
 import { autoScheduleAfterApproval, scheduleContent } from "@/lib/metricool-schedule";
+import { reportStockStatus } from "@/lib/stock-videos";
 
 const STAGES = CONTENT_STAGES as readonly string[];
 
@@ -249,6 +250,7 @@ export async function markPublished(formData: FormData): Promise<void> {
     actorId: user.id,
     text: `« ${before.title} » publié`,
   });
+  await reportStockStatus(id, "publiee");
 
   // Une publication engage l'agence vis-à-vis du client : l'équipe et le
   // client sont prévenus tous les deux, avec le lien du post en ligne.
@@ -294,6 +296,7 @@ export async function unmarkPublished(formData: FormData): Promise<void> {
       metricoolNetworks: [],
     })
     .where(eq(contents.id, id));
+  await reportStockStatus(id, "importee");
   revalidateAll(id);
 }
 
