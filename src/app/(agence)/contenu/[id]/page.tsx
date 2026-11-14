@@ -246,6 +246,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
                 <p className="mt-1 text-base text-ink-2">
                   Le {content.publishedAt.toLocaleString("fr-FR")}
                   {content.metricoolState === "publie" || content.metricoolState === "partiel" ? " · par Metricool" : ""}
+                  {content.metricoolState === "externe" ? " · publié hors de Pilot, relevé par Metricool" : ""}
                 </p>
                 {content.metricoolNetworks
                   .filter((n) => n.status === "ERROR")

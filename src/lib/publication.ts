@@ -97,4 +97,5 @@ export const STATE_LABEL: Record<string, string> = {
   partiel: "Publié en partie",
   erreur: "Échec de publication",
   introuvable: "Retiré de Metricool",
+  externe: "Publié hors de Pilot",
 };

@@ -450,11 +450,55 @@ export function syncMetricool(days = 95): Promise<SyncReport> {
         lastError: errors.length ? errors.slice(0, 8).join("\n") : null,
       })
       .where(eq(integrations.id, ID));
+    await reconcileExternal(errors);
     return { clients: linked.length, errors };
   })().finally(() => {
     running = null;
   });
   return running;
+}
+
+/** Ce qui a été publié hors de Pilot entre dans le suivi (engagement du mois, listes). */
+async function reconcileExternal(errors: string[] = []) {
+  try {
+    const { importExternalPublications } = await import("@/lib/publications-externes");
+    await importExternalPublications();
+  } catch (e) {
+    errors.push(`Publications hors Pilot : ${(e as Error).message}`);
+    console.warn("[pilot] publications hors Pilot", e);
+  }
+}
+
+let recent: Promise<void> | null = null;
+
+/**
+ * Relevé léger, toutes les heures : seulement les publications des 3 derniers
+ * jours. Une vidéo postée directement dans Instagram entre ainsi dans
+ * l'engagement du mois dans l'heure, sans attendre le relevé complet.
+ */
+export function syncRecentPosts(days = 3): Promise<void> {
+  recent ??= (async () => {
+    const cfg = await metricoolConfig();
+    if (!cfg || running) return;
+    const brands = await listBrands(cfg);
+    const linked = await db
+      .select({ id: clients.id, name: clients.shortName, brandId: clients.metricoolBrandId })
+      .from(clients)
+      .where(and(eq(clients.active, true), isNotNull(clients.metricoolBrandId)));
+    for (const c of linked) {
+      const brand = brands.find((b) => b.id === c.brandId);
+      if (!brand) continue;
+      try {
+        await syncPosts(cfg, c.id, brand, days);
+      } catch (e) {
+        console.warn("[pilot] relevé récent", c.name, (e as Error).message);
+      }
+    }
+    await reconcileExternal();
+  })().finally(() => {
+    recent = null;
+  });
+  return recent;
 }
 
 /** Relance la synchronisation si la dernière date de plus de `hours` heures. */

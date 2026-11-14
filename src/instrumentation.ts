@@ -35,8 +35,13 @@ export async function register() {
 
   // Relevé Metricool : toutes les heures on regarde si le dernier date de
   // plus de 6 h. Sans clé enregistrée, rien ne part.
-  const { syncIfStale } = await import("@/lib/metricool");
-  const tick = () => syncIfStale(6).catch((e) => console.warn("[pilot] relevé Metricool", e));
+  const { syncIfStale, syncRecentPosts } = await import("@/lib/metricool");
+  const tick = async () => {
+    await syncIfStale(6).catch((e) => console.warn("[pilot] relevé Metricool", e));
+    // Les publications des 3 derniers jours, y compris celles postées hors de
+    // Pilot : elles entrent dans l'engagement du mois dans l'heure.
+    await syncRecentPosts().catch((e) => console.warn("[pilot] relevé récent", e));
+  };
   setTimeout(tick, 60_000);
   setInterval(tick, 3_600_000).unref?.();
 
