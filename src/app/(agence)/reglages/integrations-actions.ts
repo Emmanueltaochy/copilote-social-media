@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { clients, db } from "@/db";
 import { requireDirection } from "@/lib/auth";
+import { driveAccountEmail, restoreDriveOriginals } from "@/lib/drive";
 import { forgetSecret, setSecret, type SecretId } from "@/lib/secrets";
 import { verifyStockKey } from "@/lib/stock-videos";
 
@@ -87,4 +88,28 @@ export async function majClientPublication(formData: FormData): Promise<void> {
     .set({ publishMode: mode === "confiance" ? "confiance" : "validation", driveFolderId: folder })
     .where(eq(clients.id, id));
   revalidatePath("/reglages");
+}
+
+/**
+ * Récupère sur Drive les originaux des images importées avant qu'on les garde.
+ *
+ * Ces images n'existaient plus qu'en version réduite, celle qui partait floue à
+ * la publication. Le traitement est borné dans le temps : s'il en reste, le
+ * message le dit et un nouveau clic continue.
+ */
+export async function reprendreOriginauxDrive(): Promise<IntegState> {
+  await requireDirection();
+  if (!(await driveAccountEmail())) return { error: "Google Drive n'est pas raccordé : enregistrez d'abord la clé du compte de service." };
+  try {
+    const { done, failed, remaining } = await restoreDriveOriginals();
+    revalidatePath("/reglages");
+    const fait = done ? `${done} image${done > 1 ? "s" : ""} remise${done > 1 ? "s" : ""} en qualité d'origine.` : "Aucune image reprise.";
+    const echecs = failed
+      ? ` ${failed} n'${failed > 1 ? "ont" : "a"} pas pu être retéléchargée${failed > 1 ? "s" : ""} (fichier supprimé de Drive, ou dossier qui n'est plus partagé avec Pilot) : ${failed > 1 ? "elles gardent leur" : "elle garde sa"} version actuelle.`
+      : "";
+    const reste = remaining > 0 ? ` Il en reste ${remaining} : cliquez de nouveau pour continuer.` : "";
+    return failed && !done ? { error: `${fait}${echecs}${reste}` } : { ok: `${fait}${echecs}${reste}` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }

@@ -95,7 +95,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             Ouvrir le contenu ↗
           </a>
         ) : (
-          <Cover asset={cover} ratio="4/5" className="w-full" label="Visuel à venir" />
+          <Cover asset={cover} ratio="4/5" sizes="(max-width: 560px) 100vw, 520px" className="w-full" label="Visuel à venir" />
         )}
       </div>
 

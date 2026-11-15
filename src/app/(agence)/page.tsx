@@ -158,7 +158,7 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
               href={`/contenu/${hero.id}`}
               className="group grid gap-5 rounded-[22px] bg-night p-4 text-white no-underline hover:no-underline sm:grid-cols-[200px_minmax(0,1fr)]"
             >
-              <Cover asset={covers.get(hero.id)} ratio="4/5" className="rounded-[16px] max-sm:hidden" label={hero.kind === "reel" ? "Reel" : "Visuel à venir"} />
+              <Cover asset={covers.get(hero.id)} ratio="4/5" sizes="200px" className="rounded-[16px] max-sm:hidden" label={hero.kind === "reel" ? "Reel" : "Visuel à venir"} />
               <div className="flex min-w-0 flex-col">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-2">
@@ -226,7 +226,7 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
               {needs.slice(0, 6).map((n) => (
                 <div key={n.key} className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-3">
                   {n.coverId ? (
-                    <Cover asset={covers.get(n.coverId)} ratio="1/1" className="w-11 flex-none rounded-[12px]" label=" " />
+                    <Cover asset={covers.get(n.coverId)} ratio="1/1" sizes="44px" className="w-11 flex-none rounded-[12px]" label=" " />
                   ) : (
                     <span
                       className={cn(

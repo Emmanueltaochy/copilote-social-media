@@ -12,9 +12,11 @@ import {
   schedulePost,
   SCHEDULABLE,
 } from "@/lib/metricool";
+import { restoreDriveOriginal } from "@/lib/drive";
 import { signedMediaUrl } from "@/lib/media-sign";
 import { notify } from "@/lib/notify";
 import { reportStockStatus } from "@/lib/stock-videos";
+import { isLegacyImage } from "@/lib/storage";
 import { firstBlocker, publicationChecks, realInstant, wallNow, type NetworkState } from "@/lib/publication";
 
 /*
@@ -110,6 +112,12 @@ export async function scheduleContent(id: string, actor: Actor, opts: { now?: bo
     const until = opts.now ? Date.now() : realInstant(content.scheduledAt!).getTime();
     // Le lien vit jusqu'à quelques jours après la publication prévue.
     const days = Math.max(7, Math.ceil((until - Date.now()) / 86_400_000) + 3);
+    // Une image importée de Drive avant qu'on garde les originaux n'a qu'une
+    // version réduite : on récupère l'original avant de l'envoyer. Si Drive ne
+    // répond pas, la publication part quand même, avec le fichier existant.
+    for (const m of media) {
+      if (m.asset.driveFileId && isLegacyImage(m.asset)) await restoreDriveOriginal(m.asset.id);
+    }
     const mediaUrls = await Promise.all(media.map((m) => signedMediaUrl(m.asset.id, days)));
     const draft = process.env.METRICOOL_DRAFT_ONLY === "1";
 

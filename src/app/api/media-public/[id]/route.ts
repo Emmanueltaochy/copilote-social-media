@@ -10,6 +10,9 @@ import { absolutePath } from "@/lib/storage";
  * Sert un média sur présentation d'un lien signé (voir lib/media-sign) :
  * c'est par là que Metricool vient chercher le visuel d'une publication
  * programmée depuis Pilot. Sans signature valide, rien n'est servi.
+ *
+ * C'est toujours le fichier principal qui part : l'original JPEG ou PNG tel
+ * qu'il a été importé, jamais la version d'affichage ni la miniature.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

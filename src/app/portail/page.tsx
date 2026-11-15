@@ -183,6 +183,7 @@ export default async function PortailPage() {
                   <Cover
                     asset={couvertures.get(content.id)}
                     ratio="1/1"
+                    sizes="64px"
                     className="w-[56px] flex-none rounded-[12px] sm:w-[64px]"
                     label=""
                   />
@@ -273,6 +274,7 @@ export default async function PortailPage() {
               <Cover
                 asset={couvertures.get(prochain.id)}
                 ratio="4/5"
+                sizes="(max-width: 640px) 96px, 140px"
                 className="w-[96px] flex-none rounded-[16px] sm:w-[140px]"
                 label=""
               />
@@ -300,7 +302,7 @@ export default async function PortailPage() {
                     href={`/portail/contenu/${c.id}`}
                     className="flex items-center gap-3 rounded-[18px] border border-line p-2 pr-3 no-underline hover:border-line-strong hover:no-underline"
                   >
-                    <Cover asset={couvertures.get(c.id)} ratio="1/1" className="w-[44px] flex-none rounded-[10px]" label="" />
+                    <Cover asset={couvertures.get(c.id)} ratio="1/1" sizes="44px" className="w-[44px] flex-none rounded-[10px]" label="" />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="clip text-base font-semibold text-ink">{c.title}</span>
                       <span className="clip text-small text-ink-3">{whenLabel(c.scheduledAt!, now)}</span>

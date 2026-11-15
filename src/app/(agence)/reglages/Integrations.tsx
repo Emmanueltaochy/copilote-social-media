@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
-import { enregistrerCle, genererMcp, majClientPublication, oublierCle, type IntegState } from "./integrations-actions";
+import { enregistrerCle, genererMcp, majClientPublication, oublierCle, reprendreOriginauxDrive, type IntegState } from "./integrations-actions";
 
 const champ = "min-w-0 flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base text-ink outline-none focus:border-gold";
 const primaire = "cursor-pointer rounded-full border-none bg-night px-4 py-2 text-base font-medium text-white hover:opacity-85 disabled:opacity-60";
@@ -11,6 +11,33 @@ function Msg({ s }: { s: IntegState }) {
   if (s.error) return <p className="text-small text-alert">{s.error}</p>;
   if (s.ok) return <p className="text-small text-ok">{s.ok}</p>;
   return null;
+}
+
+/**
+ * Les images importées de Drive avant que Pilot garde les originaux : un clic
+ * retélécharge les fichiers d'origine. Affiché seulement tant qu'il en reste.
+ */
+export function OriginauxDrive({ restant }: { restant: number }) {
+  const [state, action, pending] = useActionState<IntegState, FormData>(reprendreOriginauxDrive, {});
+  if (restant === 0 && !state.ok && !state.error) return null;
+  return (
+    <form action={action} className="flex flex-col gap-2 border-t border-line p-[14px] px-5">
+      <span className="eyebrow text-ink-3">Qualité des images déjà importées</span>
+      <p className="text-small text-ink-3">
+        {restant > 0
+          ? `${restant} image${restant > 1 ? "s" : ""} importée${restant > 1 ? "s" : ""} de Drive ${restant > 1 ? "n'existent" : "n'existe"} ici qu'en version réduite. Pilot peut retélécharger ${restant > 1 ? "les fichiers" : "le fichier"} d'origine depuis Drive : ${restant > 1 ? "ce sont eux qui partiront" : "c'est lui qui partira"} à la publication.`
+          : "Toutes les images importées de Drive sont en qualité d'origine."}
+      </p>
+      {restant > 0 ? (
+        <div>
+          <button type="submit" disabled={pending} className={secondaire}>
+            {pending ? "Récupération en cours…" : "Récupérer les originaux"}
+          </button>
+        </div>
+      ) : null}
+      <Msg s={state} />
+    </form>
+  );
 }
 
 /** Une clé d'API : saisie, vérifiée côté serveur, jamais réaffichée. */

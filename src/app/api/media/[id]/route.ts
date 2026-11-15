@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import { eq } from "drizzle-orm";
 import { db, assets } from "@/db";
 import { currentUser } from "@/lib/auth";
-import { absolutePath, thumbPathFor } from "@/lib/storage";
+import { absolutePath, displayPathFor, thumbPathFor } from "@/lib/storage";
 
 /**
  * Sert un média après contrôle d'accès.
@@ -30,32 +30,55 @@ export async function GET(
     return new Response("Non autorisé", { status: 403 });
   }
 
-  const wantsThumb = new URL(request.url).searchParams.get("format") === "thumb";
-  const relative = wantsThumb ? thumbPathFor(asset.storagePath) : asset.storagePath;
+  // Trois fichiers par image : la miniature des grilles, la version
+  // d'affichage (par défaut) et l'original, celui qui part à la publication.
+  const format = new URL(request.url).searchParams.get("format");
+  const isImage = asset.mimeType.startsWith("image/");
+  const candidates =
+    format === "original" || !isImage
+      ? [asset.storagePath]
+      : format === "thumb"
+        ? [thumbPathFor(asset.storagePath), displayPathFor(asset.storagePath), asset.storagePath]
+        : [displayPathFor(asset.storagePath), asset.storagePath];
 
-  let file: string;
-  let size: number;
-  try {
-    file = absolutePath(relative);
-    size = (await stat(file)).size;
-  } catch {
-    // La miniature peut manquer pour une vidéo : on retombe sur le fichier.
+  // Une dérivée peut manquer (média importé avant qu'on garde les originaux,
+  // vidéo sans miniature) : on retombe sur le fichier principal.
+  let served: { file: string; size: number; relative: string } | null = null;
+  for (const relative of candidates) {
     try {
-      file = absolutePath(asset.storagePath);
-      size = (await stat(file)).size;
+      const file = absolutePath(relative);
+      served = { file, size: (await stat(file)).size, relative };
+      break;
     } catch {
-      return new Response("Fichier absent du disque", { status: 404 });
+      // essai suivant
     }
   }
+  if (!served) return new Response("Fichier absent du disque", { status: 404 });
 
-  const stream = Readable.toWeb(createReadStream(file)) as ReadableStream;
+  const isOriginal = served.relative === asset.storagePath;
+  const stream = Readable.toWeb(createReadStream(served.file)) as ReadableStream;
   return new Response(stream, {
     headers: {
-      "Content-Type": wantsThumb ? "image/webp" : asset.mimeType,
-      "Content-Length": String(size),
+      "Content-Type": isOriginal ? asset.mimeType : "image/webp",
+      "Content-Length": String(served.size),
+      ...(format === "original"
+        ? { "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(downloadName(asset.filename, asset.mimeType))}` }
+        : {}),
       // Privé : un cache partagé ne doit pas resservir le média d'un client
       // à quelqu'un d'autre.
       "Cache-Control": "private, max-age=3600",
     },
   });
+}
+
+/**
+ * Le nom proposé au téléchargement. Un HEIC ou un TIFF est stocké en JPEG :
+ * lui laisser son extension d'origine donnerait un fichier que rien n'ouvre.
+ */
+function downloadName(filename: string, mimeType: string): string {
+  const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/png" ? ".png" : mimeType === "image/webp" ? ".webp" : null;
+  if (!ext) return filename;
+  const current = filename.match(/\.[a-z0-9]+$/i)?.[0].toLowerCase();
+  if (current === ext || (ext === ".jpg" && current === ".jpeg")) return filename;
+  return `${current ? filename.slice(0, -current.length) : filename}${ext}`;
 }

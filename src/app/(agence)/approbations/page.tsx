@@ -67,6 +67,7 @@ export default async function ApprobationsPage() {
                       <Cover
                         asset={covers.get(content.id)}
                         ratio="4/5"
+                        sizes="200px"
                         className="w-[200px]"
                         label="Visuel à rattacher"
                       />

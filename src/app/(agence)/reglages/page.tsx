@@ -14,9 +14,9 @@ import { asc, eq } from "drizzle-orm";
 import { clients, db } from "@/db";
 import { listBrands, metricoolStatus, type MetricoolBrand } from "@/lib/metricool";
 import { MetricoolReglages } from "./Metricool";
-import { CleIntegration, ConnecteurClaude, PublicationClients } from "./Integrations";
+import { CleIntegration, ConnecteurClaude, OriginauxDrive, PublicationClients } from "./Integrations";
 import { getSecret, secretStatus } from "@/lib/secrets";
-import { driveAccountEmail } from "@/lib/drive";
+import { countLegacyDriveImages, driveAccountEmail } from "@/lib/drive";
 
 /** « Les Copeaux d'Abord » ↔ « Les Copeaux d'Abord Réunion » : même nom, aux accents et espaces près. */
 function cle(s: string) {
@@ -59,13 +59,14 @@ export default async function ReglagesPage() {
       .where(eq(clients.active, true))
       .orderBy(asc(clients.name)),
   ]);
-  const [ai, abby, drive, mcp, driveEmail, stockV] = await Promise.all([
+  const [ai, abby, drive, mcp, driveEmail, stockV, imagesReduites] = await Promise.all([
     secretStatus("anthropic"),
     secretStatus("abby"),
     secretStatus("google-drive"),
     getSecret("mcp"),
     driveAccountEmail(),
     secretStatus("stock-videos"),
+    countLegacyDriveImages(),
   ]);
   const mcpUrl = mcp && process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}/api/mcp/${mcp.token}` : mcp ? `/api/mcp/${mcp.token}` : null;
   let brands: MetricoolBrand[] = [];
@@ -119,6 +120,7 @@ export default async function ReglagesPage() {
                 </>
               }
             />
+            {drive.connected ? <OriginauxDrive restant={imagesReduites} /> : null}
           </Card>
 
           <Card>

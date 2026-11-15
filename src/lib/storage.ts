@@ -47,18 +47,24 @@ export const MEDIA_ROOT = process.env.MEDIA_ROOT ?? "/data/assets";
 /**
  * Plafonds par fichier.
  *
- * Une image n'est jamais conservée telle quelle : elle est réencodée à une
- * taille d'affichage et l'original est jeté. Un fichier de 80 Mo sorti d'un
- * boîtier professionnel finit donc à quelques centaines de kilo-octets sur le
- * disque — accepter du lourd ne coûte rien en stockage, seulement du temps de
- * transfert. Le plafond ne sert plus qu'à écarter ce qui n'est manifestement
- * pas une photo.
+ * Une image garde son fichier d'origine (c'est lui qui est publié), plus deux
+ * dérivées légères pour l'écran. Ce qu'on accepte pèse donc réellement sur le
+ * disque : le plafond écarte ce qui n'est manifestement pas une photo, et le
+ * contrôle d'espace libre fait le reste.
  *
- * Une vidéo, elle, est stockée telle quelle : son plafond reste le vrai
+ * Une vidéo est stockée telle quelle elle aussi : son plafond reste le vrai
  * garde-fou, avec le contrôle d'espace libre.
  */
 export const MAX_IMAGE_BYTES = 400 * 1024 * 1024; // 400 Mo
 export const MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024; // 4 Go
+
+/** Version d'affichage (application, portail) et miniature des grilles. */
+const DISPLAY_WIDTH = 1440;
+const DISPLAY_QUALITY = 90;
+const THUMB_WIDTH = 480;
+const THUMB_QUALITY = 80;
+/** Fichier de publication tiré d'un format que les réseaux ne prennent pas. */
+const PUBLISH_JPEG_QUALITY = 95;
 
 export const maxBytesFor = (mime: string) => (isVideo(mime) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES);
 
@@ -213,13 +219,14 @@ export type StoredFile = {
 export class UploadError extends Error {}
 
 /**
- * Écrit un média et sa dérivée web.
+ * Écrit un média et ses dérivées.
  *
- * Les images sont recompressées à une taille d'affichage : l'original d'un
- * appareil photo pèse dix fois la version publiée, pour une image que
- * personne ne regardera à cette résolution. Les vidéos sont stockées telles
- * quelles — les réencoder demanderait ffmpeg et bien plus de processeur que
- * n'en a un VPS partagé.
+ * Une image garde son fichier d'origine : c'est lui qui part chez Metricool à
+ * la publication, et une story de 2160 × 3840 recompressée arrive floue sur
+ * les réseaux. À côté, deux dérivées WebP pour l'écran seulement — une version
+ * d'affichage (application et portail) et une miniature pour les grilles. Les
+ * vidéos sont stockées telles quelles : les réencoder demanderait ffmpeg et
+ * bien plus de processeur que n'en a un VPS partagé.
  */
 export type IncomingFile = {
   filename: string;
@@ -273,6 +280,8 @@ export async function storeIncoming(input: IncomingFile, clientId: string): Prom
   const hash = createHash("sha256");
   let received = 0;
   let settled = false;
+  /** Ce que l'image a commencé d'écrire : à effacer si l'import échoue en route. */
+  const written: string[] = [];
 
   const source = file.body instanceof Readable ? file.body : Readable.fromWeb(file.body);
 
@@ -318,31 +327,61 @@ export async function storeIncoming(input: IncomingFile, clientId: string): Prom
       // en mémoire, quelle que soit sa taille.
       const meta = await sharp(tmpPath, { failOn: "none" }).metadata();
 
-      const webPath = path.join(dir, `${id}.webp`);
-      // 2048 px suffit : au-delà, on stocke des pixels que personne n'affiche.
-      const info = await sharp(tmpPath, { failOn: "none" })
+      // On se fie au contenu, pas à l'extension : un « .jpg » qui est en
+      // réalité un HEIC ne serait pas publiable.
+      const kept =
+        meta.format === "jpeg"
+          ? { ext: ".jpg", mime: "image/jpeg" }
+          : meta.format === "png"
+            ? { ext: ".png", mime: "image/png" }
+            : null;
+      const mainPath = path.join(dir, `${id}${kept?.ext ?? ".jpg"}`);
+      written.push(mainPath, displayPathFor(mainPath), thumbPathFor(mainPath));
+
+      let sizeBytes = received;
+      if (!kept) {
+        // HEIC, TIFF, AVIF, WebP, GIF : les réseaux ne les prennent pas tels
+        // quels. Le fichier de publication est un JPEG en pleine définition,
+        // sans réduction ; la transparence, que le JPEG ignore, devient blanche.
+        const info = await sharp(tmpPath, { failOn: "none" })
+          .rotate()
+          .flatten({ background: "#ffffff" })
+          .jpeg({ quality: PUBLISH_JPEG_QUALITY, chromaSubsampling: "4:4:4" })
+          .toFile(path.join(MEDIA_ROOT, mainPath));
+        sizeBytes = info.size;
+      }
+
+      // Version d'affichage : assez large pour rester nette en pleine largeur
+      // sur un téléphone (390 points × 3 pixels), assez légère pour un portail.
+      await sharp(tmpPath, { failOn: "none" })
         .rotate() // respecte l'orientation EXIF, sinon les photos partent de travers
-        .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 82 })
-        .toFile(path.join(MEDIA_ROOT, webPath));
+        .resize({ width: DISPLAY_WIDTH, withoutEnlargement: true })
+        .webp({ quality: DISPLAY_QUALITY })
+        .toFile(path.join(MEDIA_ROOT, displayPathFor(mainPath)));
 
-      // Miniature servie dans les grilles : c'est elle qui rend l'écran fluide.
-      // Elle est tirée de la version déjà réduite, et non de l'original : sur
-      // une photo de 24 mégapixels, redécoder l'original coûte cent fois plus
-      // de mémoire pour un résultat que l'œil ne distingue pas à 480 px.
-      // L'orientation a déjà été appliquée à l'étape précédente.
-      await sharp(path.join(MEDIA_ROOT, webPath), { failOn: "none" })
-        .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 74 })
-        .toFile(path.join(MEDIA_ROOT, thumbPathFor(webPath)));
+      // Miniature des grilles, tirée de la version d'affichage (déjà orientée) :
+      // redécoder un original de 24 mégapixels coûterait cent fois plus de
+      // mémoire. Réduite par la largeur seule : dans un carré de 480, une
+      // story verticale tombait à 270 px de large et s'affichait floue.
+      await sharp(path.join(MEDIA_ROOT, displayPathFor(mainPath)), { failOn: "none" })
+        .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+        .webp({ quality: THUMB_QUALITY })
+        .toFile(path.join(MEDIA_ROOT, thumbPathFor(mainPath)));
 
+      // JPEG et PNG : l'original devient le fichier principal, octet pour
+      // octet. Déplacé en dernier, une fois les dérivées écrites.
+      if (kept) await rename(tmpPath, path.join(MEDIA_ROOT, mainPath));
+
+      // Orientations EXIF 5 à 8 : l'image est couchée dans le fichier, largeur
+      // et hauteur affichées sont inversées.
+      const turned = (meta.orientation ?? 1) >= 5;
       settled = true;
       return {
-        storagePath: webPath,
-        mimeType: "image/webp",
-        sizeBytes: info.size,
-        width: meta.width ?? null,
-        height: meta.height ?? null,
+        storagePath: mainPath,
+        mimeType: kept?.mime ?? "image/jpeg",
+        sizeBytes,
+        width: (turned ? meta.height : meta.width) ?? null,
+        height: (turned ? meta.width : meta.height) ?? null,
         checksum,
       };
     }
@@ -379,16 +418,14 @@ export async function storeIncoming(input: IncomingFile, clientId: string): Prom
     }
     throw error;
   } finally {
-    // Le temporaire d'une image a fini son office ; celui d'une vidéo a été
-    // déplacé et n'existe plus. Dans les deux cas, il ne doit rien rester.
+    // Le temporaire d'une image a fini son office ou est devenu le fichier
+    // principal ; celui d'une vidéo a été déplacé. Il ne doit rien rester.
     await unlink(tmpPath).catch(() => {});
-    // Une conversion interrompue laisse une dérivée à moitié écrite. Sans
-    // ligne en base, plus rien ne la désigne : elle occuperait le disque sans
-    // que personne puisse la retrouver ni la supprimer.
+    // Une conversion interrompue laisse des fichiers à moitié écrits. Sans
+    // ligne en base, plus rien ne les désigne : ils occuperaient le disque
+    // sans que personne puisse les retrouver ni les supprimer.
     if (!settled) {
-      const webPath = path.join(dir, `${id}.webp`);
-      await unlink(path.join(MEDIA_ROOT, webPath)).catch(() => {});
-      await unlink(path.join(MEDIA_ROOT, thumbPathFor(webPath))).catch(() => {});
+      for (const p of written) await unlink(path.join(MEDIA_ROOT, p)).catch(() => {});
     }
   }
 }
@@ -397,6 +434,26 @@ export async function storeIncoming(input: IncomingFile, clientId: string): Prom
 export function thumbPathFor(storagePath: string): string {
   const ext = path.extname(storagePath);
   return `${storagePath.slice(0, -ext.length)}.thumb.webp`;
+}
+
+/**
+ * La version d'affichage d'une image, à côté de l'original.
+ *
+ * Les médias importés avant qu'on garde les originaux n'en ont pas : leur
+ * fichier principal est déjà un WebP réduit, et c'est lui qu'on affiche.
+ */
+export function displayPathFor(storagePath: string): string {
+  const ext = path.extname(storagePath);
+  return `${storagePath.slice(0, -ext.length)}.web.webp`;
+}
+
+/**
+ * Une image d'avant la conservation des originaux : il n'en reste qu'un WebP
+ * réduit. Depuis, un fichier principal n'est jamais un WebP (JPEG ou PNG
+ * d'origine, ou JPEG de publication).
+ */
+export function isLegacyImage(asset: { storagePath: string; mimeType: string }): boolean {
+  return asset.mimeType === "image/webp" && asset.storagePath.endsWith(".webp");
 }
 
 export function absolutePath(storagePath: string): string {
@@ -409,7 +466,7 @@ export function absolutePath(storagePath: string): string {
 }
 
 export async function removeStored(storagePath: string): Promise<void> {
-  for (const p of [storagePath, thumbPathFor(storagePath)]) {
+  for (const p of [storagePath, thumbPathFor(storagePath), displayPathFor(storagePath)]) {
     try {
       await unlink(absolutePath(p));
     } catch {

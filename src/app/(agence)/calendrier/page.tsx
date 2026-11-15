@@ -279,7 +279,7 @@ export default async function CalendrierPage({
                               <span className="text-small font-bold tabular-nums">{hhmm(c.scheduledAt!)}</span>
                               <span className="line-clamp-2 text-small leading-tight font-medium">{c.title}</span>
                             </span>
-                            {covers.get(c.id) ? <Cover asset={covers.get(c.id)} ratio="1/1" className="w-8 flex-none rounded-[8px]" label=" " /> : null}
+                            {covers.get(c.id) ? <Cover asset={covers.get(c.id)} ratio="1/1" sizes="32px" className="w-8 flex-none rounded-[8px]" label=" " /> : null}
                           </span>
                           <span className="flex items-center gap-1">
                             <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-paper px-1 text-[9px] font-bold text-ink">

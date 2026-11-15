@@ -152,9 +152,10 @@ export default async function AssetsPage({
               dossierParDefaut={courant ?? ""}
             />
             <p className="text-small text-ink-2">
-              Les images sont recompressées à l&apos;import et une miniature est générée :
-              envoie les fichiers de ton photographe tels quels, quelle que soit leur taille —
-              une photo de 60 Mo occupe quelques centaines de kilo-octets une fois traitée.
+              Les images JPEG et PNG sont gardées telles quelles : c&apos;est le fichier d&apos;origine
+              qui part à la publication. Une version allégée et une miniature sont créées à côté,
+              pour l&apos;affichage seulement. Les autres formats (HEIC, TIFF, WebP) sont convertis en
+              JPEG pleine définition.
               Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW) ne sont pas lisibles :
               exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{""}
               {formatBytes(MAX_VIDEO_BYTES)} — <strong>les rushes de tournage n&apos;ont pas leur
@@ -337,6 +338,14 @@ export default async function AssetsPage({
                           {clientName} · {formatBytes(asset.sizeBytes ?? 0)}
                           {authorName ? ` · ${authorName}` : ""}
                         </span>
+                        {/* Le nom ouvre la version d'affichage ; ce lien donne le fichier
+                            tel qu'il sera publié. */}
+                        <a
+                          href={`/api/media/${asset.id}?format=original`}
+                          className="text-micro text-ink-3 underline hover:text-ink"
+                        >
+                          {video ? "Télécharger la vidéo" : "Télécharger l'original"}
+                        </a>
                         <span className="flex items-center gap-[5px]">
                           <Dot tone={rights.tone} solid size={5} />
                           <span className={cn("clip text-micro", toneText[rights.tone])}>

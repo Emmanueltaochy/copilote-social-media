@@ -2,10 +2,10 @@ import "server-only";
 
 import { createSign } from "node:crypto";
 import { Readable } from "node:stream";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, like, sql } from "drizzle-orm";
 import { assets, assetUsages, db } from "@/db";
 import { getSecret } from "@/lib/secrets";
-import { storeIncoming } from "@/lib/storage";
+import { isLegacyImage, removeStored, storeIncoming } from "@/lib/storage";
 
 /*
  * Google Drive : les vidéastes déposent les rushs dans un dossier partagé,
@@ -116,36 +116,121 @@ export async function newDriveFiles(folderId: string): Promise<DriveFile[]> {
   return files.filter((f) => !seen.has(f.id));
 }
 
+/**
+ * Télécharge le fichier d'origine (files.get?alt=media) et le range sur le
+ * disque. Jamais la miniature de Drive : c'est ce fichier qui sera publié.
+ */
+async function downloadOriginal(fileId: string, clientId: string) {
+  const token = await accessToken();
+  const meta = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType,size&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!meta.ok) throw new Error(`Fichier Drive introuvable (${meta.status}).`);
+  const m = (await meta.json()) as { name: string; mimeType: string; size?: string };
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok || !res.body) throw new Error(`Téléchargement Drive impossible (${res.status}).`);
+  const stored = await storeIncoming(
+    {
+      filename: m.name,
+      mimeType: m.mimeType,
+      declaredBytes: m.size ? Number(m.size) : null,
+      body: Readable.fromWeb(res.body as import("node:stream/web").ReadableStream),
+    },
+    clientId,
+  );
+  return { name: m.name, stored };
+}
+
+/**
+ * Remet à niveau une image importée de Drive avant qu'on garde les originaux.
+ *
+ * Il n'en restait qu'un WebP réduit ; l'original est toujours sur Drive. On le
+ * retélécharge et on le range à la place, sous le même identifiant : les
+ * contenus qui utilisent ce média n'ont rien à refaire. L'ancien fichier n'est
+ * effacé qu'une fois le nouveau en place ; si Drive ne répond pas, rien ne
+ * change et l'ancienne image continue de servir.
+ */
+export async function restoreDriveOriginal(assetId: string): Promise<"fait" | "inutile" | "echec"> {
+  const [a] = await db
+    .select({ id: assets.id, clientId: assets.clientId, driveFileId: assets.driveFileId, storagePath: assets.storagePath, mimeType: assets.mimeType })
+    .from(assets)
+    .where(eq(assets.id, assetId))
+    .limit(1);
+  if (!a?.driveFileId || !isLegacyImage(a)) return "inutile";
+  try {
+    const { stored } = await downloadOriginal(a.driveFileId, a.clientId);
+    // Deux remises à niveau du même média peuvent se croiser (le bouton des
+    // Réglages et une programmation) : seule la première remplace la ligne.
+    const done = await db
+      .update(assets)
+      .set({ storagePath: stored.storagePath, mimeType: stored.mimeType, sizeBytes: stored.sizeBytes, width: stored.width, height: stored.height })
+      .where(and(eq(assets.id, a.id), eq(assets.storagePath, a.storagePath)))
+      .returning({ id: assets.id });
+    await removeStored(done.length ? a.storagePath : stored.storagePath);
+    return "fait";
+  } catch (e) {
+    console.error(`Original Drive non récupéré pour le média ${assetId} : ${(e as Error).message}`);
+    return "echec";
+  }
+}
+
+/** Les images importées de Drive dont il ne reste que la version réduite. */
+export async function countLegacyDriveImages(): Promise<number> {
+  const [r] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(assets)
+    .where(and(isNotNull(assets.driveFileId), eq(assets.mimeType, "image/webp"), like(assets.storagePath, "%.webp")));
+  return r?.n ?? 0;
+}
+
+/**
+ * Reprend d'un coup les originaux des images déjà importées de Drive.
+ *
+ * Un fichier après l'autre, et pendant un temps borné : une bibliothèque de
+ * plusieurs centaines d'images ne doit pas tenir une requête ouverte dix
+ * minutes. Ce qui reste est repris au clic suivant.
+ */
+export async function restoreDriveOriginals(budgetMs = 45_000): Promise<{ done: number; failed: number; remaining: number }> {
+  const rows = await db
+    .select({ id: assets.id })
+    .from(assets)
+    .where(and(isNotNull(assets.driveFileId), eq(assets.mimeType, "image/webp"), like(assets.storagePath, "%.webp")))
+    .orderBy(sql`${assets.createdAt} desc`)
+    .limit(500);
+  if (!rows.length) return { done: 0, failed: 0, remaining: 0 };
+  // Un compte de service refusé ferait échouer chaque fichier l'un après
+  // l'autre : autant le dire une fois, avec la vraie raison.
+  await accessToken();
+  const start = Date.now();
+  let done = 0;
+  let failed = 0;
+  for (const r of rows) {
+    if (Date.now() - start > budgetMs) break;
+    const result = await restoreDriveOriginal(r.id);
+    if (result === "fait") done++;
+    else if (result === "echec") failed++;
+  }
+  return { done, failed, remaining: (await countLegacyDriveImages()) - failed };
+}
+
 /** Télécharge un fichier Drive dans la bibliothèque du client, et le joint au contenu si demandé. */
 export async function importDriveFile(fileId: string, clientId: string, contentId?: string | null) {
   const [already] = await db.select({ id: assets.id }).from(assets).where(and(eq(assets.driveFileId, fileId), eq(assets.clientId, clientId))).limit(1);
   let assetId = already?.id;
-  if (!assetId) {
-    const token = await accessToken();
-    const meta = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType,size&supportsAllDrives=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!meta.ok) throw new Error(`Fichier Drive introuvable (${meta.status}).`);
-    const m = (await meta.json()) as { name: string; mimeType: string; size?: string };
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok || !res.body) throw new Error(`Téléchargement Drive impossible (${res.status}).`);
-    const stored = await storeIncoming(
-      {
-        filename: m.name,
-        mimeType: m.mimeType,
-        declaredBytes: m.size ? Number(m.size) : null,
-        body: Readable.fromWeb(res.body as import("node:stream/web").ReadableStream),
-      },
-      clientId,
-    );
+  if (assetId) {
+    // Déjà dans la bibliothèque, mais peut-être en version réduite d'avant :
+    // on en profite pour récupérer l'original.
+    await restoreDriveOriginal(assetId);
+  } else {
+    const { name, stored } = await downloadOriginal(fileId, clientId);
     const [row] = await db
       .insert(assets)
       .values({
         clientId,
-        filename: m.name,
+        filename: name,
         storagePath: stored.storagePath,
         mimeType: stored.mimeType,
         sizeBytes: stored.sizeBytes,

@@ -59,7 +59,7 @@ export function ValidationCard({
           href={`/portail/contenu/${id}`}
           className="w-full no-underline hover:no-underline sm:w-[180px] sm:flex-none"
         >
-          <Cover asset={cover} ratio="4/5" className="w-full" label="Visuel à venir" />
+          <Cover asset={cover} ratio="4/5" sizes="(max-width: 640px) 100vw, 180px" className="w-full" label="Visuel à venir" />
         </Link>
       )}
 
