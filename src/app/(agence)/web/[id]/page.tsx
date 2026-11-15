@@ -18,6 +18,7 @@ import {
 } from "../actions";
 import { BriefLauncher } from "../BriefLauncher";
 import { AjoutLivrable } from "./Livrables";
+import { SupprimerProjet } from "./SupprimerProjet";
 
 export const dynamic = "force-dynamic";
 
@@ -355,6 +356,10 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
             <span className={`text-small ${toneText[WEB_PHASE[p.phase]?.tone ?? "muted"]}`}>
               {WEB_PHASE[p.phase]?.aide}
             </span>
+          </Card>
+
+          <Card className="p-4">
+            <SupprimerProjet id={p.id} name={p.name} briefs={briefsDuProjet.length} />
           </Card>
         </div>
       </div>
