@@ -21,7 +21,7 @@ import { createHash, randomBytes } from "node:crypto";
 import postgres from "postgres";
 
 const PREFIX = "tpk_";
-const SCOPES_CONNUS = ["pipeline:read", "pipeline:write"];
+const SCOPES_CONNUS = ["pipeline:read", "pipeline:write", "annuaire:write"];
 const POLES_CONNUS = ["social", "web"];
 
 /* ------------------------------------------------------------- arguments -- */

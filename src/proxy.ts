@@ -46,6 +46,8 @@ export function proxy(request: NextRequest) {
     // défaut déjà corrigé dans currentDirection() : une route répond, elle ne
     // renvoie pas ailleurs. La vérification a lieu dans withApiKey().
     pathname.startsWith("/api/agent") ||
+    // Import de l'annuaire : même raison, la clé est vérifiée par withApiKey().
+    pathname.startsWith("/api/annuaire/") ||
     // Médias sur lien signé, pour Metricool : la route vérifie la signature.
     pathname.startsWith("/api/media-public") ||
     // Connecteur Claude.ai : le jeton secret de l'adresse est vérifié par la route.

@@ -92,7 +92,14 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <PageHeader
         title={client.shortName}
         sub={`${client.sector ?? "Secteur à renseigner"} · ${monthLabel()}`}
-      />
+      >
+        <Link
+          href={`/contacts/${client.id}`}
+          className="rounded-full border border-line bg-paper px-4 py-[9px] text-base font-medium text-ink no-underline hover:border-line-strong hover:no-underline"
+        >
+          Fiche complète
+        </Link>
+      </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1100px] flex-col gap-4">

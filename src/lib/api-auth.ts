@@ -23,9 +23,14 @@ import { hashToken } from "./tokens";
 /** Rend le secret repérable dans un journal ou par un détecteur de fuite. */
 export const API_KEY_PREFIX = "tpk_";
 
-export type ApiScope = "pipeline:read" | "pipeline:write";
+/**
+ * « annuaire:write » ouvre une seule porte : l'import des fichiers de l'agent
+ * ventes dans l'annuaire. Une clé d'import ne lit rien du pipeline, et une clé
+ * d'agent ne peut pas réécrire l'annuaire.
+ */
+export type ApiScope = "pipeline:read" | "pipeline:write" | "annuaire:write";
 
-export const API_SCOPES: ApiScope[] = ["pipeline:read", "pipeline:write"];
+export const API_SCOPES: ApiScope[] = ["pipeline:read", "pipeline:write", "annuaire:write"];
 
 export const isApiScope = (v: string): v is ApiScope => API_SCOPES.includes(v as ApiScope);
 
@@ -33,6 +38,7 @@ export const isApiScope = (v: string): v is ApiScope => API_SCOPES.includes(v as
 const CADENCE: Record<ApiScope, Cadence> = {
   "pipeline:read": "lecture",
   "pipeline:write": "ecriture",
+  "annuaire:write": "ecriture",
 };
 
 /* ------------------------------------------------------- authentification -- */

@@ -1586,3 +1586,154 @@ export const trendReports = pgTable(
   },
   (t) => [index("trend_reports_client_idx").on(t.clientId)],
 );
+
+/* ---------------------------------------------------------- annuaire -- */
+
+/**
+ * L'annuaire : une fiche par personne ou entreprise avec qui l'agence a affaire.
+ *
+ * Pourquoi une table à côté de `clients` plutôt que d'y verser les prospects :
+ * `clients` est la table *opérationnelle*. Une trentaine de requêtes la
+ * parcourent — sélecteur de client, cockpit, Metricool, préparation du mois,
+ * agents — en supposant que chaque ligne est un compte qu'on sert. Y glisser
+ * deux cents prospects trouvés sur Google Maps les ferait apparaître partout,
+ * ou obligerait à ajouter un filtre à chacune de ces requêtes ; le jour où l'un
+ * manquerait, un garage jamais contacté recevrait un « engagement du mois ».
+ *
+ * L'annuaire n'est pas pour autant un second fichier client concurrent : un
+ * client de l'agence *est* sa ligne de `clients`, et sa fiche d'annuaire n'en
+ * porte que la couche relationnelle (source, prochaine action, étiquettes),
+ * créée à la première modification. L'écran « Contacts » réunit les deux :
+ * tous les clients, avec ou sans fiche, plus les fiches sans client.
+ *
+ * Un prospect qui signe garde sa fiche : il suffit de la relier au client
+ * (`clientId`), et tout son historique de prospection le suit.
+ */
+export const directoryEntries = pgTable(
+  "directory_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /**
+     * Le compte client correspondant, s'il y en a un. Unique : un client n'a
+     * qu'une fiche. « set null » et non « cascade » : supprimer un client ne
+     * doit pas effacer l'historique commercial qui a mené jusqu'à lui.
+     */
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    /** Nom de l'entreprise, ou de la personne quand il n'y a pas d'entreprise. */
+    name: text("name").notNull(),
+    /** La personne à qui l'on parle : « Marie, gérante ». */
+    contactName: text("contact_name"),
+    /** « client », « prospect », « ancien_client », « partenaire », « autre ». */
+    kind: text("kind").notNull().default("prospect"),
+    /**
+     * D'où vient la fiche : « agence », « agent_ventes_france »,
+     * « agent_ventes_reunion », « agent_ventes_international », « google_maps »,
+     * « bouche_a_oreille », « swapiles », « autre ».
+     */
+    source: text("source").notNull().default("agence"),
+    /**
+     * L'activité d'Emmanuel concernée : « agence » (Taochy) ou « swapiles »
+     * (la marketplace). C'est ce qui empêche de mélanger les deux métiers.
+     */
+    activity: text("activity").notNull().default("agence"),
+    /** Étapes de prospection, mêmes mots que l'agent ventes : a_contacter, contacte, relance, repondu, rdv, devis, gagne, perdu. */
+    status: text("status"),
+    email: text("email"),
+    phone: text("phone"),
+    website: text("website"),
+    city: text("city"),
+    country: text("country"),
+    sector: text("sector"),
+    /** Qui s'en occupe côté agence : « agent », « emmanuel »… Texte libre. */
+    owner: text("owner"),
+    nextAction: text("next_action"),
+    nextActionOn: date("next_action_on"),
+    note: text("note"),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    /**
+     * Clés de rapprochement, calculées à l'écriture : l'e-mail en minuscules,
+     * et « nom|ville » sans accents ni ponctuation. C'est ce qui empêche un
+     * second import de créer un doublon.
+     */
+    emailKey: text("email_key"),
+    nameKey: text("name_key"),
+    /**
+     * L'identifiant de la fiche dans le fichier d'origine (prospects.json,
+     * sans-site.json). Un nouvel envoi du même fichier retrouve ainsi la même
+     * fiche même si l'e-mail a changé.
+     */
+    externalSource: text("external_source"),
+    externalId: text("external_id"),
+    /** Le client Abby, pour une fiche qui n'est pas (encore) un client Pilot. */
+    abbyCustomerId: text("abby_customer_id"),
+    /**
+     * Les identifiants chez les services raccordés plus tard (étapes 2 et 3) :
+     * adresses Gmail à surveiller, client GoCardless, tableau ou étiquette
+     * Trello. Rangés ici plutôt qu'en colonnes tant qu'aucun n'est branché.
+     */
+    links: jsonb("links")
+      .$type<{ gmail?: string[]; gocardlessCustomerId?: string; trelloBoardId?: string; trelloLabel?: string; calendarQuery?: string }>()
+      .notNull()
+      .default({}),
+    /** Ce que le fichier d'origine sait en plus : note Google, avis, signaux, langue… */
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    /** Dernier échange ou dernier fait connu : sert au tri de l'annuaire. */
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+    importedAt: timestamp("imported_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("directory_entries_client_key").on(t.clientId),
+    uniqueIndex("directory_entries_external_key").on(t.externalSource, t.externalId),
+    index("directory_entries_email_idx").on(t.emailKey),
+    index("directory_entries_name_idx").on(t.nameKey),
+    index("directory_entries_kind_idx").on(t.kind, t.activity),
+  ],
+);
+
+/**
+ * La frise d'une fiche : ce qui s'est passé avec ce contact, quelle que soit
+ * la source.
+ *
+ * Une seule table pour toutes les sources à venir : l'historique de l'agent
+ * ventes aujourd'hui, les e-mails Gmail (étape 2), les cartes Trello, les
+ * rendez-vous et les paiements GoCardless (étape 3). Chaque source écrit ses
+ * lignes avec son propre `source` et son identifiant, et la fiche les lit
+ * toutes, triées par date. Brancher une source, c'est écrire des lignes ici —
+ * pas refaire l'écran.
+ *
+ * L'activité interne de Pilot (table `activity`) n'est pas recopiée : elle est
+ * lue à côté et fusionnée à l'affichage.
+ */
+export const directoryEvents = pgTable(
+  "directory_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => directoryEntries.id, { onDelete: "cascade" }),
+    /** « agent_ventes », puis « gmail », « trello », « agenda », « gocardless », « note ». */
+    source: text("source").notNull(),
+    /** « email_sortant », « email_entrant », « action », « rdv », « paiement », « note », « evenement ». */
+    kind: text("kind").notNull().default("evenement"),
+    /** Identifiant chez la source (fil Gmail, carte Trello…) : un second relevé ne double rien. */
+    externalId: text("external_id").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Un message reçu qui attend une réponse (étape 2) ; une action encore ouverte (étape 3). */
+    awaitingReply: boolean("awaiting_reply").notNull().default(false),
+    dueOn: date("due_on"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("directory_events_external_key").on(t.entryId, t.source, t.externalId),
+    index("directory_events_entry_idx").on(t.entryId, t.occurredAt),
+  ],
+);
+
+export type DirectoryEntry = typeof directoryEntries.$inferSelect;
+export type DirectoryEvent = typeof directoryEvents.$inferSelect;

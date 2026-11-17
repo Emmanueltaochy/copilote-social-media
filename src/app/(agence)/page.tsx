@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { requireDepartment } from "@/lib/auth";
+import { canSeeMoney, requireDepartment } from "@/lib/auth";
+import { CeMatin } from "@/components/home/CeMatin";
+import { actions as actionsDuMatin, aRepondre, argentQuiDort } from "@/lib/ce-matin";
 import { coversFor, listAwaitingApproval, listClientsWithPace } from "@/db/queries";
 import {
   missedRecently,
@@ -65,6 +67,12 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
       topPostThisMonth(now, scopeId, "views"),
       topPostThisMonth(now, scopeId, "interactions"),
     ]);
+  // « Ce matin » : l'argent ne se charge que pour qui peut le voir.
+  const [repondre, argent, aFaire] = await Promise.all([
+    aRepondre(now, scopeId),
+    canSeeMoney(user) ? argentQuiDort(now, scopeId) : Promise.resolve(null),
+    actionsDuMatin(now, scopeId),
+  ]);
   const covers = await coversFor([...next.map((c) => c.id), ...approvals.map((a) => a.content.id)]);
 
   const scopeName = scopeId ? (portfolio.find((c) => c.id === scopeId)?.shortName ?? null) : null;
@@ -149,6 +157,8 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
           <Icon name="plus" size={17} strokeWidth={2.2} /> Nouveau contenu
         </Link>
       </div>
+
+      <CeMatin repondre={repondre} argent={argent} actions={aFaire} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         {/* À venir */}

@@ -22,18 +22,21 @@ export type NavItem = {
  */
 export const NAV_MAIN: NavItem[] = [
   { label: "Aujourd'hui", href: "/", icon: "home" },
+  { label: "Contacts", href: "/contacts", icon: "users", hint: "Clients, prospects et Swap'Îles : une fiche par contact" },
   { label: "Calendrier", href: "/calendrier", icon: "calendar" },
   { label: "Production", href: "/production", icon: "layers" },
   { label: "Réception", href: "/boite", icon: "inbox", hint: "Messages et commentaires de tous les comptes" },
   { label: "À valider", href: "/approbations", icon: "check", badge: "validation" },
   { label: "Statistiques", href: "/statistiques", icon: "chart", hint: "Audience, publications et meilleurs moments" },
-  { label: "Veille", href: "/veille", icon: "eye", hint: "Les concurrents de chaque client et ce qui marche chez eux" },
   { label: "Tournages", href: "/tournages", icon: "camera" },
 ];
 
 export const NAV_MORE: NavItem[] = [
+  // Passée dans « Plus » à l'arrivée de « Contacts » : neuf entrées ne
+  // tiennent plus sur un écran de 1440 px.
+  { label: "Veille", href: "/veille", icon: "eye", hint: "Les concurrents de chaque client et ce qui marche chez eux" },
   { label: "Jarvis", href: "/jarvis", icon: "sparkles", hint: "Votre directeur marketing IA, à la voix ou à l'écrit" },
-  { label: "Clients", href: "/clients", icon: "users", hint: "Fiches, contrats et accès portail" },
+  { label: "Clients", href: "/clients", icon: "users", hint: "Portefeuille : contrats, rythme du mois et accès portail" },
   { label: "À publier", href: "/a-publier", icon: "send", badge: "publier", hint: "Prêt, daté, pas encore en ligne" },
   { label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité, ensembles de publicités et budget" },
   { label: "Bibliothèque", href: "/assets", icon: "image", hint: "Photos et vidéos par client" },

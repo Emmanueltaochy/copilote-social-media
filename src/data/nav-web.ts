@@ -11,6 +11,7 @@ export const NAV_WEB_MAIN: NavItem[] = [
   { label: "Projets", href: "/web", icon: "layers" },
   { label: "Briefs", href: "/web/briefs", icon: "list" },
   { label: "Clients", href: "/clients", icon: "users" },
+  { label: "Contacts", href: "/contacts", icon: "message", hint: "Clients, prospects et Swap'Îles : une fiche par contact" },
   { label: "Devis", href: "/devis", icon: "inbox", badge: "devis" },
   { label: "Jarvis", href: "/jarvis", icon: "sparkles", hint: "Le chef de projet web IA : devis Abby, projets, cahiers des charges" },
 ];

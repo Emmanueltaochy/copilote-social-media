@@ -85,7 +85,8 @@ typographique à 6 tailles, rayons) sont déclarés dans le bloc `@theme` de
 | `/assets` | Bibliothèque d'assets |
 | `/ads` | Campagnes et pacing budget |
 | `/rapports` | Rapport mensuel + saisie des statistiques |
-| `/clients` | Fiche client 360° |
+| `/clients` | Portefeuille : contrats, rythme du mois, accès portail |
+| `/contacts` | Annuaire unique (clients, prospects, Swap'Îles) et fiche complète par contact |
 | `/rentabilite` | Rentabilité et arbitrages |
 
 Le **portail client** s'ouvre depuis le bas de la barre latérale : mêmes
@@ -130,6 +131,28 @@ est dans **[DEPLOY.md](./DEPLOY.md)**.
 
 Le déploiement s'arrête si le lint, les types, le build ou la sonde de santé
 échouent — dans ce cas l'ancienne version continue de tourner.
+
+### L'annuaire et l'import des prospects
+
+`/contacts` réunit les clients de l'agence (table `clients`) et les fiches sans
+client (table `directory_entries` : prospects de l'agent ventes, entreprises
+sans site trouvées sur Google Maps, contacts Swap'Îles). La frise d'une fiche
+lit `directory_events`, où chaque source à venir (Gmail, Trello, Agenda,
+GoCardless) écrira ses lignes.
+
+Les fichiers de l'agent ventes s'importent par `POST /api/annuaire/import`
+(clé portant le droit `annuaire:write`, créée dans Réglages → « Import des
+prospects ») :
+
+```bash
+PILOT_URL=https://app.taochyagency.com PILOT_IMPORT_KEY=tpk_… \
+  node scripts/importer-annuaire.mjs ../montagevideo/docs/crm/prospects.json ../montagevideo/docs/crm/sans-site.json
+```
+
+Un nouvel envoi met les fiches à jour (rapprochement par identifiant d'origine,
+puis e-mail, puis nom et ville). Vérification locale :
+`scripts/test-annuaire.mjs` ; démonstration locale : `scripts/dev/seed-annuaire-demo.sql`
+et `scripts/dev/abby-demo.mjs` (faux serveur Abby, données fictives).
 
 ### Prochaine étape
 

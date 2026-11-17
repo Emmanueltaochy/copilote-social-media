@@ -10,13 +10,15 @@ import { listPromos } from "@/db/queries";
 import { versionVideo } from "@/lib/portail-video";
 import { VideoPortail } from "./VideoPortail";
 import { basculerPromo, creerPromo, supprimerPromo } from "./actions";
-import { asc, eq } from "drizzle-orm";
-import { clients, db } from "@/db";
+import { apiKeys, clients, db } from "@/db";
 import { listBrands, metricoolStatus, type MetricoolBrand } from "@/lib/metricool";
 import { MetricoolReglages } from "./Metricool";
 import { CleIntegration, ConnecteurClaude, OriginauxDrive, PublicationClients } from "./Integrations";
 import { getSecret, secretStatus } from "@/lib/secrets";
 import { countLegacyDriveImages, driveAccountEmail } from "@/lib/drive";
+import { ImportProspects } from "./ImportProspects";
+import { etatImports } from "@/lib/annuaire-import";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 
 /** « Les Copeaux d'Abord » ↔ « Les Copeaux d'Abord Réunion » : même nom, aux accents et espaces près. */
 function cle(s: string) {
@@ -58,6 +60,14 @@ export default async function ReglagesPage() {
       .from(clients)
       .where(eq(clients.active, true))
       .orderBy(asc(clients.name)),
+  ]);
+  const [clesImport, imports] = await Promise.all([
+    db
+      .select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt })
+      .from(apiKeys)
+      .where(and(isNull(apiKeys.revokedAt), sql`${apiKeys.scopes} ? 'annuaire:write'`))
+      .orderBy(desc(apiKeys.createdAt)),
+    etatImports(),
   ]);
   const [ai, abby, drive, mcp, driveEmail, stockV, imagesReduites] = await Promise.all([
     secretStatus("anthropic"),
@@ -124,13 +134,22 @@ export default async function ReglagesPage() {
           </Card>
 
           <Card>
-            <CardHead title="Abby (devis signés)" meta={abby.connected ? "Connecté" : "Non connecté"} />
+            <CardHead title="Abby (devis et factures)" meta={abby.connected ? "Connecté" : "Non connecté"} />
             <CleIntegration
               id="abby"
               connected={abby.connected}
               fromEnv={abby.fromEnv}
               label="Clé d'API Abby"
-              help={<>Abby → Paramètres → Intégrations → Créer une clé. Le chef de projet web IA y lit les devis signés pour lancer les projets.</>}
+              help={<>Abby → Paramètres → Intégrations → Créer une clé. Le chef de projet web IA y lit les devis signés pour lancer les projets ; l&apos;accueil et les fiches Contacts y lisent les factures impayées, l&apos;encaissé et les devis signés pas encore facturés.</>}
+            />
+          </Card>
+
+          <Card>
+            <CardHead title="Import des prospects" meta={clesImport.length ? "Clé active" : "Aucune clé"} />
+            <ImportProspects
+              origine={process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}` : "https://app.taochyagency.com"}
+              cles={clesImport.map((c) => ({ id: c.id, name: c.name, prefix: c.prefix, createdAt: c.createdAt.toISOString(), lastUsedAt: c.lastUsedAt ? c.lastUsedAt.toISOString() : null }))}
+              imports={imports}
             />
           </Card>
 
