@@ -10,48 +10,100 @@ export type NavItem = {
   badge?: "validation" | "publier" | "devis";
   /** Une phrase pour le menu « Plus » et la recherche. */
   hint?: string;
+  /** Section du menu « Plus ». */
+  group?: string;
+  /**
+   * Autres adresses qui allument cette entrée. « Contacts » reste allumé sur
+   * le portefeuille et les engagements : ce sont des vues du même espace.
+   */
+  match?: string[];
 };
 
 /*
- * Navigation du pôle social, refondue en novembre 2026.
+ * Navigation du pôle social, revue en novembre 2026 (audit UX).
  *
- * Avant : dix-neuf entrées au même niveau, dont trois écrans de suivi qui se
- * ressemblaient. Maintenant, sur le modèle de Murmura : sept destinations du quotidien en haut, le reste
- * rangé dans « Plus » avec une phrase qui dit à quoi il sert. Aucune route n'a
- * disparu : les anciens liens continuent de fonctionner.
+ * Quatre espaces, chacun avec un rôle :
+ *   - « Aujourd'hui » : quoi faire maintenant ;
+ *   - « Contacts » : tout sur un client (annuaire, fiche, portefeuille,
+ *     engagements du mois) ;
+ *   - les modules métier : travailler sur un type d'objet (contenus,
+ *     validations, messages, chiffres) ;
+ *   - les réglages : la configuration, réservée à la direction.
+ *
+ * Sept destinations du quotidien dans la barre, le reste rangé par thème dans
+ * « Plus ». Aucune route n'a disparu : les anciennes adresses redirigent.
  */
 export const NAV_MAIN: NavItem[] = [
-  { label: "Aujourd'hui", href: "/", icon: "home" },
-  { label: "Contacts", href: "/contacts", icon: "users", hint: "Clients, prospects et Swap'Îles : une fiche par contact" },
-  { label: "Calendrier", href: "/calendrier", icon: "calendar" },
-  { label: "Production", href: "/production", icon: "layers" },
+  { label: "Aujourd'hui", href: "/", icon: "home", hint: "Ce qui attend quelqu'un, ce qui part, la semaine" },
+  {
+    label: "Contacts",
+    href: "/contacts",
+    icon: "users",
+    hint: "Clients, prospects et partenaires : une fiche par contact",
+    match: ["/clients", "/avancement"],
+  },
+  { label: "Calendrier", href: "/calendrier", icon: "calendar", hint: "Les contenus programmés, mois par mois" },
+  { label: "Production", href: "/production", icon: "layers", hint: "Chaque contenu, de l'idée à la publication", match: ["/contenu"] },
+  { label: "À valider", href: "/approbations", icon: "check", badge: "validation", hint: "Contenus en attente de validation" },
   { label: "Réception", href: "/boite", icon: "inbox", hint: "Messages et commentaires de tous les comptes" },
-  { label: "À valider", href: "/approbations", icon: "check", badge: "validation" },
   { label: "Statistiques", href: "/statistiques", icon: "chart", hint: "Audience, publications et meilleurs moments" },
-  { label: "Tournages", href: "/tournages", icon: "camera" },
 ];
 
 export const NAV_MORE: NavItem[] = [
-  // Passée dans « Plus » à l'arrivée de « Contacts » : neuf entrées ne
-  // tiennent plus sur un écran de 1440 px.
-  { label: "Veille", href: "/veille", icon: "eye", hint: "Les concurrents de chaque client et ce qui marche chez eux" },
-  { label: "Jarvis", href: "/jarvis", icon: "sparkles", hint: "Votre directeur marketing IA, à la voix ou à l'écrit" },
-  { label: "Clients", href: "/clients", icon: "users", hint: "Portefeuille : contrats, rythme du mois et accès portail" },
-  { label: "À publier", href: "/a-publier", icon: "send", badge: "publier", hint: "Prêt, daté, pas encore en ligne" },
-  { label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité, ensembles de publicités et budget" },
-  { label: "Bibliothèque", href: "/assets", icon: "image", hint: "Photos et vidéos par client" },
-  { label: "Vidéos du stock", href: "/videos-stock", icon: "camera", hint: "Les Reels montés sur taochyagency.com, à importer et programmer" },
-  { label: "Rapports", href: "/rapports", icon: "chart", hint: "Le rapport mensuel de chaque client" },
-  { label: "Semaine de suivi", href: "/suivi", icon: "list", hint: "Les contenus de la semaine, jour par jour" },
-  { label: "Avancement", href: "/avancement", icon: "gauge", hint: "Livré contre vendu, client par client" },
-  { label: "Cockpit", href: "/cockpit", icon: "gauge", hint: "Engagements triés par urgence" },
-  { label: "Préparer le mois", href: "/preparer", icon: "sparkles", hint: "Créer d'un coup les contenus du mois" },
-  { label: "Devis", href: "/devis", icon: "inbox", badge: "devis", hint: "Demandes arrivées des portails" },
-  { label: "Mes heures", href: "/heures", icon: "clock", hint: "Saisie de la semaine" },
-  { label: "Terrain", href: "/terrain", icon: "phone", hint: "La version téléphone pour les tournages" },
-  { label: "Équipe", href: "/equipe", icon: "users", directionOnly: true, hint: "Accès, rôles et invitations" },
-  { label: "Rentabilité", href: "/rentabilite", icon: "euro", directionOnly: true, hint: "Forfaits, heures et marges" },
-  { label: "Réglages", href: "/reglages", icon: "settings", directionOnly: true, hint: "Metricool, agence, portail, logos" },
+  { group: "Contenus", label: "À publier", href: "/a-publier", icon: "send", badge: "publier", hint: "Prêt, daté, pas encore en ligne" },
+  { group: "Contenus", label: "Suivi de la semaine", href: "/suivi", icon: "list", hint: "Les contenus de la semaine, jour par jour" },
+  { group: "Contenus", label: "Préparer le mois", href: "/preparer", icon: "sparkles", hint: "Créer d'un coup les contenus du mois" },
+  { group: "Contenus", label: "Tournages", href: "/tournages", icon: "camera", hint: "Le planning des tournages" },
+  { group: "Contenus", label: "Bibliothèque", href: "/assets", icon: "image", hint: "Photos et vidéos par client" },
+  { group: "Contenus", label: "Vidéos du stock", href: "/videos-stock", icon: "camera", hint: "Les Reels montés sur taochyagency.com, à importer" },
+  { group: "Suivi client", label: "Rapports", href: "/rapports", icon: "chart", hint: "Le rapport mensuel de chaque client" },
+  { group: "Suivi client", label: "Campagnes", href: "/ads", icon: "megaphone", hint: "Publicité, ensembles de publicités et budget" },
+  { group: "Suivi client", label: "Devis", href: "/devis", icon: "inbox", badge: "devis", hint: "Demandes arrivées des portails" },
+  { group: "Suivi client", label: "Veille", href: "/veille", icon: "eye", hint: "Les concurrents de chaque client et ce qui marche chez eux" },
+  { group: "Outils", label: "Jarvis", href: "/jarvis", icon: "sparkles", hint: "Votre directeur marketing IA, à la voix ou à l'écrit" },
+  { group: "Outils", label: "Terrain", href: "/terrain", icon: "phone", hint: "La version téléphone pour les tournages" },
+  { group: "Outils", label: "Mes heures", href: "/heures", icon: "clock", hint: "Saisie de la semaine" },
+  { group: "Direction", label: "Rentabilité", href: "/rentabilite", icon: "euro", directionOnly: true, hint: "Forfaits, heures et marges" },
+  { group: "Direction", label: "Équipe", href: "/equipe", icon: "users", directionOnly: true, hint: "Accès, rôles et invitations" },
+  { group: "Direction", label: "Réglages", href: "/reglages", icon: "settings", directionOnly: true, hint: "Metricool, Gmail, Abby, agence, portail" },
+];
+
+/**
+ * Les vues de l'espace « Contacts », en onglets en haut de ces écrans. Elles
+ * ne sont pas dans la barre (Contacts y est déjà) mais restent trouvables par
+ * la recherche.
+ */
+export const NAV_CONTACTS: (NavItem & { pole?: "social" })[] = [
+  { label: "Annuaire", href: "/contacts", icon: "users", hint: "Clients, prospects et partenaires" },
+  { label: "Portefeuille", href: "/clients", icon: "layers", hint: "Les clients sous contrat, et en ajouter un" },
+  { label: "Engagements du mois", href: "/avancement", icon: "gauge", hint: "Publié contre vendu, client par client", pole: "social" },
+];
+
+/**
+ * Les écrans de liste qui suivent le sélecteur de client (en haut à droite).
+ * Ailleurs, le sélecteur n'est pas affiché : l'accueil, les contacts et le
+ * portefeuille montrent toujours toute l'agence.
+ */
+export const ROUTES_FILTRABLES = [
+  "/calendrier",
+  "/production",
+  "/approbations",
+  "/boite",
+  "/statistiques",
+  "/a-publier",
+  "/suivi",
+  "/preparer",
+  "/tournages",
+  "/assets",
+  "/veille",
+  "/rapports",
+  "/ads",
+  "/devis",
+  "/heures",
+  "/rentabilite",
+  "/contenu",
+  "/web",
+  "/web/briefs",
 ];
 
 /** Tout le pôle social, pour la recherche et le menu mobile. */

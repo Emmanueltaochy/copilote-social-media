@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -28,15 +27,13 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <PageHeader
+        back={{ href: "/web/briefs", label: "Briefs" }}
         title={row.brief.title}
         sub={`${row.clientName}${row.projectName ? ` · ${row.projectName}` : ""} · ${remplis}/${champs.length} réponses`}
       >
         <StatusPill tone={BRIEF_STATUS[row.brief.status].tone}>
           {BRIEF_STATUS[row.brief.status].label}
         </StatusPill>
-        <Link href="/web/briefs" className="text-small">
-          ← Tous les briefs
-        </Link>
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
@@ -51,7 +48,7 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
             </p>
             {manquants > 0 ? (
               <p className="text-small text-warn">
-                {manquants} question{manquants > 1 ? "s" : ""} obligatoire{manquants > 1 ? "s" : ""}{""}
+                {manquants} question{manquants > 1 ? "s" : ""} obligatoire{manquants > 1 ? "s" : ""}{" "}
                 sans réponse. Le brief passera en « complet » tout seul quand elles seront remplies.
               </p>
             ) : (

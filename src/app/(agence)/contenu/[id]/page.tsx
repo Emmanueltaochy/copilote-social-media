@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -83,6 +82,7 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
   return (
     <>
       <PageHeader
+        back={{ href: "/production", label: "Production" }}
         title={content.title}
         sub={`${client.shortName} · ${CONTENT_KIND[content.kind] ?? content.kind} · ${networksLabel(content)} · ${
           content.scheduledAt
@@ -420,7 +420,6 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             ))}
           </Card>
 
-          <Link href="/production" className="text-base">← Pipeline</Link>
           <span className="text-small text-ink-3">
             Propriétaire : {ownerName ?? "non assigné"}
           </span>

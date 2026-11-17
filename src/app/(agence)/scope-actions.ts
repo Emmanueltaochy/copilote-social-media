@@ -8,6 +8,10 @@ import { SCOPE_COOKIE } from "@/lib/scope";
 export async function choisirClient(clientId: string | null): Promise<void> {
   await requireStaff();
   const jar = await cookies();
-  if (clientId) jar.set(SCOPE_COOKIE, clientId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
+  // Cookie de session, sans durée : le filtre tient le temps du travail sur
+  // un client, puis s'efface à la fermeture du navigateur. Gardé un an, il
+  // faisait ouvrir le calendrier ou la production du lendemain sur un seul
+  // client sans qu'on s'en souvienne.
+  if (clientId) jar.set(SCOPE_COOKIE, clientId, { path: "/", sameSite: "lax", httpOnly: true });
   else jar.delete(SCOPE_COOKIE);
 }

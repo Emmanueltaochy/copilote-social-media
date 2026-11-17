@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
@@ -63,18 +62,13 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <PageHeader
+        back={{ href: "/tournages", label: "Tournages" }}
         title={shoot.title}
         sub={`${client.shortName} · ${slotLabel(shoot.startsAt, shoot.endsAt)}${
           shoot.place ? ` · ${shoot.place}` : ""
         }`}
       >
         <StatusPill tone={status.tone}>{status.label}</StatusPill>
-        <Link
-          href="/tournages"
-          className="rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
-        >
-          Retour au planning
-        </Link>
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
@@ -93,7 +87,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               <>
                 <Eyebrow tone="warn">Avant le départ</Eyebrow>
                 <p className="mt-1 text-lead text-warn">
-                  {state.blocking.length} point{state.blocking.length > 1 ? "s" : ""} à traiter :{""}
+                  {state.blocking.length} point{state.blocking.length > 1 ? "s" : ""} à traiter :{" "}
                   {state.blocking.join(",")}.
                 </p>
               </>

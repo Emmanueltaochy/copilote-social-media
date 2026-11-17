@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { ScopeNotice } from "./ScopeNotice";
@@ -11,12 +12,19 @@ export function PageHeader({
   sub,
   children,
   scope,
+  back,
 }: {
   title: string;
   sub: string;
   children?: ReactNode;
   /** Nom du client filtré (sélecteur en haut à droite), s'il y en a un. */
   scope?: string | null;
+  /**
+   * Le chemin du retour, au-dessus du titre, au même endroit sur toutes les
+   * fiches (contact, contenu, projet, tournage…), plutôt qu'en bas de page ou
+   * parmi les boutons d'action.
+   */
+  back?: { href: string; label: string };
 }) {
   return (
     // Sur mobile l'action passe sous le titre plutôt que de le comprimer :
@@ -24,6 +32,14 @@ export function PageHeader({
     // personne à savoir où il est.
     <header className="flex flex-none flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pt-1 pb-5 lg:flex-nowrap lg:px-7">
       <div className="flex min-w-0 flex-col gap-1">
+        {back ? (
+          <Link
+            href={back.href}
+            className="-ml-1 flex min-h-8 w-fit items-center gap-1 rounded-full px-1 text-base text-ink-3 no-underline hover:text-ink hover:no-underline print:hidden"
+          >
+            <span aria-hidden>←</span> {back.label}
+          </Link>
+        ) : null}
         <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">{title}</h1>
         <span className="text-base text-ink-3 tabular-nums">{sub}</span>
         <ScopeNotice name={scope} />

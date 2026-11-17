@@ -46,13 +46,10 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <PageHeader
+        back={{ href: "/web", label: "Projets web" }}
         title={p.name}
         sub={`${row.clientName} · ${PROJECT_TYPE[p.type]?.label ?? p.type} · ${faits}/${jalons.length} jalons`}
-      >
-        <Link href="/web" className="text-small">
-          ← Tous les projets
-        </Link>
-      </PageHeader>
+      />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1100px] flex-col gap-4">
@@ -348,7 +345,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ id: str
 
           <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
             <span className="text-small text-ink-2">
-              Le client suit ce projet depuis son portail :{""}
+              Le client suit ce projet depuis son portail :{" "}
               {jalons.filter((j) => j.clientVisible).length} jalon
               {jalons.filter((j) => j.clientVisible).length > 1 ? "s" : ""} visible
               {jalons.filter((j) => j.clientVisible).length > 1 ? "s" : ""}.

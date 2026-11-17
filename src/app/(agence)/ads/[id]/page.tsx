@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
@@ -74,18 +73,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   return (
     <>
       <PageHeader
+        back={{ href: "/ads", label: "Campagnes" }}
         title={campaign.name}
         sub={`${client.shortName} · ${campaign.platform}${
           campaign.budgetCents > 0 ? ` · ${euroFromCents(campaign.budgetCents)} par mois` : ""
         }`}
       >
         <StatusPill tone={status.tone}>{status.label}</StatusPill>
-        <Link
-          href="/ads"
-          className="rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
-        >
-          Retour aux campagnes
-        </Link>
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
@@ -165,7 +159,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               <div className="flex flex-col gap-[2px]">
                 <span className="eyebrow text-ink-3">Coût par lead</span>
                 <span className="text-lead tabular-nums">
-                  {money(lastD.cplCents)}{""}
+                  {money(lastD.cplCents)}{" "}
                   {cplTrend ? (
                     <span className={`text-base ${toneText[cplTrend.tone]}`}>{cplTrend.label}</span>
                   ) : null}
@@ -174,7 +168,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               <div className="flex flex-col gap-[2px]">
                 <span className="eyebrow text-ink-3">Retour sur dépense</span>
                 <span className="text-lead tabular-nums">
-                  {times(lastD.roas)}{""}
+                  {times(lastD.roas)}{" "}
                   {roasTrend ? (
                     <span className={`text-base ${toneText[roasTrend.tone]}`}>{roasTrend.label}</span>
                   ) : null}

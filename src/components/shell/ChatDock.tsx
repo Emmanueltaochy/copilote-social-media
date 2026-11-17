@@ -171,7 +171,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
         // Sur téléphone, la conversation prend l'écran : un panneau de 360 px
         // flottant dans un écran de 390 laisse des marges qui ne servent à
         // rien et rogne la seule chose qu'on regarde, le texte.
-        <div className="fixed inset-x-3 bottom-[80px] z-50 flex h-[min(560px,calc(100dvh-140px))] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_12px_32px_rgba(18,18,18,0.18)] sm:inset-x-auto sm:right-5 sm:bottom-[84px] sm:h-[520px] sm:max-h-[calc(100dvh-120px)] sm:w-[360px]">
+        <div className="fixed inset-x-3 bottom-[calc(140px+env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-140px))] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_12px_32px_rgba(18,18,18,0.18)] sm:inset-x-auto sm:right-5 lg:bottom-[84px] sm:h-[520px] sm:max-h-[calc(100dvh-120px)] sm:w-[360px]">
           <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-[10px]">
             {current ? (
               <button
@@ -354,7 +354,7 @@ export function ChatDock({ initialUnread, me }: { initialUnread: number; me: str
         aria-label={
           affiché > 0 ? `Messagerie, ${affiché} messages non lus` : "Ouvrir la messagerie"
         }
-        className="fixed right-5 bottom-5 z-50 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-night bg-night text-white shadow-[0_6px_18px_rgba(18,18,18,0.28)] hover:opacity-85"
+        className="fixed right-4 bottom-[calc(72px+env(safe-area-inset-bottom))] z-50 flex h-12 w-12 lg:right-5 lg:bottom-5 cursor-pointer items-center justify-center rounded-full border border-night bg-night text-white shadow-[0_6px_18px_rgba(18,18,18,0.28)] hover:opacity-85"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path

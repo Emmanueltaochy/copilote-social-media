@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
@@ -55,17 +54,11 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <PageHeader title={`Rapport · ${client.shortName}`} sub={`${monthLabel()} · ${monthProgressLabel()}`}>
+      <PageHeader back={{ href: "/rapports", label: "Rapports" }} title={`Rapport · ${client.shortName}`} sub={`${monthLabel()} · ${monthProgressLabel()}`}>
         <PrintButton />
         <span className="print:hidden">
           <SendByEmail kind="rapport" id={client.id} label="Envoyer au client" />
         </span>
-        <Link
-          href="/rapports"
-          className="print:hidden rounded-full border border-line bg-paper px-[11px] py-[7px] text-small font-medium text-ink-2 no-underline hover:border-line-strong hover:text-ink hover:no-underline"
-        >
-          Retour
-        </Link>
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7 print:overflow-visible print:p-0">

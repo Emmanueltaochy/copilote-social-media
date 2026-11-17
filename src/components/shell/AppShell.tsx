@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { choisirClient } from "@/app/(agence)/scope-actions";
-import { NAV_MAIN, NAV_MORE, type NavItem } from "@/data/nav";
+import { NAV_CONTACTS, NAV_MAIN, NAV_MORE, ROUTES_FILTRABLES, type NavItem } from "@/data/nav";
 import { NAV_WEB_MAIN, NAV_WEB_MORE } from "@/data/nav-web";
 import { changerDePole } from "@/app/(agence)/pole-actions";
 import { logout } from "@/app/connexion/actions";
@@ -43,6 +43,28 @@ function useMenus(counts: ShellCounts) {
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
+}
+
+/** Une entrée de menu est allumée sur son adresse et sur celles qu'elle couvre. */
+function itemActive(pathname: string, i: NavItem) {
+  return isActive(pathname, i.href) || (i.match ?? []).some((m) => isActive(pathname, m));
+}
+
+/** Le sélecteur de client n'apparaît que là où il change quelque chose. */
+function filtrable(pathname: string) {
+  return ROUTES_FILTRABLES.includes(pathname);
+}
+
+/** Regroupe les entrées par section, dans l'ordre où elles apparaissent. */
+function parGroupe(items: NavItem[]) {
+  const groupes: { titre: string; items: NavItem[] }[] = [];
+  for (const i of items) {
+    const titre = i.group ?? "";
+    const g = groupes.find((x) => x.titre === titre);
+    if (g) g.items.push(i);
+    else groupes.push({ titre, items: [i] });
+  }
+  return groupes;
 }
 
 /** Ferme un menu au clic extérieur et à Échap. */
@@ -90,9 +112,13 @@ const roundBtn =
 /* -------------------------------------------------------------- en-tête ---- */
 
 function Logo() {
+  // L'accueil du pôle web est son tableau de projets : « / » y renverrait de
+  // toute façon, après un détour.
+  const { user } = useApp();
   return (
     <Link
-      href="/"
+      href={user.pole === "web" ? "/web" : "/"}
+      aria-label="Accueil"
       className="flex flex-none items-center gap-[10px] text-ink no-underline hover:no-underline"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-night text-white">
@@ -129,7 +155,9 @@ function MoreMenu({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
-  const active = items.some((i) => isActive(pathname, i.href));
+  // Sur la page même d'une entrée de la barre principale (Contacts sur
+  // /clients…), « Plus » ne s'allume pas en même temps.
+  const active = items.some((i) => itemActive(pathname, i));
   const total = items.reduce((s, i) => s + badge(i), 0);
   return (
     <div ref={ref} className="relative">
@@ -140,21 +168,25 @@ function MoreMenu({
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-full border-none px-4 py-[9px] text-base font-medium",
           active
-            ? "bg-night text-white"
+            ? "bg-ink text-paper"
             : "bg-transparent text-ink-2 hover:text-ink",
         )}
       >
         Plus <Badge n={total} /> <Icon name="chevronDown" size={15} />
       </button>
       {open ? (
-        <div className="absolute top-[calc(100%+10px)] right-0 z-50 grid w-[520px] max-w-[calc(100vw-32px)] grid-cols-2 gap-1 rounded-card border border-line bg-paper p-2 shadow-soft">
-          {items.map((i) => (
+        <div className="absolute top-[calc(100%+10px)] right-0 z-50 flex max-h-[calc(100dvh-110px)] w-[600px] max-w-[calc(100vw-32px)] flex-col gap-2 overflow-auto rounded-card border border-line bg-paper p-2 shadow-soft">
+          {parGroupe(items).map((g) => (
+            <div key={g.titre} className="flex flex-col">
+              {g.titre ? <span className="eyebrow px-3 pt-2 pb-1 text-ink-3">{g.titre}</span> : null}
+              <div className="grid grid-cols-2 gap-1">
+          {g.items.map((i) => (
             <Link
               key={i.href}
               href={i.href}
               onClick={() => setOpen(false)}
               className={cn(
-                "flex items-start gap-3 rounded-[14px] px-3 py-[10px] text-ink no-underline hover:bg-mute hover:no-underline",
+                "flex items-start gap-3 rounded-[14px] px-3 py-[8px] text-ink no-underline hover:bg-mute hover:no-underline",
                 isActive(pathname, i.href) && "bg-mute",
               )}
             >
@@ -166,10 +198,13 @@ function MoreMenu({
                   {i.label} <Badge n={badge(i)} />
                 </span>
                 {i.hint ? (
-                  <span className="text-small text-ink-3">{i.hint}</span>
+                  <span className="text-small leading-snug text-ink-3">{i.hint}</span>
                 ) : null}
               </span>
             </Link>
+          ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : null}
@@ -177,7 +212,7 @@ function MoreMenu({
   );
 }
 
-function ScopePicker() {
+function ScopePicker({ large = false }: { large?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();
@@ -207,23 +242,28 @@ function ScopePicker() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 max-w-[220px] cursor-pointer items-center gap-2 rounded-full border border-line bg-paper py-1 pr-3 pl-1 text-base font-medium text-ink shadow-soft hover:border-line-strong"
+        aria-label="Filtrer par client"
+        title="Filtrer cet écran sur un client"
+        className={cn(
+          "flex h-10 cursor-pointer items-center gap-2 rounded-full border border-line bg-paper py-1 pr-3 pl-1 text-base font-medium text-ink shadow-soft hover:border-line-strong",
+          large ? "h-11 w-full" : "max-w-[220px]",
+        )}
       >
         <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-night text-white">
           <Icon name="layers" size={15} />
         </span>
-        <span className="clip">{affiché}</span>
+        <span className="clip flex-1 text-left">{affiché}</span>
         <Icon name="chevronDown" size={15} className="flex-none text-ink-3" />
       </button>
       {open ? (
-        <div className="absolute top-[calc(100%+8px)] right-0 z-50 max-h-[380px] w-[280px] overflow-auto rounded-card border border-line bg-paper p-2 shadow-soft">
+        <div className={cn("absolute top-[calc(100%+8px)] z-50 max-h-[380px] w-[280px] max-w-[calc(100vw-32px)] overflow-auto rounded-card border border-line bg-paper p-2 shadow-soft", large ? "left-0" : "right-0")}>
           <button
             type="button"
             onClick={() => choisir(null)}
             className={cn(
               "w-full cursor-pointer rounded-[12px] border-none px-3 py-2 text-left text-base font-semibold",
               affiché === ALL_CLIENTS
-                ? "bg-night text-white"
+                ? "bg-ink text-paper"
                 : "bg-transparent text-ink hover:bg-mute",
             )}
           >
@@ -360,10 +400,11 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const items = useMemo(() => {
     const allowed = (i: NavItem) =>
       !i.directionOnly || user.role === "direction";
+    const web = user.pole === "web";
     const pages = (
-      user.pole === "web"
-        ? [...NAV_WEB_MAIN, ...NAV_WEB_MORE]
-        : [...NAV_MAIN, ...NAV_MORE]
+      web
+        ? [...NAV_WEB_MAIN, ...NAV_WEB_MORE, ...NAV_CONTACTS.filter((i) => i.href !== "/contacts" && !i.pole)]
+        : [...NAV_MAIN, ...NAV_MORE, ...NAV_CONTACTS.filter((i) => i.href !== "/contacts")]
     )
       .filter(allowed)
       .map((i) => ({
@@ -374,13 +415,19 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         go: () => router.push(i.href),
       }));
     const actions = [
-      {
-        key: "a-new",
-        label: "Nouveau contenu",
-        sub: "Créer un contenu",
-        icon: "plus" as const,
-        go: () => router.push("/contenu"),
-      },
+      // Créer un contenu est un geste du pôle social : côté web, l'adresse
+      // renverrait au tableau des projets sans rien créer.
+      ...(web
+        ? []
+        : [
+            {
+              key: "a-new",
+              label: "Nouveau contenu",
+              sub: "Créer un contenu",
+              icon: "plus" as const,
+              go: () => router.push("/contenu"),
+            },
+          ]),
       {
         key: "a-compte",
         label: "Mon compte",
@@ -394,7 +441,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
       label: c.name,
       sub: "Fiche client",
       icon: "users" as const,
-      go: () => router.push(`/clients/${c.id}`),
+      go: () => router.push(`/contacts/${c.id}`),
     }));
     const all = [...actions, ...pages, ...cl];
     const n = q
@@ -504,8 +551,8 @@ function MobileDrawer({ counts }: { counts: ShellCounts }) {
       href={i.href}
       onClick={() => setNavOpen(false)}
       className={cn(
-        "flex items-center gap-3 rounded-[14px] px-3 py-[11px] text-lead text-ink no-underline hover:no-underline",
-        isActive(pathname, i.href) ? "bg-night text-white" : "hover:bg-mute",
+        "flex min-h-11 items-center gap-3 rounded-[14px] px-3 py-[10px] text-lead text-ink no-underline hover:no-underline",
+        itemActive(pathname, i) ? "bg-ink text-paper" : "hover:bg-mute",
       )}
     >
       <Icon name={i.icon ?? "grid"} size={18} />
@@ -533,14 +580,75 @@ function MobileDrawer({ counts }: { counts: ShellCounts }) {
             <Icon name="close" />
           </button>
         </div>
+        {/* Le filtre client n'a pas de place dans l'en-tête d'un téléphone :
+            il vit ici, sur les écrans où il agit. */}
+        {filtrable(pathname) ? <ScopePicker large /> : null}
         <nav className="flex flex-col gap-1">{main.map(row)}</nav>
-        <div className="h-px bg-line" />
-        <nav className="flex flex-col gap-1">{more.map(row)}</nav>
+        {parGroupe(more).map((g) => (
+          <nav key={g.titre} className="flex flex-col gap-1 border-t border-line pt-2">
+            {g.titre ? <span className="eyebrow px-3 pb-1 text-ink-3">{g.titre}</span> : null}
+            {g.items.map(row)}
+          </nav>
+        ))}
         <div className="mt-auto pt-2">
           <ThemeChoices />
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * La barre du bas, sur téléphone : les quatre destinations du quotidien et le
+ * menu complet, à portée de pouce. Elle ne flotte pas sur le contenu : c'est
+ * la dernière ligne de la coquille, sous la colonne qui défile.
+ */
+function BottomBar({ counts }: { counts: ShellCounts }) {
+  const pathname = usePathname();
+  const { user, setNavOpen } = useApp();
+  const { main, badge } = useMenus(counts);
+  const garder = user.pole === "web" ? ["/web", "/web/briefs", "/contacts", "/devis"] : ["/", "/contacts", "/calendrier", "/approbations"];
+  const items = garder.map((h) => main.find((i) => i.href === h)).filter((i): i is NavItem => Boolean(i));
+  return (
+    <nav
+      aria-label="Navigation principale"
+      className="flex flex-none items-stretch justify-around border-t border-line bg-paper px-1 pb-[env(safe-area-inset-bottom)] lg:hidden"
+    >
+      {items.map((i) => {
+        const actif = itemActive(pathname, i) && !(i.href === "/web" && pathname.startsWith("/web/briefs"));
+        return (
+          <Link
+            key={i.href}
+            href={i.href}
+            aria-current={actif ? "page" : undefined}
+            className={cn(
+              "relative flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[2px] text-micro font-medium no-underline hover:no-underline",
+              actif ? "text-ink" : "text-ink-3",
+            )}
+          >
+            <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", actif && "bg-ink text-paper")}>
+              <Icon name={i.icon ?? "grid"} size={18} />
+            </span>
+            <span className="clip max-w-full px-1">{i.label}</span>
+            {badge(i) ? (
+              <span className="absolute top-1 left-[calc(50%+8px)]">
+                <Badge n={badge(i)} />
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => setNavOpen(true)}
+        className="flex min-h-14 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-[2px] border-none bg-transparent text-micro font-medium text-ink-3"
+      >
+        <span className="flex h-7 w-12 items-center justify-center rounded-full">
+          <Icon name="menu" size={18} />
+        </span>
+        Menu
+      </button>
+    </nav>
   );
 }
 
@@ -558,7 +666,7 @@ export function AppShell({
   counts: ShellCounts;
 }) {
   const pathname = usePathname();
-  const { setNavOpen } = useApp();
+  const { setNavOpen, user } = useApp();
   const { main, more, badge } = useMenus(counts);
   const [search, setSearch] = useState(false);
 
@@ -594,7 +702,7 @@ export function AppShell({
         <div className="mx-auto hidden min-w-0 items-center gap-1 lg:flex">
           <nav className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-full [scrollbar-width:none]">
             {main.map((i) => {
-              const active = isActive(pathname, i.href);
+              const active = itemActive(pathname, i);
               return (
                 <Link
                   key={i.href}
@@ -602,7 +710,7 @@ export function AppShell({
                   className={cn(
                     "flex flex-none items-center gap-2 rounded-full px-[9px] py-[9px] text-base font-medium no-underline hover:no-underline 2xl:px-4",
                     active
-                      ? "bg-night text-white"
+                      ? "bg-ink text-paper"
                       : "text-ink-2 hover:text-ink",
                   )}
                 >
@@ -623,9 +731,11 @@ export function AppShell({
           >
             <Icon name="search" />
           </button>
-          <span className="hidden md:block">
-            <ScopePicker />
-          </span>
+          {filtrable(pathname) ? (
+            <span className="hidden lg:block">
+              <ScopePicker />
+            </span>
+          ) : null}
           <span className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-paper text-ink shadow-soft">
             <Bell notices={notices} unreadCount={unreadCount} />
           </span>
@@ -634,7 +744,10 @@ export function AppShell({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Rail d'actions rapides, façon Murmura. */}
+        {/* Rail d'actions rapides : des gestes, pas une seconde navigation.
+            Il ne répète pas la barre du haut, et ne montre que ce que le pôle
+            affiché peut faire (côté web, « Nouveau contenu » ou « À publier »
+            renverraient au tableau des projets sans rien faire). */}
         <aside className="hidden flex-none flex-col items-center gap-1 self-start rounded-full bg-night px-[6px] py-3 lg:ml-5 lg:flex">
           <button
             type="button"
@@ -645,69 +758,42 @@ export function AppShell({
           >
             <Icon name="search" />
           </button>
-          <Link
-            href="/contenu"
-            title="Nouveau contenu"
-            aria-label="Nouveau contenu"
-            className="my-1 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-ink no-underline hover:no-underline hover:brightness-105"
-          >
-            <Icon name="plus" strokeWidth={2.2} />
-          </Link>
+          {user.pole !== "web" ? (
+            <Link
+              href="/contenu"
+              title="Nouveau contenu"
+              aria-label="Nouveau contenu"
+              className="my-1 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-ink no-underline hover:no-underline hover:brightness-105"
+            >
+              <Icon name="plus" strokeWidth={2.2} />
+            </Link>
+          ) : null}
           <Link href="/jarvis" title="Jarvis — assistant IA" aria-label="Jarvis" className={cn(railBtn, "text-accent")}>
             <Icon name="sparkles" />
           </Link>
-          <Link
-            href="/a-publier"
-            title="À publier"
-            aria-label="À publier"
-            className={cn(railBtn, "relative")}
-          >
-            <Icon name="clock" />
-            {counts.publier ? (
-              <span className="absolute top-[9px] right-[9px] h-2 w-2 rounded-full bg-alert ring-2 ring-night" />
-            ) : null}
-          </Link>
-          <Link
-            href="/clients"
-            title="Clients"
-            aria-label="Clients"
-            className={railBtn}
-          >
-            <Icon name="users" />
-          </Link>
-          <Link
-            href="/ads"
-            title="Campagnes"
-            aria-label="Campagnes"
-            className={railBtn}
-          >
-            <Icon name="megaphone" />
-          </Link>
-          <Link
-            href="/assets"
-            title="Bibliothèque"
-            aria-label="Bibliothèque"
-            className={railBtn}
-          >
-            <Icon name="image" />
-          </Link>
-          <span className="my-1 h-px w-6 bg-night-line" />
-          <Link
-            href="/terrain"
-            title="Terrain (téléphone)"
-            aria-label="Terrain"
-            className={railBtn}
-          >
-            <Icon name="phone" />
-          </Link>
-          <Link
-            href="/compte"
-            title="Mon compte"
-            aria-label="Mon compte"
-            className={railBtn}
-          >
-            <Icon name="settings" />
-          </Link>
+          {user.pole !== "web" ? (
+            <>
+              <Link
+                href="/a-publier"
+                title="À publier"
+                aria-label="À publier"
+                className={cn(railBtn, "relative")}
+              >
+                <Icon name="send" />
+                {counts.publier ? (
+                  <span className="absolute top-[9px] right-[9px] h-2 w-2 rounded-full bg-alert ring-2 ring-night" />
+                ) : null}
+              </Link>
+              <Link
+                href="/terrain"
+                title="Terrain (téléphone)"
+                aria-label="Terrain"
+                className={railBtn}
+              >
+                <Icon name="phone" />
+              </Link>
+            </>
+          ) : null}
           <span className="my-1 h-px w-6 bg-night-line" />
           <ThemeButton className={railBtn} />
         </aside>
@@ -717,6 +803,7 @@ export function AppShell({
         </main>
       </div>
 
+      <BottomBar counts={counts} />
       <MobileDrawer counts={counts} />
       {search ? <CommandPalette onClose={() => setSearch(false)} /> : null}
     </div>
