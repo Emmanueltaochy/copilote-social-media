@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import type { IconName } from "@/components/ui/Icon";
+import { CONTENT_STATUS } from "@/data/content";
 
 /* Petites pièces de l'accueil, partagées par ses cartes. */
 
@@ -99,13 +100,13 @@ export function Panel({
         <span className="flex items-center gap-2">
           {right}
           {action ? (
+            // Le lien dit où il mène : une flèche seule ne le disait pas, et
+            // sa cible de 36 px était trop petite au doigt.
             <Link
               href={action.href}
-              title={action.label}
-              aria-label={action.label}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink no-underline hover:border-line-strong hover:no-underline"
+              className="flex min-h-11 items-center gap-1 rounded-full border border-line px-3 text-small font-medium text-ink no-underline hover:border-line-strong hover:no-underline lg:min-h-9"
             >
-              <Icon name={action.icon ?? "arrowUpRight"} size={16} />
+              {action.label} <span aria-hidden>→</span>
             </Link>
           ) : null}
         </span>
@@ -115,25 +116,43 @@ export function Panel({
   );
 }
 
-const STATUS_PILL: Record<string, { label: string; dot: string }> = {
-  idee: { label: "Idée", dot: "bg-ink-3" },
-  brief: { label: "Brief", dot: "bg-ink-3" },
-  tournage: { label: "Tournage", dot: "bg-ink-2" },
-  derush: { label: "Dérush", dot: "bg-ink-2" },
-  creation: { label: "En création", dot: "bg-ink-2" },
-  revision: { label: "Révision", dot: "bg-warn" },
-  validation: { label: "En validation", dot: "bg-accent" },
-  pret: { label: "Prêt", dot: "bg-info" },
-  publie: { label: "Publié", dot: "bg-ok" },
-  manque: { label: "Non publié", dot: "bg-alert" },
+/*
+ * Le statut d'un contenu, en pastille. Un seul vocabulaire côté agence : celui
+ * de CONTENT_STATUS (production, fiche, calendrier…) — « Validation client »,
+ * « Prêt à publier » partout, plus « En validation » ici et « Validation
+ * client » là. Côté portail, le client lit les mots de son calendrier
+ * (portail/calendrier/statut.ts) : tout ce qui se fabrique encore est « en
+ * préparation », sans le jargon du pipeline (brief, dérush, révision).
+ */
+const STATUS_DOT: Record<string, string> = {
+  idee: "bg-ink-3",
+  brief: "bg-ink-3",
+  tournage: "bg-ink-2",
+  derush: "bg-ink-2",
+  creation: "bg-ink-2",
+  revision: "bg-warn",
+  validation: "bg-accent",
+  pret: "bg-info",
+  publie: "bg-ok",
+  manque: "bg-alert",
 };
 
-export function StatusTag({ status, className }: { status: string; className?: string }) {
-  const s = STATUS_PILL[status] ?? { label: status, dot: "bg-ink-3" };
+const STATUT_PORTAIL: Record<string, string> = {
+  validation: "À valider",
+  pret: "Validé",
+  publie: "Publié",
+  manque: "Non publié",
+};
+
+export function StatusTag({ status, className, portail = false }: { status: string; className?: string; portail?: boolean }) {
+  const label = portail
+    ? (STATUT_PORTAIL[status] ?? "En préparation")
+    : (CONTENT_STATUS[status as keyof typeof CONTENT_STATUS]?.label ?? status);
+  const dot = portail && !STATUT_PORTAIL[status] ? "bg-ink-3" : (STATUS_DOT[status] ?? "bg-ink-3");
   return (
     <span className={cn("inline-flex items-center gap-[6px] rounded-full bg-mute px-[9px] py-[3px] text-small font-medium whitespace-nowrap text-ink", className)}>
-      <span className={cn("h-[7px] w-[7px] rounded-full", s.dot)} />
-      {s.label}
+      <span className={cn("h-[7px] w-[7px] rounded-full", dot)} />
+      {label}
     </span>
   );
 }

@@ -108,8 +108,8 @@ export default async function AssetsPage({
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader scope={cookieScoped ? clients.find((c) => c.id === selected)?.name : null} title="Bibliothèque d'assets" sub="Aucun média" />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader scope={cookieScoped ? clients.find((c) => c.id === selected)?.name : null} title="Bibliothèque" sub="Aucun média" />
+        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Un média se rattache à un client : c&apos;est ce qui permet de savoir à qui il appartient
           et de le montrer dans son portail.
         </EmptyState>
@@ -125,7 +125,7 @@ export default async function AssetsPage({
   return (
     <>
       <PageHeader scope={cookieScoped ? clients.find((c) => c.id === selected)?.name : null}
-        title="Bibliothèque d'assets"
+        title="Bibliothèque"
         sub={
           `${selectedName ? `${selectedName} · ` : ""}` +
           `${rows.length} média${rows.length > 1 ? "s" : ""} · ${watch} avec des droits à surveiller`
@@ -157,7 +157,7 @@ export default async function AssetsPage({
               pour l&apos;affichage seulement. Les autres formats (HEIC, TIFF, WebP) sont convertis en
               JPEG pleine définition.
               Les fichiers bruts de boîtier (CR2, CR3, NEF, ARW) ne sont pas lisibles :
-              exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{""}
+              exporte-les en JPEG ou TIFF. Les vidéos sont gardées telles quelles, jusqu&apos;à{" "}
               {formatBytes(MAX_VIDEO_BYTES)} — <strong>les rushes de tournage n&apos;ont pas leur
               place ici</strong>, seulement les médias livrés et réutilisables.
             </p>
@@ -166,7 +166,7 @@ export default async function AssetsPage({
                 qu'un disque à 60 % sur une petite machine peut déjà bloquer. */}
             {disk && disk.freeBytes < WARN_FREE_BYTES ? (
               <p className="rounded-control border border-warn bg-warn-bg px-3 py-2 text-base text-warn">
-                Il ne reste que {formatBytes(disk.freeBytes)} sur le serveur. En dessous de{""}
+                Il ne reste que {formatBytes(disk.freeBytes)} sur le serveur. En dessous de{" "}
                 {formatBytes(MIN_FREE_BYTES)}, l&apos;import sera refusé : un disque plein arrête
                 aussi la base de données. Supprime des médias devenus inutiles.
               </p>

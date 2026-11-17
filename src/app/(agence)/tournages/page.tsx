@@ -35,8 +35,8 @@ export default async function TournagesPage() {
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Planning tournages" sub={monthLabel()} />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader scope={scope?.shortName} title="Tournages" sub={monthLabel()} />
+        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Un tournage se rattache à un client : c&apos;est ce qui permet de le compter dans son
           engagement et de retrouver les médias qui en sortent.
         </EmptyState>
@@ -53,7 +53,7 @@ export default async function TournagesPage() {
   return (
     <>
       <PageHeader scope={scope?.shortName}
-        title="Planning tournages"
+        title="Tournages"
         sub={
           actifs.length === 0
             ? `${monthLabel()} · aucun tournage en cours`
@@ -140,7 +140,7 @@ export default async function TournagesPage() {
                           </span>
 
                           <span className="text-micro text-ink-3 tabular-nums">
-                            {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""} ·{""}
+                            {r.shotsDone}/{r.shots} plan{r.shots > 1 ? "s" : ""} ·{" "}
                             {r.crew} personne{r.crew > 1 ? "s" : ""} · {r.gearReserved}/
                             {r.gearTotal} matériel
                           </span>

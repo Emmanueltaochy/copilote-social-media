@@ -59,8 +59,8 @@ export default async function CalendrierPage({
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader title="Calendrier éditorial" sub="Aucun client" />
-        <EmptyState title="Rien à planifier" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader title="Calendrier" sub="Aucun client" />
+        <EmptyState title="Rien à planifier" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Le calendrier affiche les contenus programmés, un par créneau. Il faut d&apos;abord un client.
         </EmptyState>
       </>
@@ -145,7 +145,6 @@ export default async function CalendrierPage({
         <div className="flex flex-col gap-1">
           <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
             Calendrier
-            <br className="hidden lg:block" /> éditorial
           </h1>
           <ScopeNotice name={cookieScoped ? clients.find((c) => c.id === clientId)?.name : null} />
         </div>
@@ -218,8 +217,8 @@ export default async function CalendrierPage({
           </Link>
         ))}
         <span className="mx-1 hidden h-5 w-px bg-line sm:block" />
-        <Legend cls="bg-info" label="Prêt" />
-        <Legend cls="bg-accent" label="En validation" />
+        <Legend cls="bg-info" label="Prêt à publier" />
+        <Legend cls="bg-accent" label="Validation client ou révision" />
         <Legend cls="bg-ok" label="Publié" />
         <Legend cls="bg-alert" label="Pas encore prêt" />
       </div>

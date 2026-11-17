@@ -29,11 +29,11 @@ export default async function ApprobationsPage() {
   if (clients.length === 0 || rows.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Approbations" sub={monthLabel()} />
+        <PageHeader scope={scope?.shortName} title="À valider" sub={monthLabel()} />
         <EmptyState
           title="Rien à valider pour l'instant"
           actionLabel={clients.length === 0 ? "Ajouter un client" : "Nouveau contenu"}
-          actionHref={clients.length === 0 ? "/clients" : "/contenu"}
+          actionHref={clients.length === 0 ? "/clients#nouveau-client" : "/contenu"}
         >
           Un contenu arrive ici dès qu&apos;il passe en révision interne ou en validation client.
           Valider le fait passer en « prêt à publier » ; demander une modification le renvoie en
@@ -46,7 +46,7 @@ export default async function ApprobationsPage() {
   return (
     <>
       <PageHeader scope={scope?.shortName}
-        title="Approbations"
+        title="À valider"
         sub={`${rows.length} ${rows.length > 1 ? "contenus en attente" : "contenu en attente"}`}
       />
 

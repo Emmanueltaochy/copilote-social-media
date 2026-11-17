@@ -50,7 +50,7 @@ export default async function TerrainPublierPage() {
 
             {content.publishedAt ? (
               <span className="text-small text-ok">
-                Publié à{""}
+                Publié à{" "}
                 {content.publishedAt.toLocaleTimeString("fr-FR", {
                   hour: "2-digit",
                   minute: "2-digit",

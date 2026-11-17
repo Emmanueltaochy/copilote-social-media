@@ -28,8 +28,8 @@ export default async function AdsPage() {
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Campagnes ads" sub={monthLabel()} />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader scope={scope?.shortName} title="Campagnes" sub={monthLabel()} />
+        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Une campagne se rattache à un client : c&apos;est ce qui permet de la comparer à son
           budget et de la faire apparaître dans son rapport mensuel.
         </EmptyState>
@@ -48,7 +48,7 @@ export default async function AdsPage() {
   return (
     <>
       <PageHeader scope={scope?.shortName}
-        title="Campagnes ads"
+        title="Campagnes"
         sub={
           rows.length === 0
             ? monthLabel()

@@ -27,8 +27,8 @@ export default async function ProductionPage() {
   if (clients.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Pipeline de production" sub={monthLabel()} />
-        <EmptyState title="Aucun contenu en production" actionLabel="Ajouter un client" actionHref="/clients">
+        <PageHeader scope={scope?.shortName} title="Production" sub={monthLabel()} />
+        <EmptyState title="Aucun contenu en production" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Le pipeline suit chaque contenu de l&apos;idée à la publication, en neuf étapes. Il faut
           d&apos;abord un client à qui rattacher les contenus.
         </EmptyState>
@@ -41,7 +41,7 @@ export default async function ProductionPage() {
   return (
     <>
       <PageHeader scope={scope?.shortName}
-        title="Pipeline de production"
+        title="Production"
         sub={`${monthLabel()} · ${inProgress.length} ${inProgress.length > 1 ? "contenus en cours" : "contenu en cours"} · 9 étapes`}
       >
         <Link
