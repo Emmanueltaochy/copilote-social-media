@@ -3,21 +3,9 @@ import { requireDepartment } from "@/lib/auth";
 import { CeMatin } from "@/components/home/CeMatin";
 import { ceMatin } from "@/lib/ce-matin";
 import { coversFor, listAwaitingApproval, listClientsWithPace } from "@/db/queries";
-import {
-  missedRecently,
-  networksThisMonth,
-  publishedThisMonth,
-  shootsSoon,
-  teamActivity,
-  upNext,
-  weekAhead,
-  audience,
-  topPostThisMonth,
-} from "@/db/home-queries";
-import { AudiencePanel } from "@/components/home/AudiencePanel";
-import { TopPostCard } from "@/components/home/TopPostCard";
+import { missedRecently, publishedThisMonth, shootsSoon, teamActivity, upNext, weekAhead } from "@/db/home-queries";
 import { ScopeNotice } from "@/components/shell/ScopeNotice";
-import { scopeClientId } from "@/lib/scope";
+import { CONTENT_STATUS } from "@/data/content";
 import { devisNouveaux } from "@/db/queries";
 import { monthLabel } from "@/lib/pacing";
 import { networksOf } from "@/data/content";
@@ -26,47 +14,39 @@ import { Cover } from "@/components/ui/Cover";
 import { Icon } from "@/components/ui/Icon";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Avatar } from "@/components/ui/primitives";
-import {
-  ClientChip,
-  NetworkDot,
-  NetworkStack,
-  Panel,
-  StatusTag,
-  ago,
-  countdown,
-  hhmm,
-  networkLabel,
-  whenLabel,
-} from "@/components/home/bits";
+import { ClientChip, NetworkStack, Panel, StatusTag, ago, countdown, hhmm, whenLabel } from "@/components/home/bits";
 
 /**
  * Aujourd'hui — l'accueil de l'agence.
  *
- * Une seule question : qu'est-ce qui part, qu'est-ce qui attend quelqu'un,
- * et où en est le mois ? Tout le reste est à un clic.
+ * Une seule question : quoi faire maintenant ? Dans l'ordre : « Ce matin »
+ * (à qui répondre, l'argent, les actions), ce qui attend en production, ce
+ * qui part, la semaine, puis le rythme du mois et les tournages.
+ *
+ * Les chiffres d'audience (abonnés, meilleure publication, réseaux) vivent
+ * dans « Statistiques » : ils disent comment ça va, pas quoi faire.
+ *
+ * L'accueil montre toujours toute l'agence. Le filtre client choisi sur les
+ * écrans de production ne s'y applique pas (on y découvrait un « Bonjour »
+ * réduit à un seul client sans l'avoir demandé) ; seul un lien explicite
+ * `/?client=…` le filtre, et le dit.
  */
 export default async function AujourdhuiPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const user = await requireDepartment("social");
-  // Le sélecteur de client (en haut à droite) filtre tout l'écran.
-  const scopeId = await scopeClientId((await searchParams).client);
+  const demande = (await searchParams).client;
+  const scopeId = demande && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(demande) ? demande : undefined;
   const now = new Date();
-  const [next, missed, approvals, week, networks, published, activity, shoots, portfolio, devis, aud, topReach, topViews, topInter] =
-    await Promise.all([
-      upNext(now, 9, scopeId),
-      missedRecently(now, scopeId),
-      listAwaitingApproval(scopeId),
-      weekAhead(now, scopeId),
-      networksThisMonth(now, scopeId),
-      publishedThisMonth(now, scopeId),
-      teamActivity(8, scopeId),
-      shootsSoon(now, scopeId),
-      listClientsWithPace(now, "social", scopeId),
-      devisNouveaux(scopeId),
-      audience(90, scopeId),
-      topPostThisMonth(now, scopeId, "reach"),
-      topPostThisMonth(now, scopeId, "views"),
-      topPostThisMonth(now, scopeId, "interactions"),
-    ]);
+  const [next, missed, approvals, week, published, activity, shoots, portfolio, devis] = await Promise.all([
+    upNext(now, 9, scopeId),
+    missedRecently(now, scopeId),
+    listAwaitingApproval(scopeId),
+    weekAhead(now, scopeId),
+    publishedThisMonth(now, scopeId),
+    teamActivity(8, scopeId),
+    shootsSoon(now, scopeId),
+    listClientsWithPace(now, "social", scopeId),
+    devisNouveaux(scopeId),
+  ]);
   // « Ce matin » : l'argent ne se charge que pour qui peut le voir, et les
   // lignes marquées « Traité » sont rangées à part.
   const matin = await ceMatin(user, now, scopeId);
@@ -125,31 +105,37 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
     });
     return { d, items };
   });
-  const maxNet = Math.max(1, ...networks.map((n) => n.total));
+  const engages = portfolio.filter((c) => c.contentTarget > 0);
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
-      {/* Bonjour + chiffres clés */}
-      <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-4">
+      {/* Bonjour, trois repères du mois, et le geste le plus courant. */}
+      <div className="mb-5 flex flex-wrap items-end gap-x-8 gap-y-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.03em] lg:text-[40px]">
-            {greeting},<br className="hidden lg:block" /> {firstName}
+            {greeting}, {firstName}
           </h1>
           <ScopeNotice name={scopeName} />
         </div>
-        {aud ? (
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
           <Stat
-            icon="users"
-            value={compact(aud.current)}
-            pill={aud.current30ago > 0 ? `${aud.current >= aud.current30ago ? "+" : ""}${(((aud.current - aud.current30ago) / aud.current30ago) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % en 30 j` : undefined}
-            label={scopeName ? "abonnés, tous réseaux" : "abonnés, tous clients et réseaux"}
+            icon="send"
+            value={`${published} / ${sold}`}
+            href="/avancement"
+            label={`publiés en ${monthLabel(now).split(" ")[0]}, sur ${sold} vendus`}
           />
-        ) : null}
-        <Stat icon="send" value={`${published}`} pill={sold ? `${Math.round((published / Math.max(1, sold)) * 100)} % du mois` : undefined} label={`publiés en ${monthLabel(now).split(" ")[0]} sur ${sold} vendus`} />
-        <Stat icon="calendar" value={`${thisWeek}`} label="contenus prévus sur 7 jours" />
+          <Stat
+            icon="gauge"
+            value={`${late.length}`}
+            tone={late.length ? "alert" : undefined}
+            href="/avancement"
+            label={`client${late.length > 1 ? "s" : ""} en retard ou à risque sur ${engages.length}`}
+          />
+          <Stat icon="calendar" value={`${thisWeek}`} href="/calendrier" label="contenus prévus sur 7 jours" />
+        </div>
         <Link
           href="/contenu"
-          className="ml-auto flex items-center gap-2 rounded-full bg-night px-5 py-3 text-base font-semibold text-white no-underline shadow-soft hover:no-underline hover:brightness-125"
+          className="flex min-h-11 items-center gap-2 rounded-full bg-night px-5 text-base font-semibold text-white no-underline shadow-soft hover:no-underline hover:brightness-125 sm:ml-auto"
         >
           <Icon name="plus" size={17} strokeWidth={2.2} /> Nouveau contenu
         </Link>
@@ -158,8 +144,65 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
       <CeMatin matin={matin} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        {/* À traiter : en premier sur téléphone, c'est la liste qui demande un geste. */}
+        <Panel
+          title="À traiter"
+          right={needs.length ? <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-alert px-2 text-small font-bold text-white">{needs.length}</span> : null}
+          className="bg-[linear-gradient(180deg,var(--c-paper),var(--c-paper)_60%,var(--c-gold-wash))] xl:order-2"
+        >
+          {needs.length === 0 ? (
+            <Empty text="Rien n'attend personne. Belle journée." />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {needs.slice(0, 6).map((n) => (
+                <div key={n.key} className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-3">
+                  {n.coverId ? (
+                    <Cover asset={covers.get(n.coverId)} ratio="1/1" sizes="44px" className="w-11 flex-none rounded-[12px]" label=" " />
+                  ) : (
+                    <span
+                      className={cn(
+                        "flex h-11 w-11 flex-none items-center justify-center rounded-[12px]",
+                        n.tone === "alert" ? "bg-alert text-white" : n.tone === "warn" ? "bg-warn-bg text-warn" : "bg-info-bg text-info",
+                      )}
+                    >
+                      <Icon name={n.tone === "alert" ? "alert" : n.key.startsWith("s") ? "camera" : "inbox"} size={18} />
+                    </span>
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
+                    <span className="clip text-base font-semibold text-ink">{n.title}</span>
+                    <span className="clip text-small text-ink-3">{n.meta}</span>
+                    <Link
+                      href={n.href}
+                      className={cn(
+                        "mt-2 inline-flex min-h-9 w-fit items-center gap-1 rounded-full px-[14px] text-small font-semibold no-underline hover:no-underline",
+                        n.tone === "alert" ? "bg-night text-white" : "border border-line text-ink hover:border-line-strong",
+                      )}
+                    >
+                      {n.cta}
+                    </Link>
+                  </span>
+                </div>
+              ))}
+              {needs.length > 6 ? (
+                <div className="mt-1 flex flex-wrap justify-center gap-2">
+                  {missed.length ? (
+                    <Link href="/a-publier" className="flex min-h-11 items-center rounded-full border border-line px-4 text-small font-medium text-ink no-underline hover:no-underline lg:min-h-9">
+                      {missed.length} à publier
+                    </Link>
+                  ) : null}
+                  {approvals.length ? (
+                    <Link href="/approbations" className="flex min-h-11 items-center rounded-full border border-line px-4 text-small font-medium text-ink no-underline hover:no-underline lg:min-h-9">
+                      {approvals.length} à valider
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </Panel>
+
         {/* À venir */}
-        <Panel title="À venir" action={{ href: "/calendrier", label: "Calendrier" }} right={<LiveDot />}>
+        <Panel title="À venir" action={{ href: "/calendrier", label: "Calendrier" }} className="xl:order-1">
           {hero ? (
             <Link
               href={`/contenu/${hero.id}`}
@@ -219,106 +262,88 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
             </>
           ) : null}
         </Panel>
+      </div>
 
-        {/* À traiter */}
-        <Panel
-          title="À traiter"
-          right={needs.length ? <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-alert px-2 text-small font-bold text-white">{needs.length}</span> : null}
-          className="bg-[linear-gradient(180deg,var(--c-paper),var(--c-paper)_60%,var(--c-gold-wash))]"
-        >
-          {needs.length === 0 ? (
-            <Empty text="Rien n'attend personne. Belle journée." />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {needs.slice(0, 6).map((n) => (
-                <div key={n.key} className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-3">
-                  {n.coverId ? (
-                    <Cover asset={covers.get(n.coverId)} ratio="1/1" sizes="44px" className="w-11 flex-none rounded-[12px]" label=" " />
-                  ) : (
-                    <span
-                      className={cn(
-                        "flex h-11 w-11 flex-none items-center justify-center rounded-[12px]",
-                        n.tone === "alert" ? "bg-alert text-white" : n.tone === "warn" ? "bg-warn-bg text-warn" : "bg-info-bg text-info",
-                      )}
-                    >
-                      <Icon name={n.tone === "alert" ? "alert" : n.key.startsWith("s") ? "camera" : "inbox"} size={18} />
+      {/* La semaine */}
+      <Panel title="La semaine" action={{ href: "/suivi", label: "Suivi de la semaine" }} className="mt-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          {days.map(({ d, items }, i) => (
+            <div key={i} className={cn("flex min-h-[150px] flex-col rounded-[18px] border p-3", i === 0 ? "border-night bg-night text-white" : "border-line")}>
+              <span className="mb-3 flex items-baseline justify-between">
+                <span className={cn("text-base font-medium capitalize", i === 0 ? "text-white/80" : "text-ink-2")}>
+                  {d.toLocaleDateString("fr-FR", { weekday: "short" })}
+                </span>
+                <span className="text-title font-bold">{d.getDate()}</span>
+              </span>
+              <div className="flex flex-col gap-[6px]">
+                {items.slice(0, 3).map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/contenu/${c.id}`}
+                    title={`${c.clientName} · ${c.title}`}
+                    className={cn(
+                      "flex min-h-8 items-center justify-between gap-1 rounded-full py-[3px] pr-[3px] pl-3 text-small font-semibold no-underline hover:no-underline",
+                      c.publishedAt ? "bg-ok text-white" : c.status === "pret" ? "bg-info text-white" : c.status === "validation" || c.status === "revision" ? "bg-accent text-accent-ink" : "bg-alert text-white",
+                    )}
+                  >
+                    {hhmm(c.scheduledAt!)}
+                    <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#15161a]">
+                      {c.clientName.slice(0, 2).toUpperCase()}
                     </span>
-                  )}
-                  <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
-                    <span className="clip text-base font-semibold text-ink">{n.title}</span>
-                    <span className="clip text-small text-ink-3">{n.meta}</span>
-                    <Link
-                      href={n.href}
-                      className={cn(
-                        "mt-2 inline-flex w-fit items-center gap-1 rounded-full px-[14px] py-[6px] text-small font-semibold no-underline hover:no-underline",
-                        n.tone === "alert" ? "bg-night text-white" : n.cta === "Ouvrir" ? "bg-ok text-white" : "border border-line text-ink",
-                      )}
-                    >
-                      {n.cta === "Ouvrir" ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}
-                      {n.cta}
-                    </Link>
+                  </Link>
+                ))}
+                {items.length > 3 ? (
+                  <span className={cn("rounded-full py-[3px] text-center text-small font-semibold", i === 0 ? "bg-white/10" : "bg-mute text-ink-2")}>
+                    +{items.length - 3}
                   </span>
-                </div>
-              ))}
-              {needs.length > 6 ? (
-                <Link href="/approbations" className="mx-auto mt-1 rounded-full border border-line px-4 py-[7px] text-small font-medium text-ink no-underline hover:no-underline">
-                  Voir les {needs.length - 6} autres
-                </Link>
-              ) : null}
+                ) : null}
+              </div>
+              <span className={cn("mt-auto pt-3 text-small", i === 0 ? "text-white/60" : "text-ink-3")}>
+                {items.length ? `${items.length} contenu${items.length > 1 ? "s" : ""}` : "Rien de prévu"}
+              </span>
             </div>
-          )}
-        </Panel>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-small text-ink-3">
+          <Legend cls="bg-ok" label={CONTENT_STATUS.publie.label} />
+          <Legend cls="bg-info" label={CONTENT_STATUS.pret.label} />
+          <Legend cls="bg-accent" label={`${CONTENT_STATUS.validation.label} ou ${CONTENT_STATUS.revision.label.toLowerCase()}`} />
+          <Legend cls="bg-alert" label="Pas encore prêt" />
+        </div>
+      </Panel>
 
-      </div>
-
-      {/* Audience et meilleure publication (relevés Metricool) */}
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <Panel
-          title={scopeName ? `Croissance de l'audience · ${scopeName}` : "Croissance de l'audience"}
-          action={{ href: scopeId ? `/statistiques?client=${scopeId}` : "/statistiques", label: "Statistiques", icon: "chart" }}
-        >
-          {aud && aud.points.length ? (
-            <AudiencePanel data={aud} />
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        {/* Le rythme du mois : seulement les clients qui demandent un geste ;
+            le tableau complet est dans « Engagements du mois ». */}
+        <Panel title={`Engagements · ${monthLabel(now)}`} action={{ href: "/avancement", label: "Tous les engagements" }}>
+          {late.length === 0 ? (
+            <Empty text={engages.length ? "Tous les clients sont dans le rythme du mois." : "Aucun client n'a d'engagement chiffré."} />
           ) : (
-            <Empty
-              text="Les abonnés de vos clients s'afficheront ici dès que Metricool sera raccordé et les clients reliés à leur marque."
-              href="/reglages"
-              cta="Raccorder Metricool"
-            />
+            <>
+              <p className="mb-4 text-small text-ink-3">
+                {late.length} client{late.length > 1 ? "s" : ""} en retard ou à risque sur {engages.length}. Barre foncée : publié · claire : projection · repère or : attendu aujourd&apos;hui.
+              </p>
+              <div className="flex flex-col gap-3">
+                {late
+                  .sort((a, b) => a.pace.gap - b.pace.gap)
+                  .slice(0, 6)
+                  .map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/contacts/${c.id}?onglet=contrat`}
+                      className="grid min-h-11 grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)_auto] items-center gap-3 text-ink no-underline hover:no-underline"
+                    >
+                      <ClientChip name={c.shortName} size={28} />
+                      <span className="clip text-base font-medium">{c.shortName}</span>
+                      <PacingBar fillPct={c.pace.fillPct} projPct={c.pace.projPct} markerLeft={c.pace.markerLeft} fillClass={c.pace.key === "late" ? "bg-alert" : "bg-warn"} />
+                      <span className="w-[60px] text-right text-small text-ink-2 tabular-nums">
+                        {c.done} / {c.contentTarget}
+                      </span>
+                    </Link>
+                  ))}
+              </div>
+            </>
           )}
-        </Panel>
-        <Panel title={scopeName ? `Meilleure publication du mois · ${scopeName}` : "Meilleure publication du mois"}>
-          <TopPostCard posts={{ reach: topReach, views: topViews, interactions: topInter }} />
-        </Panel>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        {/* Engagements du mois */}
-        <Panel title={`Engagements · ${monthLabel(now)}`} action={{ href: "/avancement", label: "Avancement" }}>
-          <div className="mb-3 flex items-baseline gap-3">
-            <span className="text-[40px] leading-none font-bold tracking-[-0.03em]">{late.length}</span>
-            <span className="text-base text-ink-2">
-              client{late.length > 1 ? "s" : ""} en retard ou à risque sur {portfolio.filter((c) => c.contentTarget > 0).length}
-            </span>
-          </div>
-          <p className="mb-4 text-small text-ink-3">
-            Barre foncée : publié · barre claire : projection fin de mois · repère or : où l&apos;on devrait en être aujourd&apos;hui.
-          </p>
-          <div className="flex flex-col gap-4">
-            {portfolio
-              .filter((c) => c.contentTarget > 0)
-              .sort((a, b) => a.pace.gap - b.pace.gap)
-              .map((c) => (
-                <Link key={c.id} href={`/clients/${c.id}`} className="grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_auto] items-center gap-3 text-ink no-underline hover:no-underline">
-                  <ClientChip name={c.shortName} size={28} />
-                  <span className="clip text-base font-medium">{c.shortName}</span>
-                  <PacingBar fillPct={c.pace.fillPct} projPct={c.pace.projPct} markerLeft={c.pace.markerLeft} fillClass={c.pace.key === "late" ? "bg-alert" : c.pace.key === "risk" ? "bg-warn" : "bg-ink"} />
-                  <span className="w-[70px] text-right text-small text-ink-2 tabular-nums">
-                    {c.done} / {c.contentTarget}
-                  </span>
-                </Link>
-              ))}
-          </div>
         </Panel>
 
         {/* Tournages */}
@@ -355,157 +380,50 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
         </Panel>
       </div>
 
-      {/* La semaine */}
-      <Panel title="La semaine" action={{ href: "/calendrier", label: "Calendrier", icon: "calendar" }} className="mt-5">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-          {days.map(({ d, items }, i) => (
-            <div key={i} className={cn("flex min-h-[170px] flex-col rounded-[18px] border p-3", i === 0 ? "border-night bg-night text-white" : "border-line")}>
-              <span className="mb-3 flex items-baseline justify-between">
-                <span className={cn("text-base font-medium capitalize", i === 0 ? "text-white/80" : "text-ink-2")}>
-                  {d.toLocaleDateString("fr-FR", { weekday: "short" })}
-                </span>
-                <span className="text-title font-bold">{d.getDate()}</span>
-              </span>
-              <div className="flex flex-col gap-[6px]">
-                {items.slice(0, 3).map((c) => (
-                  <Link
-                    key={c.id}
-                    href={`/contenu/${c.id}`}
-                    title={`${c.clientName} · ${c.title}`}
-                    className={cn(
-                      "flex items-center justify-between gap-1 rounded-full py-[3px] pr-[3px] pl-3 text-small font-semibold no-underline hover:no-underline",
-                      c.publishedAt ? "bg-ok text-white" : c.status === "pret" ? "bg-info text-white" : c.status === "validation" || c.status === "revision" ? "bg-accent text-accent-ink" : "bg-alert text-white",
-                    )}
-                  >
-                    {hhmm(c.scheduledAt!)}
-                    <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#15161a]">
-                      {c.clientName.slice(0, 2).toUpperCase()}
-                    </span>
-                  </Link>
-                ))}
-                {items.length > 3 ? (
-                  <span className={cn("rounded-full py-[3px] text-center text-small font-semibold", i === 0 ? "bg-white/10" : "bg-mute text-ink-2")}>
-                    +{items.length - 3}
+      {/* Activité de l'équipe : en dernier, c'est du contexte. */}
+      <Panel title="Activité de l'équipe" right={<Icon name="activity" size={18} className="text-ink-3" />} className="mt-5">
+        {activity.length === 0 ? (
+          <Empty text="Les actions de l'équipe apparaîtront ici." />
+        ) : (
+          <div className="grid gap-x-6 lg:grid-cols-2">
+            {activity.map((a) => (
+              <div key={a.id} className="flex gap-3 border-b border-line py-3">
+                <Avatar initials={a.actorInitials ?? "·"} src={a.actorAvatar && a.actorId ? `/api/avatar/${a.actorId}` : null} size={32} />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-base text-ink">
+                    <b className="font-semibold">{a.actorName?.split(" ")[0] ?? a.actorLabel ?? "Pilot"}</b> {a.text}
+                    {a.clientName ? <span className="text-ink-3"> · {a.clientName}</span> : null}
                   </span>
-                ) : null}
+                  <span className="text-small text-ink-3">{ago(a.createdAt, now)}</span>
+                </span>
               </div>
-              <span className={cn("mt-auto pt-3 text-small", i === 0 ? "text-white/60" : "text-ink-3")}>
-                {items.length ? `${items.length} contenu${items.length > 1 ? "s" : ""}` : "Rien de prévu"}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-4 text-small text-ink-3">
-          <Legend cls="bg-ok" label="Publié" />
-          <Legend cls="bg-info" label="Prêt" />
-          <Legend cls="bg-accent" label="En validation" />
-          <Legend cls="bg-alert" label="Pas encore prêt" />
-        </div>
-      </Panel>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        {/* Réseaux */}
-        <Panel title="Réseaux ce mois-ci" action={{ href: "/rapports", label: "Rapports", icon: "chart" }}>
-          {networks.length === 0 ? (
-            <Empty text="Aucun contenu ce mois-ci." />
-          ) : (
-            <div className="flex flex-col gap-4">
-              {networks.map((n) => (
-                <div key={n.network} className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-3">
-                  <NetworkDot network={n.network} size={30} />
-                  <span className="flex min-w-0 flex-col gap-[6px]">
-                    <span className="flex justify-between text-base">
-                      <span className="font-medium">{networkLabel(n.network)}</span>
-                      <span className="text-ink-2 tabular-nums">{n.total}</span>
-                    </span>
-                    <span className="relative block h-[6px] rounded-full bg-slot">
-                      <span className="absolute inset-y-0 left-0 rounded-full bg-line-strong" style={{ width: `${(n.total / maxNet) * 100}%` }} />
-                      <span className="absolute inset-y-0 left-0 rounded-full bg-info" style={{ width: `${(n.published / maxNet) * 100}%` }} />
-                    </span>
-                  </span>
-                  <span className="w-[74px] text-right text-small text-ink-3 tabular-nums">{n.published} publiés</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-
-        {/* À valider côté client */}
-        <Panel title="Chez le client" action={{ href: "/approbations", label: "Validations" }}>
-          <div className="mb-4 grid grid-cols-3 gap-2">
-            <MiniStat n={approvals.filter((a) => a.content.status === "validation").length} label="à valider" />
-            <MiniStat n={approvals.filter((a) => (a.waitingDays ?? 0) >= 3).length} label="depuis 3 j +" />
-            <MiniStat n={approvals.filter((a) => a.content.status === "revision").length} label="en révision" />
-          </div>
-          <div className="flex flex-col gap-3">
-            {approvals.slice(0, 4).map((a) => (
-              <Link key={a.content.id} href={`/contenu/${a.content.id}`} className="flex items-center gap-3 text-ink no-underline hover:no-underline">
-                <ClientChip name={a.clientName} size={34} />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="clip text-base font-semibold">{a.content.title}</span>
-                  <span className="clip text-small text-ink-3">
-                    {a.clientName}
-                    {a.waitingDays != null ? ` · attend depuis ${a.waitingDays} j` : ""}
-                  </span>
-                </span>
-                <StatusTag status={a.content.status} />
-              </Link>
             ))}
-            {approvals.length === 0 ? <Empty text="Aucun contenu en attente de validation." /> : null}
           </div>
-        </Panel>
-
-        {/* Activité de l'équipe */}
-        <Panel title="Activité de l'équipe" right={<Icon name="activity" size={18} className="text-ink-3" />}>
-          {activity.length === 0 ? (
-            <Empty text="Les actions de l'équipe apparaîtront ici." />
-          ) : (
-            <div className="flex flex-col">
-              {activity.map((a) => (
-                <div key={a.id} className="flex gap-3 border-b border-line py-3 last:border-none">
-                  <Avatar initials={a.actorInitials ?? "·"} src={a.actorAvatar && a.actorId ? `/api/avatar/${a.actorId}` : null} size={32} />
-                  <span className="flex min-w-0 flex-col">
-                    <span className="text-base text-ink">
-                      <b className="font-semibold">{a.actorName?.split(" ")[0] ?? a.actorLabel ?? "Pilot"}</b> {a.text}
-                      {a.clientName ? <span className="text-ink-3"> · {a.clientName}</span> : null}
-                    </span>
-                    <span className="text-small text-ink-3">{ago(a.createdAt, now)}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-      </div>
+        )}
+      </Panel>
     </div>
   );
 }
 
-function Stat({ icon, value, label, pill }: { icon: "send" | "gauge" | "calendar" | "users"; value: string; label: string; pill?: string }) {
+function Stat({ icon, value, label, href, tone }: { icon: "send" | "gauge" | "calendar"; value: string; label: string; href: string; tone?: "alert" }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full border border-line bg-paper text-ink shadow-soft">
+    <Link href={href} className="flex min-h-11 items-center gap-3 rounded-full text-ink no-underline hover:no-underline">
+      <span
+        className={cn(
+          "flex h-11 w-11 flex-none items-center justify-center rounded-full border shadow-soft",
+          tone === "alert" ? "border-alert bg-alert text-white" : "border-line bg-paper text-ink",
+        )}
+      >
         <Icon name={icon} size={18} />
       </span>
       <span className="flex flex-col">
-        <span className="flex items-center gap-2">
-          <span className="text-[22px] leading-tight font-bold tracking-[-0.02em] tabular-nums">{value}</span>
-          {pill ? <span className="rounded-full bg-ok px-2 py-[2px] text-micro font-bold text-white">{pill}</span> : null}
-        </span>
-        <span className="max-w-[190px] text-small leading-tight text-ink-3">{label}</span>
+        <span className="text-[22px] leading-tight font-bold tracking-[-0.02em] tabular-nums">{value}</span>
+        <span className="max-w-[200px] text-small leading-tight text-ink-3">{label}</span>
       </span>
-    </div>
+    </Link>
   );
 }
 
-function MiniStat({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="flex flex-col rounded-[16px] border border-line px-3 py-2">
-      <span className="text-title font-bold tabular-nums">{n}</span>
-      <span className="text-small text-ink-3">{label}</span>
-    </div>
-  );
-}
 
 function Legend({ cls, label }: { cls: string; label: string }) {
   return (
@@ -516,13 +434,6 @@ function Legend({ cls, label }: { cls: string; label: string }) {
   );
 }
 
-function LiveDot() {
-  return (
-    <span className="flex items-center gap-[6px] rounded-full border border-line px-3 py-[5px] text-small text-ink-2">
-      <span className="h-[7px] w-[7px] rounded-full bg-ok" /> File en direct
-    </span>
-  );
-}
 
 function Empty({ text, href, cta }: { text: string; href?: string; cta?: string }) {
   return (
@@ -537,8 +448,4 @@ function Empty({ text, href, cta }: { text: string; href?: string; cta?: string 
   );
 }
 
-function compact(n: number) {
-  if (Math.abs(n) >= 10_000) return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k`;
-  return n.toLocaleString("fr-FR");
-}
 
