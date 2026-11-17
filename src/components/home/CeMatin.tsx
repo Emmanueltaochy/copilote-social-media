@@ -12,9 +12,9 @@ import { ClientChip } from "./bits";
 /**
  * « Ce matin » : à qui répondre, l'argent qui dort, et quoi faire pour qui.
  *
- * Chaque ligne mène à la fiche. Une source qui n'est pas encore lue (Trello)
- * ou pas raccordée (Abby, Gmail) est nommée, plutôt que de laisser un zéro
- * faire croire que tout va bien.
+ * Chaque ligne mène à la fiche. Une source qui n'est pas raccordée (Abby,
+ * Gmail, Trello, GoCardless, Google Agenda) est nommée, plutôt que de laisser
+ * un zéro faire croire que tout va bien.
  *
  * « Traité » archive une ligne pour toute l'équipe : elle disparaît tout de
  * suite (mise à jour optimiste), un message « Archivé · Annuler » reste
@@ -86,6 +86,7 @@ export function CeMatin({ matin }: { matin: Donnees }) {
   const repondre = vue(matin.repondre);
   const actions = vue(matin.actions);
   const argent = matin.argent ? { ...matin.argent, ...vue(matin.argent) } : null;
+  const e3 = matin.etape3;
   const urgents = repondre.lignes.filter((l) => l.urgence === "urgent").length;
   const outils = { traiter, retablir: rétablirLigne };
 
@@ -97,6 +98,7 @@ export function CeMatin({ matin }: { matin: Donnees }) {
           Tous les contacts →
         </Link>
       </div>
+      {matin.rendezVousDuJour ? <RendezVousDuJour rdv={matin.rendezVousDuJour} agenda={e3?.agenda ?? null} /> : null}
       <div className={cn("grid gap-5", argent ? "xl:grid-cols-3" : "xl:grid-cols-2")}>
         <Colonne
           titre="À répondre"
@@ -111,6 +113,7 @@ export function CeMatin({ matin }: { matin: Donnees }) {
           }
         >
           {matin.gmail && matin.gmail.etat !== "relie" ? <AvisGmail gmail={matin.gmail} /> : null}
+          {e3 && e3.gocardless.etat !== "relie" ? <AvisService nom="GoCardless" ancre="gocardless" e={e3.gocardless} texte="les mandats annulés et les prélèvements en échec ne peuvent pas être lus." /> : null}
           {repondre.lignes.length === 0 ? (
             <Vide texte="Personne n'attend de réponse parmi ce que Pilot sait lire." />
           ) : (
@@ -118,7 +121,7 @@ export function CeMatin({ matin }: { matin: Donnees }) {
           )}
         </Colonne>
 
-        {argent ? <ColonneArgent argent={argent} outils={outils} /> : null}
+        {argent ? <ColonneArgent argent={argent} outils={outils} gocardless={e3?.gocardless ?? null} /> : null}
 
         <Colonne
           titre="Actions"
@@ -126,8 +129,13 @@ export function CeMatin({ matin }: { matin: Donnees }) {
           compteurTon="neutral"
           partage={actions}
           outils={outils}
-          pied="Déduites des prochaines étapes des fiches, des validations, des retours clients et des projets web. Trello viendra à l'étape 3."
+          pied={
+            e3
+              ? "Déduites des prochaines étapes des fiches, des validations, des retours clients, des projets web, des cartes Trello (« 🔥 Cette semaine », en retard, en attente du client depuis plus de 7 jours) et des rendez-vous à suivre."
+              : "Déduites des prochaines étapes des fiches, des validations, des retours clients et des projets web."
+          }
         >
+          {e3 && e3.trello.etat !== "relie" ? <AvisService nom="Trello" ancre="trello" e={e3.trello} texte="les cartes de « 🔥 Cette semaine » et celles en retard ne peuvent pas être lues." /> : null}
           {actions.lignes.length === 0 ? (
             <Vide texte="Aucune action datée pour aujourd'hui." />
           ) : (
@@ -375,7 +383,7 @@ function LigneRepondre({ l, traiter }: { l: LigneMatin; traiter: (keys: string[]
 
 type ArgentVu = NonNullable<Donnees["argent"]>;
 
-function ColonneArgent({ argent, outils }: { argent: ArgentVu; outils: Outils }) {
+function ColonneArgent({ argent, outils, gocardless }: { argent: ArgentVu; outils: Outils; gocardless: EtatService | null }) {
   const abbyAbsent = argent.abby !== "raccorde";
   const somme = (lignes: LigneMatin[], ton?: LigneMatin["ton"]) =>
     lignes.filter((l) => !ton || l.ton === ton).reduce((t, l) => t + (l.montantCents ?? 0), 0);
@@ -462,6 +470,7 @@ function ColonneArgent({ argent, outils }: { argent: ArgentVu; outils: Outils })
                       <span className="clip text-base font-semibold">{l.qui}</span>
                       <span className="clip text-small text-ink-2">{l.titre}</span>
                       <span className={cn("clip text-small", l.ton === "alert" ? "text-alert" : "text-ink-3")}>{l.meta}</span>
+                      {l.raison ? <span className="text-micro text-ink-3">{l.raison}</span> : null}
                       <Retour l={l} />
                     </span>
                     <span className="flex-none text-base font-semibold tabular-nums">{euroFromCents(l.montantCents ?? 0)}</span>
@@ -473,6 +482,25 @@ function ColonneArgent({ argent, outils }: { argent: ArgentVu; outils: Outils })
           )}
         </>
       )}
+      {gocardless && gocardless.etat !== "relie" ? <AvisService nom="GoCardless" ancre="gocardless" e={gocardless} texte="les prélèvements en échec et à venir ne peuvent pas être lus." /> : null}
+      {argent.aVenir.length ? (
+        <div className="flex flex-col gap-1 rounded-[16px] border border-line p-3" data-a-venir>
+          <span className="text-small font-semibold text-ink">À venir dans les 7 jours (GoCardless, pour information)</span>
+          {argent.aVenir.slice(0, 6).map((l) => (
+            <Link key={l.key} href={l.href} className="flex min-w-0 items-center gap-2 py-1 text-ink no-underline hover:no-underline">
+              <span className="h-2 w-2 flex-none rounded-full bg-info" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="clip text-small font-semibold">{l.qui}</span>
+                <span className="clip text-micro text-ink-3">
+                  {l.titre} · {l.meta}
+                </span>
+              </span>
+              <span className="flex-none text-small tabular-nums">{euroFromCents(l.montantCents ?? 0)}</span>
+            </Link>
+          ))}
+          <span className="text-micro text-ink-3">Pas compté dans le total : cet argent n&apos;est pas en retard.</span>
+        </div>
+      ) : null}
     </Colonne>
   );
 }
@@ -506,6 +534,7 @@ function ActionsParClient({ lignes, max, traiter }: { lignes: LigneMatin[]; max:
                 <span className="flex min-w-0 flex-col">
                   <span className="line-clamp-2 text-small text-ink">{l.titre}</span>
                   {l.meta ? <span className="clip text-micro text-ink-3">{l.meta}</span> : null}
+                  {l.raison ? <span className="text-micro text-ink-2" data-raison>{l.raison}</span> : null}
                   <Retour l={l} />
                 </span>
               </Link>
@@ -539,6 +568,49 @@ function AvisGmail({ gmail }: { gmail: NonNullable<Donnees["gmail"]> }) {
       <Link href="/reglages#gmail" className="flex min-h-[36px] items-center rounded-full border border-line px-4 font-semibold text-ink no-underline hover:border-line-strong hover:no-underline">
         {gmail.etat === "non_relie" ? "Relier Gmail" : "Voir dans Réglages"}
       </Link>
+    </div>
+  );
+}
+
+type EtatService = NonNullable<Donnees["etape3"]>["trello"];
+
+/** Un service de l'étape 3 pas relié (ou en panne) : le dire, plutôt que d'afficher zéro. */
+function AvisService({ nom, ancre, e, texte }: { nom: string; ancre: string; e: EtatService; texte: string }) {
+  return (
+    <div className="flex flex-col items-start gap-1 rounded-[16px] border border-dashed border-line-strong p-3 text-small text-ink-2" data-avis={`${ancre}-${e.etat}`}>
+      <span className="font-semibold text-ink">{e.etat === "non_relie" ? `${nom} n'est pas relié` : `${nom} n'a pas pu être relevé`}</span>
+      <span>{e.etat === "non_relie" ? `Ici, ${texte}` : `${e.erreur ?? "Erreur inconnue"}. Les données affichées datent du dernier relevé réussi.`}</span>
+      <Link href={`/reglages#${ancre}`} className="font-semibold">
+        {e.etat === "non_relie" ? `Relier ${nom}` : "Voir dans Réglages"}
+      </Link>
+    </div>
+  );
+}
+
+/** « Rendez-vous du jour » : l'heure et la fiche de chaque rendez-vous d'aujourd'hui. */
+function RendezVousDuJour({ rdv, agenda }: { rdv: NonNullable<Donnees["rendezVousDuJour"]>; agenda: EtatService | null }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[18px] border border-line bg-canvas px-4 py-3" data-rendez-vous-du-jour>
+      <span className="flex items-center gap-2 text-small font-semibold text-ink">
+        <Icon name="calendar" size={15} />
+        Rendez-vous du jour
+      </span>
+      {agenda && agenda.etat === "non_relie" ? (
+        <span className="text-small text-ink-3">
+          Google Agenda n&apos;est pas relié. <Link href="/reglages#agenda">Relier l&apos;agenda</Link>
+        </span>
+      ) : rdv.length === 0 ? (
+        <span className="text-small text-ink-3">Aucun rendez-vous avec un client ou un prospect aujourd&apos;hui.</span>
+      ) : (
+        rdv.map((r) => (
+          <Link key={r.key} href={r.href} className="flex min-h-[36px] min-w-0 items-center gap-2 rounded-full border border-line bg-paper px-3 text-small text-ink no-underline hover:border-line-strong hover:no-underline">
+            <b className="font-semibold tabular-nums">{r.heure}</b>
+            <span className="clip max-w-[220px]">{r.qui}</span>
+            <span className="clip max-w-[220px] text-ink-3 max-sm:hidden">· {r.titre}</span>
+          </Link>
+        ))
+      )}
+      {agenda && agenda.etat === "erreur" ? <span className="text-small text-alert">Agenda : {agenda.erreur}</span> : null}
     </div>
   );
 }

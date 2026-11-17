@@ -19,6 +19,10 @@ import { countLegacyDriveImages, driveAccountEmail } from "@/lib/drive";
 import { ImportProspects } from "./ImportProspects";
 import { GmailReglages } from "./Gmail";
 import { etatGmail } from "@/lib/gmail";
+import { AgendaReglages, GoCardlessReglages, TrelloReglages, type EtatCommun } from "./Etape3";
+import { etatTrello } from "@/lib/trello";
+import { etatGoCardless } from "@/lib/gocardless";
+import { etatAgenda } from "@/lib/agenda";
 import { jourRelatif } from "@/lib/annuaire";
 import { etatImports } from "@/lib/annuaire-import";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
@@ -91,6 +95,17 @@ export default async function ReglagesPage() {
     countLegacyDriveImages(),
     etatGmail(),
   ]);
+  const [trello, gocardless, agenda] = await Promise.all([etatTrello(), etatGoCardless(), etatAgenda()]);
+  const commun = (e: { relie: boolean; illisible: boolean; erreur: string | null; dernierReleve: Date | null; enCours: boolean }, bilan: string | null): EtatCommun => ({
+    relie: e.relie,
+    illisible: e.illisible,
+    erreur: e.erreur,
+    dernierReleve: e.dernierReleve ? ilYaCourt(e.dernierReleve) : null,
+    bilan,
+    enCours: e.enCours,
+  });
+  const etiquette = (e: { relie: boolean; illisible: boolean; erreur: string | null }) => (e.relie ? (e.illisible || e.erreur ? "En erreur" : "Relié") : "Non relié");
+  const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
   const mcpUrl = mcp && process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}/api/mcp/${mcp.token}` : mcp ? `/api/mcp/${mcp.token}` : null;
   let brands: MetricoolBrand[] = [];
   let brandsError: string | null = null;
@@ -172,6 +187,37 @@ export default async function ReglagesPage() {
                   : null,
                 enCours: gmail.enCours,
               }}
+            />
+          </Card>
+
+          <Card className="scroll-mt-4">
+            <div id="trello" />
+            <CardHead title="Trello (lecture seule)" meta={etiquette(trello)} />
+            <TrelloReglages
+              etat={commun(trello, trello.bilan ? `${pluriel(trello.bilan.cartes, "carte")}, ${trello.bilan.rattachees} sur une fiche, ${trello.bilan.agence} pour l'agence, ${trello.bilan.sansFiche} sans fiche` : null)}
+              membre={trello.membre}
+              disponibles={trello.disponibles}
+              suivis={trello.suivis}
+              sansFiche={trello.cartes.filter((c) => !c.entryId && !c.clientId && !c.agence).map((c) => ({ id: c.id, nom: c.nom, colonne: c.colonne, url: c.url }))}
+            />
+          </Card>
+
+          <Card className="scroll-mt-4">
+            <div id="gocardless" />
+            <CardHead title="GoCardless (lecture seule)" meta={etiquette(gocardless)} />
+            <GoCardlessReglages
+              etat={commun(gocardless, gocardless.bilan ? `${pluriel(gocardless.bilan.clients, "client")}, ${gocardless.bilan.rattaches} sur une fiche, ${pluriel(gocardless.bilan.paiements, "paiement")}` : null)}
+              environnement={gocardless.environnement}
+              sansFiche={gocardless.sansFiche.map((c) => ({ id: c.id, nom: c.nom, echecs: c.echecs }))}
+            />
+          </Card>
+
+          <Card className="scroll-mt-4">
+            <div id="agenda" />
+            <CardHead title="Google Agenda (lecture seule)" meta={etiquette(agenda)} />
+            <AgendaReglages
+              etat={commun(agenda, agenda.bilan ? `${agenda.bilan.lus} rendez-vous lus, ${agenda.bilan.gardes} gardé${agenda.bilan.gardes > 1 ? "s" : ""}, ${agenda.bilan.ignores} ignoré${agenda.bilan.ignores > 1 ? "s" : ""} sans être stocké${agenda.bilan.ignores > 1 ? "s" : ""}` : null)}
+              agendas={agenda.agendas}
             />
           </Card>
 

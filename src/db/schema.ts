@@ -1672,7 +1672,21 @@ export const directoryEntries = pgTable(
      * Trello. Rangés ici plutôt qu'en colonnes tant qu'aucun n'est branché.
      */
     links: jsonb("links")
-      .$type<{ gmail?: string[]; gocardlessCustomerId?: string; trelloBoardId?: string; trelloLabel?: string; calendarQuery?: string }>()
+      .$type<{
+        gmail?: string[];
+        /** Client GoCardless relié à la main (étape 3). */
+        gocardlessCustomerId?: string;
+        /** Client GoCardless délié à la main : le rapprochement automatique ne le reprend plus. */
+        gocardlessExclus?: string[];
+        trelloBoardId?: string;
+        trelloLabel?: string;
+        /** Cartes Trello reliées à la main (identifiants). */
+        trelloCartes?: string[];
+        /** Cartes Trello déliées à la main : le rapprochement par le nom ne les reprend plus. */
+        trelloExclues?: string[];
+        /** Mots du titre d'un rendez-vous qui le rattachent à cette fiche (lien manuel de l'agenda). */
+        calendarQuery?: string;
+      }>()
       .notNull()
       .default({}),
     /** Ce que le fichier d'origine sait en plus : note Google, avis, signaux, langue… */
@@ -1804,3 +1818,33 @@ export const gmailSync = pgTable("gmail_sync", {
 });
 
 export type GmailSync = typeof gmailSync.$inferSelect;
+
+/* ---------------------------------- Trello, GoCardless, Agenda (étape 3) -- */
+
+/**
+ * L'état du relevé de chaque service de l'étape 3, une ligne par service
+ * (`id` = « trello », « gocardless », « agenda ») : le bail qui empêche deux
+ * relevés en même temps, le bilan du dernier passage (des nombres), les
+ * réglages choisis par Emmanuel (tableaux Trello suivis, environnement
+ * GoCardless) et ce qui n'a pas de fiche (cartes Trello sans fiche, clients
+ * GoCardless sans fiche), pour pouvoir les relier à la main.
+ *
+ * Les secrets (clé et jeton Trello, jeton GoCardless, adresses iCal) sont
+ * dans `integrations`, chiffrés (voir src/lib/secrets.ts). Les lignes
+ * rattachées à une fiche sont dans `directory_events` (sources « trello »,
+ * « gocardless », « agenda »). Rien de l'agenda qui ne soit rattaché à une
+ * fiche n'est gardé ici.
+ */
+export const releves = pgTable("releves", {
+  id: text("id").primaryKey(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  lastResult: jsonb("last_result").$type<Record<string, unknown>>().notNull().default({}),
+  config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+  donnees: jsonb("donnees").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Releve = typeof releves.$inferSelect;

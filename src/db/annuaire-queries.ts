@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 import {
   activity,
   clients,
@@ -186,7 +186,7 @@ export async function frise(
   clientId: string | null,
   entryId: string | null,
   limite = 60,
-  /** Les e-mails Gmail : la direction seulement (voir canSeeEmails). */
+  /** Les e-mails Gmail, Trello, GoCardless et l'agenda : la direction seulement (voir canSeeEmails). */
   opts: { emails: boolean } = { emails: false },
 ): Promise<MomentFrise[]> {
   const [act, evts, devis] = await Promise.all([
@@ -203,7 +203,7 @@ export async function frise(
       ? db
           .select()
           .from(directoryEvents)
-          .where(and(eq(directoryEvents.entryId, entryId), opts.emails ? undefined : ne(directoryEvents.source, "gmail")))
+          .where(and(eq(directoryEvents.entryId, entryId), opts.emails ? undefined : notInArray(directoryEvents.source, ["gmail", "trello", "gocardless", "agenda"])))
           .orderBy(desc(directoryEvents.occurredAt))
           .limit(limite)
       : Promise.resolve([]),
@@ -251,7 +251,9 @@ export async function frise(
       qui: a.nom ?? a.label ?? "Pilot",
     })),
     ...evts
-      .filter((e) => !masques.has(e.id))
+      // La frise est un historique : un rendez-vous ou un prélèvement à venir
+      // n'y entre qu'une fois passé (il est dans « Rendez-vous » ou « Argent »).
+      .filter((e) => !masques.has(e.id) && !((e.source === "agenda" || e.source === "gocardless") && e.occurredAt.getTime() > Date.now()))
       .map((e) => ({
         key: "e" + e.id,
         at: e.occurredAt,

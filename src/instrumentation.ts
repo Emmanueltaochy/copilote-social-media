@@ -75,4 +75,13 @@ export async function register() {
   const gmailTick = () => releveRegulier().catch((e) => console.warn("[pilot] relevé Gmail", (e as Error).message));
   setTimeout(gmailTick, 120_000);
   setInterval(gmailTick, 12 * 60_000).unref?.();
+
+  // Trello, GoCardless et Google Agenda (étape 3, lecture seule) : toutes les
+  // 15 minutes, l'un après l'autre. Un service non relié ne fait rien ; un
+  // bail en base empêche deux relevés du même service en même temps, et
+  // chacun est borné à 2 minutes.
+  const { releveEtape3 } = await import("@/lib/etape3");
+  const etape3Tick = () => releveEtape3().catch((e) => console.warn("[pilot] relevé étape 3", (e as Error).message));
+  setTimeout(etape3Tick, 150_000);
+  setInterval(etape3Tick, 15 * 60_000).unref?.();
 }

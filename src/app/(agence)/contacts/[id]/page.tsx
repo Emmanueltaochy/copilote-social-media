@@ -21,6 +21,9 @@ import { PROJECT_TYPE, WEB_PHASE } from "@/data/web";
 import { euroFromCents } from "@/lib/pacing";
 import { cn } from "@/lib/cn";
 import { FicheForm } from "../FicheForm";
+import { etape3DeLaFiche, type Etape3Fiche } from "@/lib/fiche-etape3";
+import { sansDoubleCompte } from "@/lib/etape3-regles";
+import { ActionsTrello, ArgentGoCardless, RendezVous } from "./Etape3Fiche";
 import { majFiche, relierAbby, relierAuClient } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +84,9 @@ export default async function FichePage({
   const [relie, fils] = voirEmails
     ? await Promise.all([gmailRelie(), entry ? filsDeLaFiche(entry.id) : Promise.resolve([] as FilFiche[])])
     : [false, [] as FilFiche[]];
+  // Trello, GoCardless et l'agenda (étape 3) : la direction seulement.
+  const etape3 = voirEmails ? await etape3DeLaFiche(entry) : null;
+  const cible = { entryId: client ? null : (entry?.id ?? null), clientId: client?.id ?? null, chemin: `/contacts/${id}` };
 
   // L'argent : Abby si la fiche y est reliée, plus les factures déposées dans Pilot.
   const abbyId = client?.abbyCustomerId ?? entry?.abbyCustomerId ?? null;
@@ -227,7 +233,16 @@ export default async function FichePage({
 
               {/* Argent */}
               {money ? (
-                <Argent abby={abby} facturesPilot={facturesPilot} clientId={client?.id ?? null} entryId={client ? null : (entry?.id ?? null)} today={today} maintenant={maintenant} />
+                <Argent
+                  abby={abby}
+                  facturesPilot={facturesPilot}
+                  clientId={client?.id ?? null}
+                  entryId={client ? null : (entry?.id ?? null)}
+                  today={today}
+                  maintenant={maintenant}
+                  gocardless={etape3?.gocardless ?? null}
+                  cible={cible}
+                />
               ) : null}
 
               {/* Projets et contenus */}
@@ -302,8 +317,9 @@ export default async function FichePage({
 
             <div className="flex min-w-0 flex-col gap-4">
               {voirEmails ? <Emails fils={fils} relie={relie} filtre={filtreEmails} chemin={`/contacts/${id}`} /> : null}
+              {etape3 ? <ActionsTrello t={etape3.trello} cible={cible} maintenant={maintenant} /> : null}
+              {etape3 ? <RendezVous a={etape3.agenda} cible={cible} /> : null}
               <Frise moments={moments} />
-              <ARelier />
               <Card padded>
                     <FicheForm
                       action={majFiche}
@@ -390,6 +406,8 @@ function Argent({
   entryId,
   today,
   maintenant,
+  gocardless,
+  cible,
 }: {
   abby: EtatAbby;
   facturesPilot: Awaited<ReturnType<typeof facturesDuClient>>;
@@ -397,6 +415,8 @@ function Argent({
   entryId: string | null;
   today: string;
   maintenant: number;
+  gocardless: Etape3Fiche["gocardless"] | null;
+  cible: { entryId: string | null; clientId: string | null; chemin: string };
 }) {
   const factures = abby.docs.filter((d) => d.type === "invoice");
   const devis = abby.docs.filter((d) => d.type === "estimate" || d.type === "purchase_order");
@@ -412,14 +432,29 @@ function Argent({
   const devisSignes = devis.filter((d) => d.state === "signed");
   const somme = (xs: number[]) => xs.reduce((t, x) => t + x, 0);
 
-  const encaisse = somme(payees);
+  // L'encaissé additionne Abby (et les factures Pilot) et GoCardless SANS
+  // DOUBLE COMPTE : un prélèvement qui règle une facture déjà payée (même
+  // numéro dans sa référence, ou même montant à 3 jours près de la date de
+  // paiement) n'est compté qu'une fois. Règle complète : sansDoubleCompte()
+  // dans src/lib/etape3-regles.ts.
+  const gcEncaisses = (gocardless?.paiements ?? []).filter((p) => p.etat === "encaisse");
+  const facturesPayees = [
+    ...factures.filter((f) => f.state === "paid").map((f) => ({ number: f.number, amountCents: f.amountCents, paidAt: f.paidAt })),
+    ...pilot.filter((f) => f.paidOn).map((f) => ({ number: f.number, amountCents: f.amountCents, paidAt: f.paidOn ? new Date(`${f.paidOn}T12:00:00Z`) : null })),
+  ];
+  const { aAjouter, regles } = sansDoubleCompte(
+    facturesPayees,
+    gcEncaisses.map((p) => ({ id: p.id, amountCents: p.montantCents, chargeDate: p.date, reference: p.reference, description: p.description })),
+  );
+  const gcEnPlus = gcEncaisses.filter((p) => aAjouter.includes(p.id));
+  const encaisse = somme(payees) + somme(gcEnPlus.map((p) => p.montantCents));
   const impayes = somme([...ouvertes.map((f) => f.remainingCents ?? f.amountCents), ...pilotOuvertes.map((f) => f.amountCents)]);
   const retard = somme([...retardAbby.map((f) => f.remainingCents ?? f.amountCents), ...pilotRetard.map((f) => f.amountCents)]);
-  const rienDuTout = abby.docs.length === 0 && facturesPilot.length === 0;
+  const rienDuTout = abby.docs.length === 0 && facturesPilot.length === 0 && gcEncaisses.length === 0;
 
   return (
     <Card>
-      <CardHead title="Argent" meta={abby.etat === "ok" ? "Abby + factures Pilot" : "factures Pilot"} />
+      <CardHead title="Argent" meta={[abby.etat === "ok" ? "Abby" : null, "factures Pilot", gocardless?.relie ? "GoCardless" : null].filter(Boolean).join(" + ")} />
       <div className="flex flex-col gap-3 px-5 pb-5">
         {abby.etat === "non_raccorde" ? (
           <p className="rounded-[14px] border border-dashed border-line-strong p-3 text-small text-ink-3">
@@ -458,7 +493,12 @@ function Argent({
 
         {rienDuTout && abby.etat !== "ok" ? null : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Chiffre label="Encaissé" valeur={euroFromCents(encaisse)} meta={`${payees.length} facture${payees.length > 1 ? "s" : ""} payée${payees.length > 1 ? "s" : ""}`} />
+            <Chiffre
+              label="Encaissé"
+              valeur={euroFromCents(encaisse)}
+              meta={`${payees.length} facture${payees.length > 1 ? "s" : ""}${gcEnPlus.length ? ` + ${gcEnPlus.length} prélèvement${gcEnPlus.length > 1 ? "s" : ""}` : ` payée${payees.length > 1 ? "s" : ""}`}`}
+              data-encaisse={encaisse}
+            />
             <Chiffre label="À encaisser" valeur={euroFromCents(impayes)} meta={`${ouvertes.length + pilotOuvertes.length} impayée${ouvertes.length + pilotOuvertes.length > 1 ? "s" : ""}`} ton={impayes > 0 ? "warn" : undefined} />
             <Chiffre label="En retard" valeur={euroFromCents(retard)} meta={`${retardAbby.length + pilotRetard.length} facture${retardAbby.length + pilotRetard.length > 1 ? "s" : ""}`} ton={retard > 0 ? "alert" : undefined} />
             {abby.etat === "ok" ? (
@@ -470,6 +510,15 @@ function Argent({
           </div>
         )}
 
+        {gcEncaisses.length ? (
+          <p className="text-micro text-ink-3" data-double-compte>
+            Encaissé = factures payées (Abby, Pilot) + prélèvements GoCardless encaissés, sans double compte :{" "}
+            {regles.length
+              ? `${regles.length} prélèvement${regles.length > 1 ? "s" : ""} déjà compté${regles.length > 1 ? "s" : ""} dans une facture payée (même numéro, ou même montant à la même date)`
+              : "aucun prélèvement ne correspond à une facture payée"}
+            {gcEnPlus.length ? `, ${gcEnPlus.length} ajouté${gcEnPlus.length > 1 ? "s" : ""}` : ""}.
+          </p>
+        ) : null}
         {[...ouvertes, ...devisEnCours, ...devisSignes].slice(0, 6).map((d) => (
           <div key={d.id} className="flex min-w-0 items-center gap-3 border-b border-line py-2 last:border-b-0">
             <span className="clip min-w-0 flex-1 text-base">
@@ -491,7 +540,7 @@ function Argent({
           </div>
         ))}
         {rienDuTout && abby.etat === "ok" ? <p className="text-base text-ink-3">Aucune facture ni devis pour ce client chez Abby.</p> : null}
-        <p className="text-small text-ink-3">GoCardless (prélèvements) sera relié à l&apos;étape 3.</p>
+        {gocardless ? <ArgentGoCardless g={gocardless} cible={cible} /> : null}
       </div>
     </Card>
   );
@@ -505,9 +554,9 @@ const ETAT_ABBY: Record<string, string> = {
   refused: "Refusé",
 };
 
-function Chiffre({ label, valeur, meta, ton }: { label: string; valeur: string; meta: string; ton?: "warn" | "alert" }) {
+function Chiffre({ label, valeur, meta, ton, ...rest }: { label: string; valeur: string; meta: string; ton?: "warn" | "alert"; "data-encaisse"?: number }) {
   return (
-    <div className="flex min-w-0 flex-col rounded-[16px] border border-line px-3 py-2">
+    <div className="flex min-w-0 flex-col rounded-[16px] border border-line px-3 py-2" {...rest}>
       <span className="text-small text-ink-3">{label}</span>
       <span className={cn("text-title font-bold tabular-nums", ton === "alert" ? "text-alert" : ton === "warn" ? "text-warn" : "text-ink")}>{valeur}</span>
       <span className="clip text-micro text-ink-3">{meta}</span>
@@ -551,6 +600,8 @@ function Frise({ moments }: { moments: MomentFrise[] }) {
                   <span>{ORIGINE[m.origine] ?? m.origine}</span>
                   {m.genre === "email_entrant" ? <StatusPill tone="alert" className="px-[7px] py-0 text-micro">E-mail reçu</StatusPill> : null}
                   {m.genre === "email_sortant" ? <StatusPill tone="info" className="px-[7px] py-0 text-micro">E-mail envoyé</StatusPill> : null}
+                  {m.genre === "rdv" ? <StatusPill tone="gold" className="px-[7px] py-0 text-micro">Rendez-vous</StatusPill> : null}
+                  {m.genre === "action" && m.origine === "trello" ? <StatusPill tone="neutral" className="px-[7px] py-0 text-micro">Carte Trello</StatusPill> : null}
                   {m.ecritParAgent ? (
                     <span data-ecrit-par-agent className="contents">
                       <StatusPill tone="muted" className="px-[7px] py-0 text-micro">
@@ -574,43 +625,6 @@ function Frise({ moments }: { moments: MomentFrise[] }) {
           </ol>
         )}
         {moments.length ? <p className="mt-4 text-micro text-ink-3">Dernier évènement {jourRelatif(moments[0].at, now)}.</p> : null}
-      </div>
-    </Card>
-  );
-}
-
-/* --------------------------------------------- emplacements à raccorder -- */
-
-/**
- * Ce qui n'est pas encore relié, dit honnêtement : pas de faux e-mails, pas de
- * rendez-vous inventés — seulement ce qu'il faudra brancher.
- */
-function ARelier() {
-  const blocs = [
-    {
-      titre: "Actions Trello",
-      etape: "Étape 3",
-      texte: "Pas encore relié. Il faudra une clé Trello et le tableau (ou l'étiquette) de ce client : ses cartes ouvertes s'afficheront ici.",
-    },
-    {
-      titre: "Rendez-vous",
-      etape: "Étape 3",
-      texte: "Pas encore relié. Il faudra autoriser la lecture de Google Agenda : les rendez-vous passés et à venir avec ce contact s'afficheront ici.",
-    },
-  ];
-  return (
-    <Card>
-      <CardHead title="Bientôt sur cette fiche" />
-      <div className="flex flex-col gap-2 px-5 pb-5">
-        {blocs.map((b) => (
-          <div key={b.titre} className="flex flex-col gap-1 rounded-[14px] border border-dashed border-line-strong p-3">
-            <span className="flex items-center gap-2">
-              <span className="text-base font-semibold text-ink">{b.titre}</span>
-              <StatusPill tone="muted">{b.etape}</StatusPill>
-            </span>
-            <span className="text-small text-ink-3">{b.texte}</span>
-          </div>
-        ))}
       </div>
     </Card>
   );

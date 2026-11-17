@@ -199,6 +199,32 @@ Vérification : `scripts/test-gmail.mjs`, contre un faux serveur Dovecot local
 (`GMAIL_IMAP_HOST` / `_PORT` / `_TLS`, pris en compte seulement pour une
 adresse de boucle locale).
 
+### Trello, GoCardless et Google Agenda (étape 3, lecture seule)
+
+Trois cartes dans Réglages, réservées à la direction, sur le modèle de Gmail
+(« Tester et enregistrer », « Synchroniser maintenant », « Déconnecter ») ;
+secrets chiffrés. Relevé toutes les 15 minutes (`src/lib/etape3.ts`, depuis
+`src/instrumentation.ts`), borné à 2 minutes, un seul à la fois par service
+(bail dans la table `releves`, migration 0031 additive). Seules des requêtes
+GET partent (`src/lib/releves.ts`).
+
+- **Trello** (`src/lib/trello.ts`) : clé d'API et jeton (trello.com/power-ups/admin),
+  tableaux à suivre (« CEO / EMMANUEL TAOCHY » coché d'office). Carte
+  « Client — action » rapprochée par le nom (sans symbole, accents ni casse),
+  ou reliée / déliée à la main depuis la fiche (`links`).
+- **GoCardless** (`src/lib/gocardless.ts`) : jeton « Read-only », live ou sandbox.
+  Client rapproché par e-mail, sinon nom d'entreprise, ou à la main. Mandats,
+  abonnements et paiements sur la fiche ; encaissé Abby + GoCardless sans
+  double compte (`sansDoubleCompte` dans `src/lib/etape3-regles.ts`).
+- **Google Agenda** (`src/lib/agenda.ts`) : adresse secrète iCal (une par agenda),
+  lue avec `ical.js` (récurrences, exceptions, fuseaux). Seuls les rendez-vous
+  rattachés à une fiche (invité connu, nom dans le titre, mot choisi sur la
+  fiche) sont gardés ; description limitée à 280 caractères.
+
+Règles de « Ce matin » écrites en tête de `src/lib/ce-matin.ts`. Vérification
+locale contre de faux serveurs (le script démarre lui-même Pilot) :
+`scripts/test-etape3.mjs` (`CAPTURES=dossier` pour les captures Playwright).
+
 ### Clés enregistrées : toutes chiffrées
 
 Toutes les clés saisies dans Réglages (Claude, Abby, Google Drive, Metricool,

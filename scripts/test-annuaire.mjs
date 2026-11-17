@@ -181,7 +181,8 @@ try {
   ok("recherche sans accents ni majuscules", p.html.includes(`Navette Fictive ${jeu}`) && !p.html.includes(`Taxi Fictif ${jeu}`));
   p = await page(`/contacts/${idA}`, cDirection);
   ok("fiche prospect : 200, historique repris", p.statut === 200 && p.html.includes(`Rappelez-moi`) && p.html.includes("Agent ventes"));
-  ok("fiche prospect : emplacements honnêtes pour Gmail, Trello, Agenda", p.html.includes("Pas encore relié") && p.html.includes("Actions Trello") && p.html.includes("Rendez-vous"));
+  // Étape 3 : sections « Actions Trello » et « Rendez-vous » ; un service non relié le dit.
+  ok("fiche prospect : Gmail, Trello, Agenda présents, ou « n'est pas relié » le cas échéant", p.html.includes("Actions Trello") && p.html.includes("Rendez-vous") && (/n(&#x27;|')est pas relié/.test(p.html) || p.html.includes('data-section="trello"')));
   p = await page("/", cDirection);
   ok("accueil : bloc « Ce matin » avec le prospect qui a répondu, urgent", p.html.includes("Ce matin") && p.html.includes(`Taxi Fictif ${jeu}`) && p.html.includes("Urgent"));
   ok("accueil : l'argent qui dort est présent pour la direction", p.html.includes("Argent qui dort"));

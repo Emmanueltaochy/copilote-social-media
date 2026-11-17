@@ -22,6 +22,11 @@ import { canSeeEmails, canSeeMoney, departmentsOf } from "@/lib/auth";
 import { etatGmail } from "@/lib/gmail";
 import { motUrgent } from "@/lib/gmail-regles";
 import type { User } from "@/db";
+import { empreinteCarte, etatPaiement, raisonsCarte, REGLES_TRELLO } from "@/lib/etape3-regles";
+import { cartesTrello, etatTrello } from "@/lib/trello";
+import { etatGoCardless } from "@/lib/gocardless";
+import { etatAgenda } from "@/lib/agenda";
+import { euroFromCents } from "@/lib/pacing";
 
 /*
  * « Ce matin » : ce qu'Emmanuel doit savoir en ouvrant Pilot.
@@ -35,8 +40,9 @@ import type { User } from "@/db";
  *                              traînent, retours clients à reprendre.
  *
  * Les e-mails sans réponse (Gmail, étape 2) s'ajoutent à « À répondre » pour
- * la direction seulement. Trello (étape 3) n'est pas encore lu : le bloc le
- * dit, au lieu de laisser croire qu'il n'y a rien. Gmail non relié aussi.
+ * la direction seulement, comme Trello, GoCardless et Google Agenda (étape 3,
+ * plus bas). Un service non relié est nommé, au lieu de laisser croire
+ * qu'il n'y a rien.
  */
 
 /* --------------------------------------------------- règles d'urgence -- */
@@ -65,8 +71,36 @@ import type { User } from "@/db";
  *       d'un client ou d'un prospect connu : un mot seul ne suffit pas.
  *   Sinon il **peut attendre**. Pas d'IA : la règle tient en une phrase,
  *   affichée sur chaque ligne.
+ *
+ * Étape 3 (direction seulement, lecture seule) :
+ * - GoCardless, dans « À répondre », toujours **urgent** :
+ *     · un client sous contrat dont un mandat est annulé (ou expiré) et qui
+ *       n'a plus aucun mandat actif : il faut lui en faire signer un ;
+ *     · un client sous contrat dont un paiement est en échec depuis moins
+ *       de 30 jours : l'appeler.
+ * - GoCardless, dans « Argent qui dort » : chaque paiement en échec depuis
+ *   moins de 30 jours (en retard) ; et, à part, pour information seulement
+ *   (pas dans le total ni archivable), les prélèvements prévus dans les
+ *   7 jours.
+ * - Trello, dans « Actions » : une carte des tableaux suivis y entre si elle
+ *   est dans « 🔥 Cette semaine », si son échéance est passée (non cochée,
+ *   hors « ✅ Terminé »), ou si elle est dans « ⏳ En attente du client »
+ *   depuis plus de 7 jours (relancer le client). Les raisons sont affichées.
+ * - Agenda : la ligne « Rendez-vous du jour » (heure et fiche) ; et, dans
+ *   « Actions », un rendez-vous terminé depuis 1 à 3 jours sans aucun e-mail
+ *   envoyé depuis à ce contact (si Gmail est relié) : « Envoyer le compte
+ *   rendu ou le devis ».
  */
 export const REGLES = {
+  /** Trello : « ⏳ En attente du client » depuis plus de N jours → relancer. */
+  trelloRelanceAttenteJours: REGLES_TRELLO.relanceAttenteJours,
+  /** GoCardless : un paiement en échec compte pendant 30 jours après sa date. */
+  gocardlessEchecRecentJours: 30,
+  /** GoCardless : les prélèvements à venir dans les 7 jours, montés à part. */
+  gocardlessAVenirJours: 7,
+  /** Agenda : compte rendu à envoyer entre 1 et 3 jours après un rendez-vous. */
+  rdvSuiviApresJours: 1,
+  rdvSuiviJusquaJours: 3,
   reponseProspectFraicheJours: 7,
   devisUrgentApresHeures: 48,
   commentaireUrgentApresHeures: 24,
@@ -651,7 +685,13 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
  *   - action:retour-livrable:<livrable> un nouveau retour du client ;
  *   - action:mise-en-ligne:<projet>     une nouvelle date de mise en ligne ;
  *   - action:devis-en-cours:<demande>   la demande modifiée ;
- *   - email:<fil>                       un nouveau message reçu dans le fil (Message-ID).
+ *   - email:<fil>                       un nouveau message reçu dans le fil (Message-ID) ;
+ *   - gocardless-mandat:<mandat>        l'état du mandat qui change ;
+ *   - gocardless-paiement:<paiement>    l'état du paiement qui change ;
+ *   - gocardless-echec:<paiement>       l'état du paiement qui change ;
+ *   - gocardless-sans-fiche             un nouveau paiement en échec sans fiche ;
+ *   - trello:<carte>                    la carte qui bouge : colonne, échéance ou dernière activité ;
+ *   - rdv-suivi:<rendez-vous>           (une fois traité, il ne revient pas : la fenêtre de 3 jours se ferme).
  *
  * Qui peut archiver : un compte de l'agence qui voit l'accueil (pôle social),
  * et seulement les lignes qu'il voit déjà — mêmes requêtes, même filtrage par
@@ -661,11 +701,11 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
 export type ColonneMatin = "repondre" | "argent" | "actions";
 
 export const colonneDe = (key: string): ColonneMatin | null =>
-  /^(prospect-repondu|devis-demande|commentaire|email):/.test(key)
+  /^(prospect-repondu|devis-demande|commentaire|email|gocardless-mandat|gocardless-paiement):/.test(key)
     ? "repondre"
-    : /^(facture|facture-pilot|devis-signe):/.test(key)
+    : /^(facture|facture-pilot|devis-signe|gocardless-echec):/.test(key) || key === "gocardless-sans-fiche"
       ? "argent"
-      : key.startsWith("action:")
+      : /^(action|trello|rdv-suivi):/.test(key)
         ? "actions"
         : null;
 
@@ -679,8 +719,12 @@ export type CeMatin = {
    */
   gmail: { etat: "relie" | "non_relie" | "erreur"; erreur: string | null } | null;
   /** null : l'argent n'est pas montré à cette personne. */
-  argent: (Partage & Pick<ArgentQuiDort, "abby" | "erreurAbby">) | null;
+  argent: (Partage & Pick<ArgentQuiDort, "abby" | "erreurAbby"> & { aVenir: LigneMatin[] }) | null;
   actions: Partage;
+  /** Trello, GoCardless, Agenda : relié, pas relié ou en erreur. null : cette personne ne les voit pas. */
+  etape3: Record<"trello" | "gocardless" | "agenda", { etat: "relie" | "non_relie" | "erreur"; erreur: string | null }> | null;
+  /** Les rendez-vous du jour (agenda), pour la direction. */
+  rendezVousDuJour: { key: string; heure: string; titre: string; qui: string; href: string }[] | null;
 };
 
 /** Les clients qu'un membre de l'équipe voit (même règle que l'annuaire). */
@@ -705,8 +749,9 @@ export async function ceMatin(
 ): Promise<CeMatin> {
   const voirArgent = canSeeMoney(user) && colonnes.includes("argent");
   const voirEmails = canSeeEmails(user) && colonnes.includes("repondre");
+  const voirEtape3 = canSeeEmails(user);
   const vide = Promise.resolve([] as LigneMatin[]);
-  const [visibles, archives, repondre, argent, aFaire, gmail] = await Promise.all([
+  const [visibles, archives, repondre, argent, aFaire, gmail, e3] = await Promise.all([
     clientsVisibles(user),
     db
       .select({ key: ceMatinArchives.key, state: ceMatinArchives.state, at: ceMatinArchives.archivedAt, par: users.name })
@@ -716,6 +761,7 @@ export async function ceMatin(
     voirArgent ? argentQuiDort(now, scopeId) : Promise.resolve(null),
     colonnes.includes("actions") ? actions(now, scopeId) : vide,
     voirEmails ? etatGmail() : Promise.resolve(null),
+    voirEtape3 ? etape3(now, scopeId) : Promise.resolve(null),
   ]);
   const parCle = new Map(archives.map((a) => [a.key, a]));
 
@@ -733,16 +779,240 @@ export async function ceMatin(
     return out;
   };
 
+  const etatDe = (e: { relie: boolean; illisible: boolean; erreur: string | null }) => ({
+    etat: (!e.relie ? "non_relie" : e.illisible || e.erreur ? "erreur" : "relie") as "relie" | "non_relie" | "erreur",
+    erreur: e.illisible ? "secret à recoller dans Réglages" : e.erreur,
+  });
+  const avecEtape3 = (cle: ColonneMatin, lignes: LigneMatin[]) =>
+    e3 && colonnes.includes(cle) ? [...lignes, ...(cle === "repondre" ? e3.repondre : cle === "argent" ? e3.argent : e3.actions)] : lignes;
+  const trier = (l: LigneMatin[]) => l.sort((a, b) => (a.urgence === b.urgence ? 0 : a.urgence === "urgent" ? -1 : 1));
+
   return {
-    repondre: partager(repondre),
+    repondre: partager(trier(avecEtape3("repondre", repondre))),
     gmail: gmail
       ? {
           etat: !gmail.relie ? "non_relie" : gmail.derniereErreur || gmail.illisible ? "erreur" : "relie",
           erreur: gmail.illisible ? "mot de passe à recoller dans Réglages" : gmail.derniereErreur,
         }
       : null,
-    argent: argent ? { ...partager(argent.lignes), abby: argent.abby, erreurAbby: argent.erreurAbby } : null,
-    actions: partager(aFaire),
+    argent: argent ? { ...partager(avecEtape3("argent", argent.lignes)), abby: argent.abby, erreurAbby: argent.erreurAbby, aVenir: e3?.aVenir ?? [] } : null,
+    // Ce qui bloque d'abord, puis le tableau Trello d'Emmanuel et les comptes
+    // rendus à envoyer (ses priorités de la semaine), puis le reste (même
+    // ordre que actions()).
+    actions: partager(
+      avecEtape3("actions", aFaire)
+        .map((l, i) => ({ l, i, rang: l.ton === "alert" ? 0 : /^(trello|rdv-suivi):/.test(l.key) ? 1 : 2 }))
+        .sort((a, b) => a.rang - b.rang || a.i - b.i)
+        .map((x) => x.l),
+    ),
+    etape3: e3 ? { trello: etatDe(e3.etats.trello), gocardless: etatDe(e3.etats.gocardless), agenda: etatDe(e3.etats.agenda) } : null,
+    rendezVousDuJour: e3 ? e3.duJour : null,
+  };
+}
+
+/* ---------------------------------------------------- étape 3 : lignes -- */
+
+const heureReunion = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" });
+const jourReunion = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Indian/Reunion" });
+
+/**
+ * Les lignes de Trello, GoCardless et de l'agenda (règles en tête de
+ * fichier), lues dans directory_events et l'état du dernier relevé Trello.
+ */
+async function etape3(now: Date, scopeId?: string) {
+  const [trello, gocardless, agenda, cartes, gmailOk] = await Promise.all([
+    etatTrello(),
+    etatGoCardless(),
+    etatAgenda(),
+    cartesTrello(),
+    etatGmail().then((g) => g.relie && !g.illisible),
+  ]);
+  const lignesSource = (sources: string[]) =>
+    db
+      .select({
+        id: directoryEvents.id,
+        entryId: directoryEvents.entryId,
+        source: directoryEvents.source,
+        kind: directoryEvents.kind,
+        externalId: directoryEvents.externalId,
+        at: directoryEvents.occurredAt,
+        titre: directoryEvents.title,
+        meta: directoryEvents.meta,
+        nom: directoryEntries.name,
+        clientId: directoryEntries.clientId,
+        client: clients.shortName,
+        clientActif: clients.active,
+        clientArchive: clients.archivedAt,
+      })
+      .from(directoryEvents)
+      .innerJoin(directoryEntries, eq(directoryEntries.id, directoryEvents.entryId))
+      .leftJoin(clients, eq(clients.id, directoryEntries.clientId))
+      .where(inArray(directoryEvents.source, sources));
+  const [gc, rdv] = await Promise.all([gocardless.relie ? lignesSource(["gocardless"]) : [], agenda.relie ? lignesSource(["agenda"]) : []]);
+
+  const repondre: LigneMatin[] = [];
+  const argent: LigneMatin[] = [];
+  const aVenir: LigneMatin[] = [];
+  const actionsE3: LigneMatin[] = [];
+  const fiche = (r: { clientId: string | null; entryId: string }) => `/contacts/${r.clientId ?? r.entryId}`;
+  const qui = (r: { clientId: string | null; client: string | null; nom: string }) => (r.clientId && r.client) || r.nom;
+  const sousContrat = (r: { clientId: string | null; clientActif: boolean | null; clientArchive: Date | null }) => Boolean(r.clientId && r.clientActif && !r.clientArchive);
+
+  /* GoCardless */
+  const mandatsActifs = new Set(gc.filter((r) => r.kind === "mandat" && (r.meta as Record<string, unknown>).statut === "active").map((r) => r.entryId));
+  for (const r of gc) {
+    const m = r.meta as Record<string, unknown>;
+    const statut = String(m.statut ?? "");
+    if (r.kind === "mandat" && (statut === "cancelled" || statut === "expired") && sousContrat(r) && !mandatsActifs.has(r.entryId)) {
+      repondre.push({
+        key: `gocardless-mandat:${r.externalId}`,
+        etat: statut,
+        href: `${fiche(r)}#argent`,
+        qui: qui(r),
+        titre: `Mandat GoCardless ${statut === "cancelled" ? "annulé" : "expiré"} : plus aucun prélèvement possible`,
+        meta: `Mandat ${String(m.reference ?? r.externalId)} · plus de mandat actif`,
+        urgence: "urgent",
+        raison: "Client sous contrat sans mandat actif : lui faire signer un nouveau mandat",
+        clientId: r.clientId,
+      });
+    }
+    if (r.kind !== "paiement") continue;
+    const etat = etatPaiement(statut);
+    const montant = Number(m.montantCents ?? 0);
+    const date = String(m.dateDePrelevement ?? "");
+    const age = now.getTime() - r.at.getTime();
+    if (etat === "echec" && age <= REGLES.gocardlessEchecRecentJours * JOUR) {
+      argent.push({
+        key: `gocardless-echec:${r.externalId}`,
+        etat: statut,
+        href: `${fiche(r)}#argent`,
+        qui: qui(r),
+        titre: `Prélèvement GoCardless en échec · ${r.titre}`,
+        meta: `${date ? `Prévu le ${dateCourte(date)}` : "Date inconnue"} · ${statut === "charged_back" ? "contesté par le client" : "refusé par la banque"}`,
+        montantCents: montant,
+        ton: "alert",
+        raison: "Paiement GoCardless en échec depuis moins de 30 jours",
+        clientId: r.clientId,
+      });
+      if (sousContrat(r)) {
+        repondre.push({
+          key: `gocardless-paiement:${r.externalId}`,
+          etat: statut,
+          href: `${fiche(r)}#argent`,
+          qui: qui(r),
+          titre: `Prélèvement en échec (${euroFromCents(montant)}) : appeler le client`,
+          meta: date ? `Prévu le ${dateCourte(date)}` : "",
+          urgence: "urgent",
+          raison: "Client sous contrat, paiement GoCardless en échec",
+          clientId: r.clientId,
+        });
+      }
+    }
+    if (etat === "a_venir" && date) {
+      const dans = joursEntre(aujourdhuiReunion(now), date);
+      if (dans >= 0 && dans <= REGLES.gocardlessAVenirJours) {
+        aVenir.push({
+          key: `gocardless-a-venir:${r.externalId}`,
+          etat: statut,
+          href: `${fiche(r)}#argent`,
+          qui: qui(r),
+          titre: r.titre,
+          meta: dans === 0 ? "Prélevé aujourd'hui" : `Prélevé le ${dateCourte(date)}`,
+          montantCents: montant,
+          ton: "info",
+          raison: "Prélèvement prévu dans les 7 jours (pour information)",
+          clientId: r.clientId,
+        });
+      }
+    }
+  }
+  const echecsSansFiche = gocardless.sansFiche.reduce((t, c) => t + c.echecs, 0);
+  if (echecsSansFiche && !scopeId) {
+    argent.push({
+      key: "gocardless-sans-fiche",
+      etat: String(echecsSansFiche),
+      href: "/reglages#gocardless",
+      qui: "GoCardless",
+      titre: `${echecsSansFiche} prélèvement${echecsSansFiche > 1 ? "s" : ""} en échec chez des clients sans fiche`,
+      meta: "Reliez ces clients à leur fiche pour voir les montants",
+      montantCents: 0,
+      ton: "alert",
+      raison: "Paiements GoCardless en échec, client non relié",
+      clientId: null,
+    });
+  }
+
+  /* Trello */
+  if (trello.relie) {
+    for (const c of cartes) {
+      const raisons = raisonsCarte(c, now);
+      if (!raisons.length) continue;
+      const attente = c.colonneCle === "attente" && raisons.some((x) => x.startsWith("En attente"));
+      const retard = raisons.some((x) => x.startsWith("Échéance"));
+      actionsE3.push({
+        key: `trello:${c.id}`,
+        etat: empreinteCarte(c),
+        href: c.clientId || c.entryId ? `/contacts/${c.clientId ?? c.entryId}#trello` : c.url,
+        qui: c.qui,
+        titre: attente ? `Relancer le client : ${c.action}` : c.action,
+        meta: [c.colonne, c.echeance ? `échéance ${new Date(c.echeance).toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "Indian/Reunion" })}` : null].filter(Boolean).join(" · "),
+        raison: raisons.join(" · "),
+        ton: retard ? "alert" : "warn",
+        clientId: c.clientId,
+      });
+    }
+  }
+
+  /* Agenda */
+  const duJour: { key: string; heure: string; titre: string; qui: string; href: string }[] = [];
+  const today = aujourdhuiReunion(now);
+  const vus = new Set<string>();
+  const finDe = (r: (typeof rdv)[number]) => new Date(String((r.meta as Record<string, unknown>).fin ?? r.at.toISOString()));
+  const suivis = rdv.filter((r) => {
+    const fin = finDe(r).getTime();
+    return now.getTime() - fin >= REGLES.rdvSuiviApresJours * JOUR && now.getTime() - fin <= REGLES.rdvSuiviJusquaJours * JOUR;
+  });
+  const envois = gmailOk && suivis.length
+    ? await db
+        .select({ entryId: directoryEvents.entryId, at: directoryEvents.occurredAt })
+        .from(directoryEvents)
+        .where(and(eq(directoryEvents.source, "gmail"), eq(directoryEvents.kind, "email_sortant"), inArray(directoryEvents.entryId, [...new Set(suivis.map((r) => r.entryId))])))
+    : [];
+  for (const r of rdv) {
+    const journee = Boolean((r.meta as Record<string, unknown>).journee);
+    if (aujourdhuiReunion(r.at) === today && !vus.has(`${r.externalId}|${r.entryId}`)) {
+      vus.add(`${r.externalId}|${r.entryId}`);
+      if (!scopeId || r.clientId === scopeId) duJour.push({ key: r.id, heure: journee ? "Journée" : heureReunion(r.at), titre: r.titre, qui: qui(r), href: `${fiche(r)}#rendez-vous` });
+    }
+  }
+  if (gmailOk) {
+    for (const r of suivis) {
+      const debut = r.at.getTime();
+      if (envois.some((e) => e.entryId === r.entryId && e.at.getTime() > debut)) continue;
+      const jours = Math.floor((now.getTime() - finDe(r).getTime()) / JOUR);
+      actionsE3.push({
+        key: `rdv-suivi:${r.id}`,
+        etat: r.at.toISOString(),
+        href: `${fiche(r)}#rendez-vous`,
+        qui: qui(r),
+        titre: "Envoyer le compte rendu ou le devis",
+        meta: `Rendez-vous « ${r.titre} » du ${jourReunion(r.at)}`,
+        raison: `Rendez-vous terminé depuis ${jours} j, aucun e-mail envoyé depuis à ce contact`,
+        ton: "warn",
+        clientId: r.clientId,
+      });
+    }
+  }
+  duJour.sort((a, b) => a.heure.localeCompare(b.heure));
+
+  const portee = (l: LigneMatin[]) => (scopeId ? l.filter((x) => x.clientId === scopeId) : l);
+  return {
+    repondre: portee(repondre),
+    argent: portee(argent),
+    aVenir: portee(aVenir),
+    actions: portee(actionsE3),
+    duJour,
+    etats: { trello, gocardless, agenda },
   };
 }
 
