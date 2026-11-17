@@ -70,7 +70,7 @@ export function NavPortail({
                 aria-current={actif ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-[7px] rounded-full px-[14px] py-[8px] text-base font-medium whitespace-nowrap no-underline hover:no-underline",
-                  actif ? "bg-night text-white" : "text-ink-2 hover:bg-mute hover:text-ink",
+                  actif ? "bg-ink text-paper" : "text-ink-2 hover:bg-mute hover:text-ink",
                 )}
               >
                 <Icon name={o.icon} size={16} />

@@ -26,6 +26,8 @@ export const dynamic = "force-dynamic";
  * Rien d'autre. Les médias, les documents et les projets ont leur page — les
  * empiler ici obligeait à faire défiler dix écrans pour retrouver une photo.
  */
+const PUBLIES_MONTRES = 8;
+
 export default async function PortailPage() {
   const { user, client, config } = await contextePortail();
   const { start, end } = monthRange();
@@ -307,7 +309,7 @@ export default async function PortailPage() {
                       <span className="clip text-base font-semibold text-ink">{c.title}</span>
                       <span className="clip text-small text-ink-3">{whenLabel(c.scheduledAt!, now)}</span>
                     </span>
-                    <StatusTag status={c.status} className="hidden sm:inline-flex" />
+                    <StatusTag status={c.status} portail className="hidden sm:inline-flex" />
                   </Link>
                 ))}
               </div>
@@ -396,9 +398,18 @@ export default async function PortailPage() {
         }`}
       >
         {published.length > 0 ? (
-          <Panel title="Publié ce mois">
+          <Panel
+            title={`Publié ce mois · ${published.length}`}
+            action={published.length > PUBLIES_MONTRES ? { href: "/portail/calendrier", label: "Tout voir" } : undefined}
+          >
             <div className="flex flex-col">
-              {published.map(({ content }) => (
+              {/* Les plus récents seulement : la liste entière (jusqu'à
+                  plusieurs centaines de lignes) noyait le reste de l'accueil.
+                  Le calendrier montre tout. */}
+              {[...published]
+                .sort((a, b) => (b.content.publishedAt?.getTime() ?? 0) - (a.content.publishedAt?.getTime() ?? 0))
+                .slice(0, PUBLIES_MONTRES)
+                .map(({ content }) => (
                 <div
                   key={content.id}
                   className="flex items-center gap-3 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0"
