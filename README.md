@@ -187,6 +187,28 @@ Vérification : `scripts/test-gmail.mjs`, contre un faux serveur Dovecot local
 (`GMAIL_IMAP_HOST` / `_PORT` / `_TLS`, pris en compte seulement pour une
 adresse de boucle locale).
 
+### Clés enregistrées : toutes chiffrées
+
+Toutes les clés saisies dans Réglages (Claude, Abby, Google Drive, Metricool,
+stock vidéos, adresse Claude.ai, Gmail, clé de signature des médias, et celles
+de l'étape 3) sont chiffrées en base, en AES-256-GCM (`src/lib/chiffrement.ts`,
+`src/lib/secrets.ts`). L'écriture chiffre toujours ; la lecture accepte aussi
+l'ancienne forme en clair. Au démarrage, `convertirSecretsEnClair()` chiffre
+sur place ce qui est encore en clair, ligne par ligne, dans une transaction,
+en vérifiant le déchiffrement avant d'écrire. Sans clé lisible (ni
+`PILOT_SECRETS_KEY`, ni fichier `MEDIA_ROOT/.secrets/pilot-secrets.key`), ou si
+un secret déjà chiffré ne s'ouvre pas avec la clé actuelle, rien n'est converti
+et le journal le dit (sans aucun secret).
+
+**La clé maîtresse est le seul moyen de relire les secrets** : en garder une
+copie hors du serveur (gestionnaire de mots de passe). La perdre ne casse rien
+d'autre : il suffit alors de recoller chaque clé dans Réglages.
+
+Aucune route qui sert un fichier ne peut atteindre `.secrets` : tous les
+chemins viennent de la base et passent par `src/lib/chemin-media.ts`.
+Vérification locale (le script démarre lui-même le serveur) :
+`scripts/test-secrets.mjs`.
+
 ### Prochaine étape
 
 Brancher Supabase : le découpage `data/` ↔ `lib/` est fait pour que chaque

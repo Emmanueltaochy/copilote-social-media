@@ -2,12 +2,14 @@ import "server-only";
 
 import { and, eq, gte, isNotNull, sql as raw } from "drizzle-orm";
 import { audienceDaily, clients, db, integrations, socialPosts } from "@/db";
+import { chiffrer } from "@/lib/chiffrement";
+import { valeurClaire } from "@/lib/secrets";
 
 /*
  * Metricool : statistiques réelles et programmation des publications.
  *
  * La clé d'API (le jeton du compte) se saisit dans Réglages → Intégrations et
- * reste en base, côté serveur. À défaut, les variables METRICOOL_TOKEN et
+ * reste en base, côté serveur, chiffrée (voir src/lib/secrets.ts). À défaut, les variables METRICOOL_TOKEN et
  * METRICOOL_USER_ID servent de secours (utile pour un déploiement scripté).
  *
  * Seuls les points d'accès vérifiés contre l'API réelle sont utilisés :
@@ -29,7 +31,8 @@ export async function metricoolConfig(): Promise<MetricoolConfig | null> {
     .from(integrations)
     .where(eq(integrations.id, ID))
     .limit(1);
-  const token = row?.token || process.env.METRICOOL_TOKEN || "";
+  const lu = await valeurClaire(ID, row?.token);
+  const token = (lu === "illisible" ? null : lu) || process.env.METRICOOL_TOKEN || "";
   const userId = row?.accountId || process.env.METRICOOL_USER_ID || "";
   return token && userId ? { token, userId } : null;
 }
@@ -60,7 +63,8 @@ export async function saveMetricoolConfig(
     accountId: userId,
     lastError: null,
     updatedAt: new Date(),
-    ...(token ? { token } : {}),
+    // Toujours chiffrée : jamais la clé en clair dans la base.
+    ...(token ? { token: await chiffrer(token) } : {}),
   };
   await db
     .insert(integrations)

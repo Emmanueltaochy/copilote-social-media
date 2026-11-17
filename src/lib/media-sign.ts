@@ -1,27 +1,23 @@
 import "server-only";
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { db, integrations } from "@/db";
+import { secretInterne } from "@/lib/secrets";
 
 /*
  * Liens signés vers un média, pour qu'un service extérieur (Metricool) puisse
  * récupérer le visuel d'une publication sans session. Le lien ne vaut que pour
  * ce média et expire : une adresse devinée ou recopiée ne donne accès à rien
  * d'autre, ni pour longtemps.
+ *
+ * La clé de signature est créée par Pilot au premier usage et gardée chiffrée
+ * dans `integrations` (voir src/lib/secrets.ts).
  */
 
-const ID = "media-signing";
 let cached: string | null = null;
 
 async function secret(): Promise<string> {
-  if (cached) return cached;
-  const [row] = await db.select({ token: integrations.token }).from(integrations).where(eq(integrations.id, ID)).limit(1);
-  if (row?.token) return (cached = row.token);
-  const token = randomBytes(32).toString("hex");
-  await db.insert(integrations).values({ id: ID, token }).onConflictDoNothing();
-  const [again] = await db.select({ token: integrations.token }).from(integrations).where(eq(integrations.id, ID)).limit(1);
-  return (cached = again?.token ?? token);
+  cached ??= await secretInterne("media-signing", () => randomBytes(32).toString("hex"));
+  return cached;
 }
 
 function mac(key: string, id: string, exp: number) {

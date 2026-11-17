@@ -29,6 +29,14 @@ export async function register() {
     throw error;
   }
 
+  // Les secrets encore en clair dans `integrations` (clés d'avant le
+  // chiffrement) sont chiffrés sur place, une ligne à la fois, vérifiés avant
+  // d'écrire. Idempotent ; sans clé de chiffrement lisible, rien n'est
+  // touché (voir convertirSecretsEnClair dans src/lib/secrets.ts). Un échec
+  // n'empêche jamais le démarrage : les secrets clairs restent lisibles.
+  const { convertirSecretsEnClair } = await import("@/lib/secrets");
+  await convertirSecretsEnClair().catch((e) => console.warn("[pilot] secrets : conversion interrompue,", (e as Error).message));
+
   // La vidéo de bienvenue livrée avec cette version (une seule fois).
   const { installBundledPortalVideo } = await import("@/lib/portail-video-bundle");
   await installBundledPortalVideo().catch((e) => console.warn("[pilot] vidéo du portail", e));

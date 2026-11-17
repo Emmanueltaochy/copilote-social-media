@@ -9,6 +9,7 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import sharp from "sharp";
+import { cheminDansMedias } from "@/lib/chemin-media";
 
 /**
  * Bride libvips pour une machine partagée.
@@ -457,12 +458,13 @@ export function isLegacyImage(asset: { storagePath: string; mimeType: string }):
 }
 
 export function absolutePath(storagePath: string): string {
-  // Empêche qu'un chemin en base fasse sortir de la racine des médias.
-  const resolved = path.resolve(MEDIA_ROOT, storagePath);
-  if (!resolved.startsWith(path.resolve(MEDIA_ROOT))) {
-    throw new UploadError("Chemin de fichier invalide.");
+  // Empêche qu'un chemin en base fasse sortir de la racine des médias, ou
+  // atteigne le dossier de la clé de chiffrement (voir chemin-media.ts).
+  try {
+    return cheminDansMedias(MEDIA_ROOT, storagePath);
+  } catch (e) {
+    throw new UploadError((e as Error).message);
   }
-  return resolved;
 }
 
 export async function removeStored(storagePath: string): Promise<void> {
