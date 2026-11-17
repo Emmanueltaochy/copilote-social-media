@@ -52,4 +52,13 @@ export async function register() {
   const pubTick = () => syncPublications().catch((e) => console.warn("[pilot] suivi des publications", e));
   setTimeout(pubTick, 90_000);
   setInterval(pubTick, 10 * 60_000).unref?.();
+
+  // Gmail (lecture seule) : toutes les 12 minutes, les nouveaux messages de la
+  // boîte de réception et des envoyés. Sans mot de passe enregistré, rien ne
+  // part. Un bail en base empêche deux relevés simultanés (redémarrage,
+  // bouton « Synchroniser maintenant ») ; chaque relevé est borné à 4 minutes.
+  const { releveRegulier } = await import("@/lib/gmail");
+  const gmailTick = () => releveRegulier().catch((e) => console.warn("[pilot] relevé Gmail", (e as Error).message));
+  setTimeout(gmailTick, 120_000);
+  setInterval(gmailTick, 12 * 60_000).unref?.();
 }

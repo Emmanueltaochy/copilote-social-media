@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   ceMatinArchives,
   clients,
@@ -8,6 +8,7 @@ import {
   contents,
   db,
   directoryEntries,
+  directoryEvents,
   invoices,
   quoteRequests,
   users,
@@ -17,7 +18,9 @@ import {
 import { correspondances } from "@/db/annuaire-queries";
 import { abbyRaccorde, devisSignesNonFactures, facturesEnAttente, type AbbyDoc } from "@/lib/abby";
 import { cleEmail, cleTexte, jourRelatif } from "@/lib/annuaire";
-import { canSeeMoney, departmentsOf } from "@/lib/auth";
+import { canSeeEmails, canSeeMoney, departmentsOf } from "@/lib/auth";
+import { etatGmail } from "@/lib/gmail";
+import { motUrgent } from "@/lib/gmail-regles";
 import type { User } from "@/db";
 
 /*
@@ -31,8 +34,9 @@ import type { User } from "@/db";
  *   3. Que faire, et pour qui ? — prochaines actions datées, validations qui
  *                              traînent, retours clients à reprendre.
  *
- * Les e-mails (étape 2) et Trello (étape 3) ne sont pas encore lus : le bloc
- * le dit, au lieu de laisser croire qu'il n'y a rien.
+ * Les e-mails sans réponse (Gmail, étape 2) s'ajoutent à « À répondre » pour
+ * la direction seulement. Trello (étape 3) n'est pas encore lu : le bloc le
+ * dit, au lieu de laisser croire qu'il n'y a rien. Gmail non relié aussi.
  */
 
 /* --------------------------------------------------- règles d'urgence -- */
@@ -48,6 +52,16 @@ import type { User } from "@/db";
  * - Une demande de devis non traitée devient **urgente** après 2 jours.
  * - Un commentaire de client sur le portail, sans réponse de l'équipe,
  *   devient **urgent** après 24 heures.
+ * - Un e-mail sans réponse (Gmail) est **urgent** :
+ *     · s'il vient d'un client sous contrat (compte client actif) ou d'un
+ *       prospect qui a répondu (à un e-mail d'Emmanuel dans le même fil, ou
+ *       fiche à l'étape « a répondu », « rendez-vous » ou « devis ») et
+ *       attend depuis plus de 24 heures ;
+ *     · ou si son objet ou son extrait contient un mot d'urgence ou d'argent
+ *       (urgent, problème, bug, panne, facture, paiement, devis, rendez-vous,
+ *       rappeler — voir MOTS_URGENTS dans gmail-regles.ts).
+ *   Sinon il **peut attendre**. Pas d'IA : la règle tient en une phrase,
+ *   affichée sur chaque ligne.
  */
 export const REGLES = {
   reponseProspectFraicheJours: 7,
@@ -55,6 +69,7 @@ export const REGLES = {
   commentaireUrgentApresHeures: 24,
   validationRelanceApresJours: 3,
   devisEnCoursRelanceApresJours: 7,
+  emailUrgentApresHeures: 24,
 } as const;
 
 export type Urgence = "urgent" | "attendre";
@@ -109,9 +124,9 @@ async function nomsCourts(): Promise<Map<string, string>> {
 
 /* ------------------------------------------------------------ à répondre -- */
 
-export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin[]> {
+export async function aRepondre(now: Date, scopeId?: string, opts: { emails?: boolean } = {}): Promise<LigneMatin[]> {
   const today = aujourdhuiReunion(now);
-  const [noms, repondu, devis, commentairesClients] = await Promise.all([
+  const [noms, repondu, devis, commentairesClients, emails] = await Promise.all([
     nomsCourts(),
     db.select().from(directoryEntries).where(eq(directoryEntries.status, "repondu")),
     db
@@ -150,9 +165,10 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
           sql`not exists (select 1 from ${comments} c2 where c2.content_id = ${comments.contentId} and c2.created_at > ${comments.createdAt})`,
         ),
       ),
+    opts.emails ? emailsSansReponse(now) : Promise.resolve([] as LigneMatin[]),
   ]);
 
-  const lignes: LigneMatin[] = [];
+  const lignes: LigneMatin[] = [...emails];
 
   for (const p of repondu) {
     const derniere = p.lastActivityAt;
@@ -211,6 +227,96 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
 
   const visibles = scopeId ? lignes.filter((l) => l.clientId === scopeId) : lignes;
   return visibles.sort((a, b) => (a.urgence === b.urgence ? 0 : a.urgence === "urgent" ? -1 : 1));
+}
+
+/**
+ * Les e-mails sans réponse (Gmail), un par fil : le dernier message reçu, que
+ * personne n'a suivi d'une réponse (calcul dans lib/gmail.ts). La clé est
+ * `email:<fil>` et l'empreinte le Message-ID de ce dernier message reçu : un
+ * nouveau message du contact dans le fil fait revenir une ligne archivée.
+ */
+async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
+  const rows = await db
+    .select({
+      id: directoryEvents.id,
+      at: directoryEvents.occurredAt,
+      objet: directoryEvents.title,
+      extrait: directoryEvents.body,
+      externalId: directoryEvents.externalId,
+      meta: directoryEvents.meta,
+      entryId: directoryEntries.id,
+      nom: directoryEntries.name,
+      kind: directoryEntries.kind,
+      status: directoryEntries.status,
+      clientId: directoryEntries.clientId,
+      client: clients.shortName,
+      clientActif: clients.active,
+      clientArchive: clients.archivedAt,
+    })
+    .from(directoryEvents)
+    .innerJoin(directoryEntries, eq(directoryEntries.id, directoryEvents.entryId))
+    .leftJoin(clients, eq(clients.id, directoryEntries.clientId))
+    .where(and(eq(directoryEvents.source, "gmail"), eq(directoryEvents.kind, "email_entrant"), eq(directoryEvents.awaitingReply, true)))
+    .orderBy(desc(directoryEvents.occurredAt));
+
+  // Un fil, une ligne : le message reçu le plus récent.
+  const parFil = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) {
+    const fil = String((r.meta as Record<string, unknown>).fil ?? r.id);
+    if (!parFil.has(fil)) parFil.set(fil, r);
+  }
+  const fils = [...parFil.keys()];
+  // Les fils où Emmanuel avait écrit : le prospect y a répondu.
+  const avecEnvoi = new Set(
+    fils.length
+      ? (
+          await db
+            .selectDistinct({ fil: sql<string>`${directoryEvents.meta}->>'fil'` })
+            .from(directoryEvents)
+            .where(and(eq(directoryEvents.source, "gmail"), eq(directoryEvents.kind, "email_sortant"), inArray(sql`${directoryEvents.meta}->>'fil'`, fils)))
+        ).map((r) => r.fil)
+      : [],
+  );
+
+  const lignes: LigneMatin[] = [];
+  for (const [fil, r] of parFil) {
+    const meta = r.meta as { de?: { nom?: string | null; email?: string } | null; messageId?: string | null };
+    const age = now.getTime() - r.at.getTime();
+    const vieux = age > REGLES.emailUrgentApresHeures * HEURE;
+    const sousContrat = Boolean(r.clientId && r.clientActif && !r.clientArchive);
+    const prospectRepondu = !r.clientId && r.kind === "prospect" && (avecEnvoi.has(fil) || ["repondu", "rdv", "devis"].includes(r.status ?? ""));
+    const mot = motUrgent(`${r.objet} ${r.extrait ?? ""}`);
+    const urgent = Boolean(mot) || ((sousContrat || prospectRepondu) && vieux);
+    const qui = sousContrat ? "Client sous contrat" : prospectRepondu ? "Prospect qui a répondu" : null;
+    const raison = mot
+      ? `Contient « ${mot} »${qui && vieux ? ` · ${qui.toLowerCase()}, sans réponse depuis plus de 24\u00a0h` : ""}`
+      : qui && vieux
+        ? `${qui}, sans réponse depuis plus de 24\u00a0h`
+        : qui
+          ? `${qui}, reçu il y a moins de 24\u00a0h`
+          : "Ni client sous contrat ni prospect ayant répondu, aucun mot d'urgence";
+    const auteur = meta.de?.nom || meta.de?.email || "le contact";
+    lignes.push({
+      key: `email:${fil}`,
+      etat: meta.messageId ?? r.externalId,
+      href: `/contacts/${r.clientId ?? r.entryId}?emails=sans-reponse#emails`,
+      qui: (r.clientId && r.client) || r.nom,
+      titre: `E-mail : « ${r.objet} »`,
+      meta: `Sans réponse depuis ${depuis(r.at, now)} · de ${auteur}`,
+      urgence: urgent ? "urgent" : "attendre",
+      raison,
+      clientId: r.clientId,
+    });
+  }
+  return lignes;
+}
+
+/** « 3 j », « 5 h », « moins d'une heure ». */
+export function depuis(d: Date, now: Date): string {
+  const h = Math.floor((now.getTime() - d.getTime()) / HEURE);
+  if (h < 1) return "moins d'une heure";
+  if (h < 24) return `${h}\u00a0h`;
+  return `${Math.floor(h / 24)}\u00a0j`;
 }
 
 /* ------------------------------------------------------ argent qui dort -- */
@@ -532,17 +638,18 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
  *   - action:validation:<client>        un nouveau contenu envoyé en validation ;
  *   - action:retour-livrable:<livrable> un nouveau retour du client ;
  *   - action:mise-en-ligne:<projet>     une nouvelle date de mise en ligne ;
- *   - action:devis-en-cours:<demande>   la demande modifiée.
+ *   - action:devis-en-cours:<demande>   la demande modifiée ;
+ *   - email:<fil>                       un nouveau message reçu dans le fil (Message-ID).
  *
  * Qui peut archiver : un compte de l'agence qui voit l'accueil (pôle social),
  * et seulement les lignes qu'il voit déjà — mêmes requêtes, même filtrage par
- * pôle. « Argent qui dort » reste réservé à la direction. Rien n'est jamais
+ * pôle. « Argent qui dort » et les e-mails restent réservés à la direction. Rien n'est jamais
  * écrit dans Abby : la facture reste due, elle ne s'affiche plus ici.
  */
 export type ColonneMatin = "repondre" | "argent" | "actions";
 
 export const colonneDe = (key: string): ColonneMatin | null =>
-  /^(prospect-repondu|devis-demande|commentaire):/.test(key)
+  /^(prospect-repondu|devis-demande|commentaire|email):/.test(key)
     ? "repondre"
     : /^(facture|facture-pilot|devis-signe):/.test(key)
       ? "argent"
@@ -554,6 +661,11 @@ export type Partage = { lignes: LigneMatin[]; archivees: LigneMatin[] };
 
 export type CeMatin = {
   repondre: Partage;
+  /**
+   * Gmail, pour la direction : relié (et lu), pas relié, ou en erreur. null :
+   * cette personne ne voit pas les e-mails.
+   */
+  gmail: { etat: "relie" | "non_relie" | "erreur"; erreur: string | null } | null;
   /** null : l'argent n'est pas montré à cette personne. */
   argent: (Partage & Pick<ArgentQuiDort, "abby" | "erreurAbby">) | null;
   actions: Partage;
@@ -580,16 +692,18 @@ export async function ceMatin(
   colonnes: ColonneMatin[] = ["repondre", "argent", "actions"],
 ): Promise<CeMatin> {
   const voirArgent = canSeeMoney(user) && colonnes.includes("argent");
+  const voirEmails = canSeeEmails(user) && colonnes.includes("repondre");
   const vide = Promise.resolve([] as LigneMatin[]);
-  const [visibles, archives, repondre, argent, aFaire] = await Promise.all([
+  const [visibles, archives, repondre, argent, aFaire, gmail] = await Promise.all([
     clientsVisibles(user),
     db
       .select({ key: ceMatinArchives.key, state: ceMatinArchives.state, at: ceMatinArchives.archivedAt, par: users.name })
       .from(ceMatinArchives)
       .leftJoin(users, eq(users.id, ceMatinArchives.archivedBy)),
-    colonnes.includes("repondre") ? aRepondre(now, scopeId) : vide,
+    colonnes.includes("repondre") ? aRepondre(now, scopeId, { emails: voirEmails }) : vide,
     voirArgent ? argentQuiDort(now, scopeId) : Promise.resolve(null),
     colonnes.includes("actions") ? actions(now, scopeId) : vide,
+    voirEmails ? etatGmail() : Promise.resolve(null),
   ]);
   const parCle = new Map(archives.map((a) => [a.key, a]));
 
@@ -609,6 +723,12 @@ export async function ceMatin(
 
   return {
     repondre: partager(repondre),
+    gmail: gmail
+      ? {
+          etat: !gmail.relie ? "non_relie" : gmail.derniereErreur || gmail.illisible ? "erreur" : "relie",
+          erreur: gmail.illisible ? "mot de passe à recoller dans Réglages" : gmail.derniereErreur,
+        }
+      : null,
     argent: argent ? { ...partager(argent.lignes), abby: argent.abby, erreurAbby: argent.erreurAbby } : null,
     actions: partager(aFaire),
   };

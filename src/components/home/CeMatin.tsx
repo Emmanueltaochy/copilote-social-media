@@ -12,8 +12,8 @@ import { ClientChip } from "./bits";
 /**
  * « Ce matin » : à qui répondre, l'argent qui dort, et quoi faire pour qui.
  *
- * Chaque ligne mène à la fiche. Une source qui n'est pas encore lue (Gmail,
- * Trello) ou pas raccordée (Abby) est nommée, plutôt que de laisser un zéro
+ * Chaque ligne mène à la fiche. Une source qui n'est pas encore lue (Trello)
+ * ou pas raccordée (Abby, Gmail) est nommée, plutôt que de laisser un zéro
  * faire croire que tout va bien.
  *
  * « Traité » archive une ligne pour toute l'équipe : elle disparaît tout de
@@ -104,8 +104,13 @@ export function CeMatin({ matin }: { matin: Donnees }) {
           compteurTon={urgents ? "alert" : "neutral"}
           partage={repondre}
           outils={outils}
-          pied="Les e-mails ne sont pas encore lus par Pilot (étape 2) : ne figurent ici que les réponses connues de l'agent ventes, les commentaires du portail et les demandes de devis."
+          pied={
+            matin.gmail?.etat === "relie"
+              ? "E-mails sans réponse relevés dans Gmail (visibles par la direction seulement), réponses connues de l'agent ventes, commentaires du portail et demandes de devis."
+              : "Ne figurent ici que les réponses connues de l'agent ventes, les commentaires du portail et les demandes de devis."
+          }
         >
+          {matin.gmail && matin.gmail.etat !== "relie" ? <AvisGmail gmail={matin.gmail} /> : null}
           {repondre.lignes.length === 0 ? (
             <Vide texte="Personne n'attend de réponse parmi ce que Pilot sait lire." />
           ) : (
@@ -514,6 +519,26 @@ function ActionsParClient({ lignes, max, traiter }: { lignes: LigneMatin[]; max:
           et {lignes.length - max} autre{lignes.length - max > 1 ? "s" : ""} →
         </Link>
       ) : null}
+    </div>
+  );
+}
+
+/** Gmail pas relié (ou en panne) : le dire, plutôt que d'afficher zéro e-mail. */
+function AvisGmail({ gmail }: { gmail: NonNullable<Donnees["gmail"]> }) {
+  return (
+    <div className="flex flex-col items-start gap-2 rounded-[16px] border border-dashed border-line-strong p-3 text-small text-ink-2" data-avis-gmail={gmail.etat}>
+      <span className="flex items-center gap-2 font-semibold text-ink">
+        <Icon name="message" size={14} />
+        {gmail.etat === "non_relie" ? "Gmail n'est pas relié" : "Gmail n'a pas pu être relevé"}
+      </span>
+      <span>
+        {gmail.etat === "non_relie"
+          ? "Les e-mails sans réponse ne peuvent pas être lus : seules les autres sources figurent ci-dessous."
+          : `${gmail.erreur ?? "Erreur inconnue"}. Les e-mails affichés datent du dernier relevé réussi.`}
+      </span>
+      <Link href="/reglages#gmail" className="flex min-h-[36px] items-center rounded-full border border-line px-4 font-semibold text-ink no-underline hover:border-line-strong hover:no-underline">
+        {gmail.etat === "non_relie" ? "Relier Gmail" : "Voir dans Réglages"}
+      </Link>
     </div>
   );
 }

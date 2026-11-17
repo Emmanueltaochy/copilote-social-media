@@ -1732,6 +1732,8 @@ export const directoryEvents = pgTable(
   (t) => [
     uniqueIndex("directory_events_external_key").on(t.entryId, t.source, t.externalId),
     index("directory_events_entry_idx").on(t.entryId, t.occurredAt),
+    /** Les e-mails sans réponse (accueil « Ce matin ») et le recalcul après chaque relevé. */
+    index("directory_events_source_idx").on(t.source, t.awaitingReply, t.occurredAt),
   ],
 );
 
@@ -1768,3 +1770,37 @@ export const ceMatinArchives = pgTable(
 );
 
 export type CeMatinArchive = typeof ceMatinArchives.$inferSelect;
+
+/* ------------------------------------------------------- Gmail (étape 2) -- */
+
+/**
+ * Où en est la lecture de la boîte Gmail de la direction (lecture seule, IMAP).
+ *
+ * Une seule ligne (`id` = « compte ») : l'adresse relevée, la position atteinte
+ * dans chaque dossier (UIDVALIDITY et dernier UID lu, pour ne relire que le
+ * nouveau), un bail qui empêche deux relevés de tourner en même temps, et le
+ * bilan du dernier passage (des nombres, jamais d'adresses ni de contenu).
+ *
+ * Les e-mails retenus, eux, sont des lignes de `directory_events`
+ * (source « gmail »). Le mot de passe d'application est dans `integrations`,
+ * chiffré (voir src/lib/secrets.ts).
+ */
+export const gmailSync = pgTable("gmail_sync", {
+  id: text("id").primaryKey(),
+  /** L'adresse Gmail relevée : un changement de compte repart de zéro. */
+  account: text("account"),
+  /** { inbox: { path, uidValidity, lastUid, initialDone }, sent: { … } } */
+  folders: jsonb("folders")
+    .$type<Record<string, { path: string; uidValidity: string; lastUid: number; initialDone: boolean }>>()
+    .notNull()
+    .default({}),
+  /** Un relevé en cours jusqu'à cette heure : pas de second relevé en parallèle. */
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  /** Bilan chiffré du dernier passage : lus, retenus, ignorés, durée. */
+  lastResult: jsonb("last_result").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type GmailSync = typeof gmailSync.$inferSelect;

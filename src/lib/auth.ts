@@ -176,6 +176,12 @@ export async function currentDirection(): Promise<User | null> {
 /** Les montants et les marges ne s'affichent pas pour toute l'équipe. */
 export const canSeeMoney = (user: Pick<User, "role">) => user.role === "direction";
 
+/**
+ * Les e-mails relevés dans la boîte Gmail d'Emmanuel (étape 2) : la direction
+ * seulement. C'est sa boîte personnelle et professionnelle.
+ */
+export const canSeeEmails = (user: Pick<User, "role">) => user.role === "direction";
+
 /* ------------------------------------------------- premier démarrage ------ */
 
 /**

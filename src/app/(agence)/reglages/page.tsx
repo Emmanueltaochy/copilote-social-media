@@ -17,6 +17,9 @@ import { CleIntegration, ConnecteurClaude, OriginauxDrive, PublicationClients } 
 import { getSecret, secretStatus } from "@/lib/secrets";
 import { countLegacyDriveImages, driveAccountEmail } from "@/lib/drive";
 import { ImportProspects } from "./ImportProspects";
+import { GmailReglages } from "./Gmail";
+import { etatGmail } from "@/lib/gmail";
+import { jourRelatif } from "@/lib/annuaire";
 import { etatImports } from "@/lib/annuaire-import";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 
@@ -40,6 +43,15 @@ function suggerer(nom: string, brands: MetricoolBrand[]): string | null {
 }
 
 export const dynamic = "force-dynamic";
+
+/** « il y a 4 min », « il y a 2 h », puis le jour. */
+function ilYaCourt(d: Date) {
+  const min = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  if (min < 24 * 60) return `il y a ${Math.floor(min / 60)} h`;
+  return jourRelatif(d);
+}
 
 /**
  * Les réglages de l'agence.
@@ -69,7 +81,7 @@ export default async function ReglagesPage() {
       .orderBy(desc(apiKeys.createdAt)),
     etatImports(),
   ]);
-  const [ai, abby, drive, mcp, driveEmail, stockV, imagesReduites] = await Promise.all([
+  const [ai, abby, drive, mcp, driveEmail, stockV, imagesReduites, gmail] = await Promise.all([
     secretStatus("anthropic"),
     secretStatus("abby"),
     secretStatus("google-drive"),
@@ -77,6 +89,7 @@ export default async function ReglagesPage() {
     driveAccountEmail(),
     secretStatus("stock-videos"),
     countLegacyDriveImages(),
+    etatGmail(),
   ]);
   const mcpUrl = mcp && process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}/api/mcp/${mcp.token}` : mcp ? `/api/mcp/${mcp.token}` : null;
   let brands: MetricoolBrand[] = [];
@@ -141,6 +154,24 @@ export default async function ReglagesPage() {
               fromEnv={abby.fromEnv}
               label="Clé d'API Abby"
               help={<>Abby → Paramètres → Intégrations → Créer une clé. Le chef de projet web IA y lit les devis signés pour lancer les projets ; l&apos;accueil et les fiches Contacts y lisent les factures impayées, l&apos;encaissé et les devis signés pas encore facturés.</>}
+            />
+          </Card>
+
+          <Card className="scroll-mt-4">
+            <div id="gmail" />
+            <CardHead title="Gmail (lecture seule)" meta={gmail.relie ? (gmail.illisible || gmail.derniereErreur ? "En erreur" : "Relié") : "Non relié"} />
+            <GmailReglages
+              etat={{
+                relie: gmail.relie,
+                adresse: gmail.adresse,
+                illisible: gmail.illisible,
+                erreur: gmail.derniereErreur,
+                dernierReleve: gmail.dernierReleve ? ilYaCourt(gmail.dernierReleve) : null,
+                bilan: gmail.bilan
+                  ? `${gmail.bilan.lus} message${gmail.bilan.lus > 1 ? "s" : ""} examiné${gmail.bilan.lus > 1 ? "s" : ""}, ${gmail.bilan.retenus} gardé${gmail.bilan.retenus > 1 ? "s" : ""}, ${gmail.bilan.ignoresInconnus + gmail.bilan.ignoresAutomatiques} ignoré${gmail.bilan.ignoresInconnus + gmail.bilan.ignoresAutomatiques > 1 ? "s" : ""}${gmail.bilan.incomplet ? " (il en reste, le prochain relevé continue)" : ""}`
+                  : null,
+                enCours: gmail.enCours,
+              }}
             />
           </Card>
 

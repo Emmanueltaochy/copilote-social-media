@@ -6,7 +6,9 @@ import { Card, CardHead } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/primitives";
 import { ClientChip } from "@/components/home/bits";
 import { Icon } from "@/components/ui/Icon";
-import { canSeeMoney, requireStaff } from "@/lib/auth";
+import { canSeeEmails, canSeeMoney, requireStaff } from "@/lib/auth";
+import { filsDeLaFiche, gmailRelie, type FilFiche } from "@/lib/gmail";
+import { depuis } from "@/lib/ce-matin";
 import { clients, contents, db, type Client, type DirectoryEntry } from "@/db";
 import { facturesDuClient, listClientFiles, listContractLines } from "@/db/queries";
 import { listWebProjects } from "@/db/web-queries";
@@ -28,9 +30,16 @@ export const dynamic = "force-dynamic";
  * payé, ce qui est en cours, ce qu'on s'est dit. Une fiche par contact : un
  * client a l'adresse de son compte, un prospect celle de sa fiche.
  */
-export default async function FichePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FichePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ emails?: string }>;
+}) {
   const user = await requireStaff();
   const { id } = await params;
+  const filtreEmails = (await searchParams).emails === "sans-reponse";
   const r = await resoudreFiche(id, user);
   if (!r) notFound();
   if (r.mode === "redirection") redirect(r.vers);
@@ -38,6 +47,8 @@ export default async function FichePage({ params }: { params: Promise<{ id: stri
   const client: Client | null = r.mode === "client" ? r.client : null;
   const entry: DirectoryEntry | null = r.entry;
   const money = canSeeMoney(user);
+  // Les e-mails de la boîte d'Emmanuel : la direction seulement.
+  const voirEmails = canSeeEmails(user);
   const today = aujourdhuiReunion();
   const maintenant = new Date().getTime();
 
@@ -65,8 +76,11 @@ export default async function FichePage({ params }: { params: Promise<{ id: stri
           .orderBy(sql`${contents.scheduledAt} asc nulls last`)
           .limit(8)
       : Promise.resolve([]),
-    frise(client?.id ?? null, entry?.id ?? null),
+    frise(client?.id ?? null, entry?.id ?? null, 60, { emails: voirEmails }),
   ]);
+  const [relie, fils] = voirEmails
+    ? await Promise.all([gmailRelie(), entry ? filsDeLaFiche(entry.id) : Promise.resolve([] as FilFiche[])])
+    : [false, [] as FilFiche[]];
 
   // L'argent : Abby si la fiche y est reliée, plus les factures déposées dans Pilot.
   const abbyId = client?.abbyCustomerId ?? entry?.abbyCustomerId ?? null;
@@ -287,6 +301,7 @@ export default async function FichePage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="flex min-w-0 flex-col gap-4">
+              {voirEmails ? <Emails fils={fils} relie={relie} filtre={filtreEmails} chemin={`/contacts/${id}`} /> : null}
               <Frise moments={moments} />
               <ARelier />
               <Card padded>
@@ -561,11 +576,6 @@ function Frise({ moments }: { moments: MomentFrise[] }) {
 function ARelier() {
   const blocs = [
     {
-      titre: "E-mails",
-      etape: "Étape 2",
-      texte: "Pas encore relié. Il faudra autoriser Pilot à lire la boîte Gmail (lecture seule) : les fils échangés avec ce contact s'afficheront ici, avec ceux restés sans réponse.",
-    },
-    {
       titre: "Actions Trello",
       etape: "Étape 3",
       texte: "Pas encore relié. Il faudra une clé Trello et le tableau (ou l'étiquette) de ce client : ses cartes ouvertes s'afficheront ici.",
@@ -589,6 +599,111 @@ function ARelier() {
             <span className="text-small text-ink-3">{b.texte}</span>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------- e-mails -- */
+
+const dateEmail = (d: Date, now: Date) =>
+  d.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
+    timeZone: "Indian/Reunion",
+  }) +
+  " à " +
+  d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" });
+
+/**
+ * Les e-mails échangés avec ce contact (Gmail, lecture seule) : un bloc par
+ * fil, le plus récent en haut, avec ce qui attend une réponse. Réservé à la
+ * direction. Seuls l'objet, l'extrait, la date et le lien vers Gmail sont
+ * gardés dans Pilot.
+ */
+function Emails({ fils, relie, filtre, chemin }: { fils: FilFiche[]; relie: boolean; filtre: boolean; chemin: string }) {
+  const now = new Date();
+  const sansReponse = fils.filter((f) => f.sansReponseDepuis);
+  const montres = (filtre ? sansReponse : fils).slice(0, 12);
+  const reste = (filtre ? sansReponse : fils).length - montres.length;
+  return (
+    <Card>
+      <div id="emails" className="scroll-mt-4" />
+      <CardHead title="E-mails" meta={fils.length ? `${fils.length} fil${fils.length > 1 ? "s" : ""} · Gmail` : relie ? "Gmail" : undefined} />
+      <div className="flex flex-col gap-3 px-5 pb-5">
+        {!relie ? (
+          <p className="rounded-[14px] border border-dashed border-line-strong p-3 text-small text-ink-3" data-emails="non-relie">
+            Gmail n&apos;est pas relié : les échanges avec ce contact ne peuvent pas être lus.{" "}
+            <Link href="/reglages#gmail">Relier Gmail dans Réglages</Link>
+          </p>
+        ) : null}
+        {fils.length ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer les e-mails">
+            <Link
+              href={`${chemin}#emails`}
+              scroll={false}
+              aria-current={!filtre ? "true" : undefined}
+              className={cn(
+                "flex min-h-[36px] items-center rounded-full border px-3 text-small font-semibold no-underline hover:no-underline",
+                !filtre ? "border-night bg-night text-white" : "border-line text-ink-2 hover:border-line-strong",
+              )}
+            >
+              Tous ({fils.length})
+            </Link>
+            <Link
+              href={`${chemin}?emails=sans-reponse#emails`}
+              scroll={false}
+              aria-current={filtre ? "true" : undefined}
+              className={cn(
+                "flex min-h-[36px] items-center rounded-full border px-3 text-small font-semibold no-underline hover:no-underline",
+                filtre ? "border-night bg-night text-white" : "border-line text-ink-2 hover:border-line-strong",
+              )}
+            >
+              Sans réponse ({sansReponse.length})
+            </Link>
+          </div>
+        ) : relie ? (
+          <p className="text-base text-ink-3">Aucun échange avec ce contact dans les e-mails relevés (60 derniers jours au premier passage).</p>
+        ) : null}
+        {fils.length && montres.length === 0 ? <p className="text-base text-ink-3">Tous les fils ont reçu une réponse.</p> : null}
+        {montres.map((f) => {
+          const d = f.dernier;
+          const auteur = d.sens === "envoye" ? "Vous" : d.de?.nom || d.de?.email || "Contact";
+          return (
+            <div key={f.fil} className="flex min-w-0 flex-col gap-1 rounded-[16px] border border-line p-3" data-fil-email>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <StatusPill tone={d.sens === "envoye" ? "info" : "neutral"} className="px-[7px] py-0 text-micro">
+                  {d.sens === "envoye" ? "Envoyé" : "Reçu"}
+                </StatusPill>
+                {f.sansReponseDepuis ? (
+                  <StatusPill tone="alert" className="px-[7px] py-0 text-micro">
+                    Sans réponse depuis {depuis(f.sansReponseDepuis, now)}
+                  </StatusPill>
+                ) : null}
+                <span className="text-small text-ink-3">{dateEmail(d.at, now)}</span>
+                {f.messages.length > 1 ? <span className="text-small text-ink-3">· {f.messages.length} messages</span> : null}
+              </div>
+              <span className="text-base font-semibold break-words text-ink">{d.objet}</span>
+              <span className="text-small text-ink-3">
+                {auteur}
+                {d.sens === "envoye" && d.a.length ? ` → ${d.a.map((x) => x.nom || x.email).join(", ")}` : ""}
+              </span>
+              {d.extrait ? <p className="text-small break-words text-ink-2">{d.extrait}</p> : null}
+              {d.pj.n > 0 ? (
+                <span className="text-micro text-ink-3">
+                  {d.pj.n} pièce{d.pj.n > 1 ? "s" : ""} jointe{d.pj.n > 1 ? "s" : ""} : {d.pj.noms.join(", ")}
+                </span>
+              ) : null}
+              {d.lien ? (
+                <a href={d.lien} target="_blank" rel="noopener noreferrer" className="flex min-h-[36px] w-fit items-center gap-1 text-small font-semibold">
+                  Ouvrir dans Gmail <Icon name="arrowUpRight" size={13} />
+                </a>
+              ) : null}
+            </div>
+          );
+        })}
+        {reste > 0 ? <span className="text-small text-ink-3">et {reste} fil{reste > 1 ? "s" : ""} plus ancien{reste > 1 ? "s" : ""}.</span> : null}
       </div>
     </Card>
   );

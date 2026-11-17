@@ -164,6 +164,29 @@ La règle complète est écrite dans `src/lib/ce-matin.ts`. Rien n'est écrit da
 Abby. Vérification locale, sur un build de production :
 `scripts/test-ce-matin.mjs`.
 
+### Gmail en lecture seule (étape 2)
+
+Réglages → « Gmail (lecture seule) », réservé à la direction : adresse Gmail et
+mot de passe d'application (Compte Google → Sécurité → Mots de passe des
+applications). Connexion IMAP (imap.gmail.com:993, TLS, bibliothèque
+`imapflow`, MIT) ; dossiers ouverts en EXAMINE, lecture en BODY.PEEK : rien
+n'est jamais modifié dans la boîte. Le mot de passe est chiffré (AES-256-GCM,
+clé `PILOT_SECRETS_KEY` ou fichier `MEDIA_ROOT/.secrets/pilot-secrets.key`,
+hors de la base). Relevé toutes les 12 minutes (`src/instrumentation.ts`),
+60 derniers jours au premier passage puis incrémental (UID / UIDVALIDITY dans
+`gmail_sync`), un seul à la fois (bail en base), 4 minutes au plus.
+
+Seuls les échanges avec une adresse connue de l'annuaire sont gardés, comme
+lignes de `directory_events` (source `gmail`) : sens, date, adresses, objet,
+extrait de 280 caractères, Message-ID, fil, lien Gmail, noms des pièces
+jointes. Les règles (domaines grand public, messages automatiques, extrait,
+mots d'urgence) sont dans `src/lib/gmail-regles.ts` ; « sans réponse » dans
+`src/lib/gmail.ts` ; « urgent / peut attendre » dans `src/lib/ce-matin.ts`.
+
+Vérification : `scripts/test-gmail.mjs`, contre un faux serveur Dovecot local
+(`GMAIL_IMAP_HOST` / `_PORT` / `_TLS`, pris en compte seulement pour une
+adresse de boucle locale).
+
 ### Prochaine étape
 
 Brancher Supabase : le découpage `data/` ↔ `lib/` est fait pour que chaque

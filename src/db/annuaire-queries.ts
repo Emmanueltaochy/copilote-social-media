@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   activity,
   clients,
@@ -173,11 +173,17 @@ export type MomentFrise = {
 
 /**
  * La frise d'une fiche : l'activité de Pilot pour un client, les lignes
- * d'historique importées ou relevées (agent ventes aujourd'hui, Gmail et
- * Trello demain) et les demandes de devis du portail. Une seule liste, par
- * date décroissante.
+ * d'historique importées ou relevées (agent ventes, e-mails Gmail pour la
+ * direction, Trello demain) et les demandes de devis du portail. Une seule
+ * liste, par date décroissante.
  */
-export async function frise(clientId: string | null, entryId: string | null, limite = 60): Promise<MomentFrise[]> {
+export async function frise(
+  clientId: string | null,
+  entryId: string | null,
+  limite = 60,
+  /** Les e-mails Gmail : la direction seulement (voir canSeeEmails). */
+  opts: { emails: boolean } = { emails: false },
+): Promise<MomentFrise[]> {
   const [act, evts, devis] = await Promise.all([
     clientId
       ? db
@@ -192,7 +198,7 @@ export async function frise(clientId: string | null, entryId: string | null, lim
       ? db
           .select()
           .from(directoryEvents)
-          .where(eq(directoryEvents.entryId, entryId))
+          .where(and(eq(directoryEvents.entryId, entryId), opts.emails ? undefined : ne(directoryEvents.source, "gmail")))
           .orderBy(desc(directoryEvents.occurredAt))
           .limit(limite)
       : Promise.resolve([]),
