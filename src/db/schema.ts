@@ -1791,7 +1791,7 @@ export const gmailSync = pgTable("gmail_sync", {
   account: text("account"),
   /** { inbox: { path, uidValidity, lastUid, initialDone }, sent: { … } } */
   folders: jsonb("folders")
-    .$type<Record<string, { path: string; uidValidity: string; lastUid: number; initialDone: boolean }>>()
+    .$type<Record<string, { path: string; uidValidity: string; lastUid: number; initialDone: boolean; regles?: number }>>()
     .notNull()
     .default({}),
   /** Un relevé en cours jusqu'à cette heure : pas de second relevé en parallèle. */

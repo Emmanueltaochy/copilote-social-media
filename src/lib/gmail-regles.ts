@@ -75,6 +75,42 @@ export function estDomainePublic(domaine: string | null | undefined): boolean {
   return !d || DOMAINES_PUBLICS.has(d) || FAMILLES_PUBLIQUES.test(d);
 }
 
+/* ------------------------------------------- domaines d'Emmanuel -- */
+
+/**
+ * Les domaines d'Emmanuel lui-même : sa marketplace Swap'Îles, l'agence, ses
+ * sites. Un message qui en vient (ou qui y part) n'est JAMAIS l'échange avec
+ * un client ou un prospect : ce sont ses propres notifications, ou ses propres
+ * boîtes. Ces domaines ne servent donc jamais au rapprochement, ni par adresse
+ * exacte, ni par « même domaine ». Les sous-domaines comptent aussi
+ * (world.taochyagency.com, mail.swapiles.com…).
+ *
+ * À compléter ici si un nouveau domaine apparaît. Les adresses et domaines
+ * des comptes de l'équipe dans Pilot s'y ajoutent d'eux-mêmes (lib/gmail.ts).
+ */
+export const DOMAINES_EMMANUEL = [
+  "swapiles.com",
+  "swapiles.re",
+  "swapiles.fr",
+  "swap-iles.com",
+  "swap-iles.re",
+  "swap-iles.fr",
+  "taochyagency.com",
+  "world.taochyagency.com",
+  "taochyconsulting.fr",
+  "taochy.re",
+  "creationsiteweb.re",
+] as const;
+
+/** Toute variante de Swap'Îles utilisée par la plateforme (swapiles, swap-iles, swapîles…), quel que soit le suffixe. */
+const VARIANTE_SWAPILES = /(^|\.)swap-?[iî]les?\.[a-z.]+$/i;
+
+export function estDomaineEmmanuel(domaine: string | null | undefined): boolean {
+  const d = (domaine ?? "").trim().toLowerCase().replace(/\.$/, "");
+  if (!d) return false;
+  return VARIANTE_SWAPILES.test(d) || DOMAINES_EMMANUEL.some((x) => d === x || d.endsWith(`.${x}`));
+}
+
 /* -------------------------------------------------- messages automatiques -- */
 
 export type EnTetes = Map<string, string[]>;
@@ -103,10 +139,42 @@ export function lireEnTetes(brut: string | Buffer | null | undefined): EnTetes {
 }
 
 /** Les en-têtes demandés au serveur : les seuls dont on a besoin. */
-export const EN_TETES_UTILES = ["List-Unsubscribe", "List-Id", "Auto-Submitted", "Precedence", "References", "In-Reply-To", "X-Autoreply", "X-Autorespond"];
+export const EN_TETES_UTILES = [
+  "List-Unsubscribe",
+  "List-Id",
+  "Auto-Submitted",
+  "Precedence",
+  "References",
+  "In-Reply-To",
+  "X-Autoreply",
+  "X-Autorespond",
+  // Les services d'envoi de messages transactionnels (voir ENVOI_TRANSACTIONNEL).
+  "Return-Path",
+  "X-Mailer",
+  "X-SES-Outgoing",
+  "X-Mailgun-Sid",
+  "X-Mailgun-Tag",
+  "X-SG-EID",
+  "X-SG-ID",
+  "X-Mailin-EID",
+  "X-Sib-Id",
+  "X-PM-Message-Id",
+  "X-Postmark-Message-Id",
+  "X-Mailjet-Campaign",
+  "X-MJ-Mid",
+  "X-Mandrill-User",
+  "X-MC-User",
+];
 
 const EXPEDITEUR_AUTOMATIQUE =
-  /^(no-?reply|do-?not-?reply|donotreply|ne-?pas-?repondre|nepasrepondre|noreply-[\w-]+|mailer-daemon|postmaster|bounces?|notifications?|notification-[\w-]+|newsletter|news)([+._-].*)?@/i;
+  /^(no-?reply|do-?not-?reply|donotreply|ne-?pas-?repondre|nepasrepondre|noreply-[\w-]+|mailer-daemon|mailer|postmaster|bounces?|bounce-[\w-]+|notifications?|notification-[\w-]+|notif|alerts?|newsletter|news)([+._-].*)?@/i;
+
+/** Les en-têtes posés par un service d'envoi en masse ou transactionnel (Amazon SES, Mailgun, Sendgrid, Brevo, Postmark, Mailjet, Mandrill). */
+const EN_TETES_SERVICE_ENVOI = ["x-ses-outgoing", "x-mailgun-sid", "x-mailgun-tag", "x-sg-eid", "x-sg-id", "x-mailin-eid", "x-sib-id", "x-pm-message-id", "x-postmark-message-id", "x-mailjet-campaign", "x-mj-mid", "x-mandrill-user", "x-mc-user"];
+/** Un logiciel d'envoi de site ou de plateforme dans X-Mailer : jamais un humain qui écrit. */
+const MAILER_TRANSACTIONNEL = /amazon ?ses|mailgun|sendgrid|brevo|sendinblue|postmark|mailjet|mandrill|mailchimp|phpmailer|swiftmailer|symfony mailer|wordpress|woocommerce/i;
+/** « [Swap Îles] Remboursement à valider » : l'objet d'une notification de plateforme. */
+const OBJET_DE_PLATEFORME = /^\s*\[[^\]]{2,60}\]/;
 
 /**
  * Un message envoyé par une machine : lettre d'information, notification,
@@ -123,6 +191,109 @@ export function messageAutomatique(enTetes: EnTetes, expediteur: string | null |
   if (enTetes.has("x-autoreply") || enTetes.has("x-autorespond")) return "X-Autoreply";
   if (expediteur && EXPEDITEUR_AUTOMATIQUE.test(expediteur.trim())) return "Expéditeur no-reply";
   return null;
+}
+
+/**
+ * Un message transactionnel (notification d'une plateforme, confirmation,
+ * alerte), même écrit au nom d'une personne : on l'ignore et on ne le stocke
+ * pas. Renvoie l'indice trouvé, ou null.
+ *
+ * Indices, chacun suffisant :
+ *   - objet qui commence par « [Nom de plateforme] » ;
+ *   - en-tête d'un service d'envoi (X-SES, X-Mailgun, Sendgrid, Brevo,
+ *     Postmark, Mailjet, Mandrill) ou X-Mailer d'un logiciel de site ;
+ *   - expéditeur noreply, no-reply, notifications, mailer, bounce… ;
+ *   - Return-Path d'un autre domaine que l'expéditeur, avec Auto-Submitted
+ *     ou Precedence ;
+ *   - et tout ce que messageAutomatique() reconnaît déjà.
+ */
+export function messageTransactionnel(enTetes: EnTetes, expediteur: string | null | undefined, objet: string | null | undefined): string | null {
+  const auto = messageAutomatique(enTetes, expediteur);
+  if (auto) return auto;
+  if (OBJET_DE_PLATEFORME.test(objet ?? "")) return "Objet « [plateforme] »";
+  const service = EN_TETES_SERVICE_ENVOI.find((h) => enTetes.has(h));
+  if (service) return `En-tête ${service}`;
+  if ((enTetes.get("x-mailer") ?? []).some((v) => MAILER_TRANSACTIONNEL.test(v))) return "X-Mailer de plateforme";
+  const retour = domaineDe(sansChevrons((enTetes.get("return-path") ?? [])[0]));
+  const de = domaineDe(expediteur);
+  if (retour && de && retour !== de && !retour.endsWith(`.${de}`) && (enTetes.has("auto-submitted") || enTetes.has("precedence"))) return "Return-Path d'un autre domaine";
+  return null;
+}
+
+/**
+ * Le rapprochement d'un e-mail déjà enregistré respecte-t-il les règles ?
+ * Sert au nettoyage (lib/gmail.ts) des e-mails gardés avant ces règles.
+ *
+ *   - reçu : la fiche doit avoir été trouvée par l'adresse From elle-même
+ *     (jamais Reply-To, les autres destinataires ou le corps) ;
+ *   - envoyé : par une adresse en To ou Cc ;
+ *   - jamais une adresse d'un domaine d'Emmanuel ni de l'équipe ;
+ *   - jamais un message transactionnel (objet « [plateforme] », expéditeur
+ *     automatique).
+ *
+ * Renvoie la raison du retrait, ou null si l'e-mail peut rester.
+ */
+export function emailHorsRegles(
+  e: {
+    sens: "recu" | "envoye";
+    de: string | null;
+    a: string[];
+    cc: string[];
+    contact: string | null;
+    objet: string;
+  },
+  interne: (domaine: string | null) => boolean = () => false,
+): string | null {
+  const contact = (e.contact ?? "").trim().toLowerCase();
+  const de = (e.de ?? "").trim().toLowerCase();
+  if (!contact) return "contrepartie inconnue";
+  const dom = domaineDe(contact);
+  if (estDomaineEmmanuel(dom) || interne(dom)) return "domaine d'Emmanuel ou de l'équipe";
+  if (e.sens === "recu") {
+    if (contact !== de) return "rattaché par une autre adresse que l'expéditeur";
+    if (estDomaineEmmanuel(domaineDe(de)) || interne(domaineDe(de))) return "domaine d'Emmanuel ou de l'équipe";
+    if (EXPEDITEUR_AUTOMATIQUE.test(de)) return "expéditeur automatique";
+    if (OBJET_DE_PLATEFORME.test(e.objet)) return "objet « [plateforme] »";
+  } else if (![...e.a, ...e.cc].map((x) => x.trim().toLowerCase()).includes(contact)) {
+    // Envoyé (dossier « Messages envoyés ») : quel que soit le From (alias,
+    // adresse @taochyagency.com de l'admin), seuls To et Cc relient.
+    return "rattaché par une autre adresse que To ou Cc";
+  }
+  return null;
+}
+
+/* ------------------------------------- doublon avec l'agent ventes -- */
+
+const motsDe = (s: string) =>
+  new Set(
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/^\s*((re|tr|fwd?|fw)\s*:\s*)+/i, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(" ")
+      .filter((m) => m.length > 2),
+  );
+
+/**
+ * Le même envoi vu deux fois : une ligne d'historique de l'agent ventes
+ * (« E-mail envoyé par Emmanuel : « Objet » ») et l'e-mail Gmail envoyé
+ * (dossier « Messages envoyés »), sur la même fiche.
+ *
+ * Règle : moins de 24 h d'écart (l'agent ne date qu'au jour), et l'objet de
+ * l'e-mail (sans « Re: », accents ni ponctuation) se retrouve dans la ligne de
+ * l'agent : tous ses mots y sont, ou au moins 80 % d'entre eux s'il en a cinq
+ * ou plus. Le destinataire, lui, est celui de la fiche (vérifié par
+ * l'appelant). Masquage à l'affichage seulement : rien n'est supprimé.
+ */
+export function memeEnvoi(gmail: { objet: string; at: Date }, agent: { titre: string; at: Date }): boolean {
+  if (Math.abs(gmail.at.getTime() - agent.at.getTime()) >= 24 * 3_600_000) return false;
+  const objet = motsDe(gmail.objet);
+  if (objet.size === 0) return false;
+  const ligne = motsDe(agent.titre);
+  const communs = [...objet].filter((m) => ligne.has(m)).length;
+  return communs === objet.size || (objet.size >= 5 && communs / objet.size >= 0.8);
 }
 
 /* ------------------------------------------------------------------ fil -- */

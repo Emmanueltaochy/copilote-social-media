@@ -14,7 +14,8 @@ import {
   type User,
 } from "@/db";
 import { departmentsOf } from "@/lib/auth";
-import { cleTexte, type Activite, type Kind, type Source } from "@/lib/annuaire";
+import { cleEmail, cleTexte, type Activite, type Kind, type Source } from "@/lib/annuaire";
+import { memeEnvoi } from "@/lib/gmail-regles";
 
 /*
  * Les lectures de l'annuaire.
@@ -169,6 +170,10 @@ export type MomentFrise = {
   titre: string;
   detail?: string | null;
   qui?: string | null;
+  /** « Ouvrir dans Gmail » pour un e-mail relevé. */
+  lien?: string | null;
+  /** Le même envoi figurait aussi dans l'historique de l'agent ventes : il l'a écrit. */
+  ecritParAgent?: boolean;
 };
 
 /**
@@ -212,6 +217,30 @@ export async function frise(
       : Promise.resolve([]),
   ]);
 
+  // Le même envoi, deux fois : la ligne de l'agent ventes et l'e-mail Gmail
+  // envoyé (règle dans memeEnvoi, gmail-regles.ts). On n'affiche que l'e-mail
+  // Gmail, avec son lien, en notant que l'agent l'a écrit. Rien n'est
+  // supprimé en base. Sans les e-mails (pas la direction), rien à rapprocher.
+  const masques = new Set<string>();
+  const ecritsParAgent = new Set<string>();
+  if (opts.emails && entryId) {
+    const [fiche] = await db.select({ email: directoryEntries.emailKey }).from(directoryEntries).where(eq(directoryEntries.id, entryId)).limit(1);
+    const destinataireFiche = cleEmail(fiche?.email);
+    const envoisGmail = evts.filter((e) => e.source === "gmail" && e.kind === "email_sortant");
+    for (const a of evts.filter((e) => e.source === "agent_ventes" && e.kind === "email_sortant")) {
+      const g = envoisGmail.find((x) => {
+        if (ecritsParAgent.has(x.id)) return false;
+        const dest = ((x.meta as Record<string, unknown>).destinataires as string[] | undefined) ?? [];
+        const memeDestinataire = !destinataireFiche || dest.map((d) => d.toLowerCase()).includes(destinataireFiche);
+        return memeDestinataire && memeEnvoi({ objet: x.title, at: x.occurredAt }, { titre: a.title, at: a.occurredAt });
+      });
+      if (g) {
+        masques.add(a.id);
+        ecritsParAgent.add(g.id);
+      }
+    }
+  }
+
   const moments: MomentFrise[] = [
     ...act.map((a) => ({
       key: "a" + a.id,
@@ -221,14 +250,18 @@ export async function frise(
       titre: a.text,
       qui: a.nom ?? a.label ?? "Pilot",
     })),
-    ...evts.map((e) => ({
-      key: "e" + e.id,
-      at: e.occurredAt,
-      origine: e.source,
-      genre: e.kind,
-      titre: e.title,
-      detail: e.body,
-    })),
+    ...evts
+      .filter((e) => !masques.has(e.id))
+      .map((e) => ({
+        key: "e" + e.id,
+        at: e.occurredAt,
+        origine: e.source,
+        genre: e.kind,
+        titre: e.title,
+        detail: e.body,
+        lien: e.source === "gmail" ? (((e.meta as Record<string, unknown>).lien as string | undefined) ?? null) : null,
+        ecritParAgent: ecritsParAgent.has(e.id),
+      })),
     ...devis.map((d) => ({
       key: "d" + d.id,
       at: d.at,

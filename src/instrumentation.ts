@@ -37,6 +37,12 @@ export async function register() {
   const { convertirSecretsEnClair } = await import("@/lib/secrets");
   await convertirSecretsEnClair().catch((e) => console.warn("[pilot] secrets : conversion interrompue,", (e as Error).message));
 
+  // Les e-mails gardés avant les règles de rapprochement actuelles
+  // (notifications Swap'Îles rangées sur une fiche client…) sont retirés,
+  // avec leurs « Traité » et les fiches vides créées pour eux. Idempotent.
+  const { nettoyerEmailsHorsRegles } = await import("@/lib/gmail");
+  await nettoyerEmailsHorsRegles().catch((e) => console.warn("[pilot] Gmail : nettoyage interrompu,", (e as Error).message));
+
   // La vidéo de bienvenue livrée avec cette version (une seule fois).
   const { installBundledPortalVideo } = await import("@/lib/portail-video-bundle");
   await installBundledPortalVideo().catch((e) => console.warn("[pilot] vidéo du portail", e));

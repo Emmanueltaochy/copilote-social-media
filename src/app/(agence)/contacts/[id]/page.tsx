@@ -551,12 +551,24 @@ function Frise({ moments }: { moments: MomentFrise[] }) {
                   <span>{ORIGINE[m.origine] ?? m.origine}</span>
                   {m.genre === "email_entrant" ? <StatusPill tone="alert" className="px-[7px] py-0 text-micro">E-mail reçu</StatusPill> : null}
                   {m.genre === "email_sortant" ? <StatusPill tone="info" className="px-[7px] py-0 text-micro">E-mail envoyé</StatusPill> : null}
+                  {m.ecritParAgent ? (
+                    <span data-ecrit-par-agent className="contents">
+                      <StatusPill tone="muted" className="px-[7px] py-0 text-micro">
+                        Écrit par l&apos;agent ventes
+                      </StatusPill>
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-base break-words text-ink">
                   {m.qui ? <b className="font-semibold">{m.qui.split(" ")[0]} </b> : null}
                   {m.titre}
                 </p>
                 {m.detail ? <p className="text-small text-ink-2">{m.detail}</p> : null}
+                {m.lien ? (
+                  <a href={m.lien} target="_blank" rel="noopener noreferrer" className="flex min-h-[36px] w-fit items-center gap-1 text-small font-semibold">
+                    Ouvrir dans Gmail <Icon name="arrowUpRight" size={13} />
+                  </a>
+                ) : null}
               </li>
             ))}
           </ol>

@@ -183,6 +183,18 @@ jointes. Les règles (domaines grand public, messages automatiques, extrait,
 mots d'urgence) sont dans `src/lib/gmail-regles.ts` ; « sans réponse » dans
 `src/lib/gmail.ts` ; « urgent / peut attendre » dans `src/lib/ce-matin.ts`.
 
+Rapprochement par la vraie contrepartie seulement : l'adresse From d'un message
+reçu (jamais Reply-To, les autres destinataires ni le corps), To et Cc d'un
+message envoyé. Tout message du dossier « Messages envoyés » est un envoi
+d'Emmanuel, même parti de l'admin du site avec une adresse @taochyagency.com.
+Les domaines d'Emmanuel (`DOMAINES_EMMANUEL` dans `gmail-regles.ts` : Swap'Îles,
+l'agence, ses sites) et ceux de l'équipe ne sont jamais des clients ; les
+messages transactionnels reçus (objet « [Plateforme] », services d'envoi,
+expéditeurs automatiques) sont ignorés. Au démarrage et à chaque relevé, les
+e-mails gardés avant ces règles sont retirés (avec leurs « Traité » et les
+fiches vides créées pour eux). Sur la frise, un envoi noté aussi par l'agent
+ventes n'apparaît qu'une fois (version Gmail, « Écrit par l'agent ventes »).
+
 Vérification : `scripts/test-gmail.mjs`, contre un faux serveur Dovecot local
 (`GMAIL_IMAP_HOST` / `_PORT` / `_TLS`, pris en compte seulement pour une
 adresse de boucle locale).

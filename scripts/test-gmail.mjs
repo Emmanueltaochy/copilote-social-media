@@ -104,6 +104,20 @@ ok(
   R.cleDeFil({ references: "<a@x>", inReplyTo: "<a@x>", messageId: "<b@x>", empreinte: emp }) === R.cleDeFil({ messageId: "<a@x>", empreinte: emp }),
 );
 ok("fil Gmail : X-GM-THRID pris tel quel", R.cleDeFil({ gmailThreadId: "1789", messageId: "<a@x>", empreinte: emp }) === "g:1789");
+ok("domaines d'Emmanuel : swapiles.com, swapiles.re, swap-iles.re, mail.swapiles.com, taochyagency.com, world.taochyagency.com, creationsiteweb.re", ["swapiles.com", "swapiles.re", "swap-iles.re", "mail.swapiles.com", "taochyagency.com", "world.taochyagency.com", "creationsiteweb.re"].every(R.estDomaineEmmanuel));
+ok("… mais pas garage-sud.re ni gmail.com", !R.estDomaineEmmanuel("garage-sud.re") && !R.estDomaineEmmanuel("gmail.com"));
+ok("transactionnel : objet « [Swap Îles] … »", R.messageTransactionnel(new Map(), "contact@swapiles.com", "[Swap Îles] Remboursement à valider") === "Objet « [plateforme] »");
+ok("transactionnel : X-SES-Outgoing, X-Mailgun-Sid, X-SG-EID, X-Mailin-EID, X-PM-Message-Id", ["X-SES-Outgoing: 1", "X-Mailgun-Sid: 1", "X-SG-EID: 1", "X-Mailin-EID: 1", "X-PM-Message-Id: 1"].every((h) => R.messageTransactionnel(tetes(`${h}\n`), "marie@x.fr", "Bonjour")));
+ok("transactionnel : X-Mailer PHPMailer ; pas Outlook", R.messageTransactionnel(tetes("X-Mailer: PHPMailer 6.9\n"), "a@b.c", "x") && !R.messageTransactionnel(tetes("X-Mailer: Microsoft Outlook 16.0\n"), "a@b.c", "x"));
+ok("transactionnel : notifications@, mailer@, bounce@", ["notifications@x.fr", "mailer@x.fr", "bounce@x.fr"].every((a) => R.messageTransactionnel(new Map(), a, "x")));
+ok("un e-mail écrit par quelqu'un n'est pas transactionnel (même « Re: [Swap Îles] … »)", R.messageTransactionnel(new Map(), "marie@x.fr", "Re: [Swap Îles] commande") === null);
+ok(
+  "reçu rattaché par une autre adresse que From (Reply-To) : hors règles",
+  R.emailHorsRegles({ sens: "recu", de: "contact@swapiles.com", a: [], cc: [], contact: "marie@x.fr", objet: "Remboursement" }) !== null,
+);
+ok("reçu d'un domaine d'Emmanuel : hors règles", R.emailHorsRegles({ sens: "recu", de: "contact@swapiles.com", a: [], cc: [], contact: "contact@swapiles.com", objet: "x" }) !== null);
+ok("envoyé rattaché par Cci : hors règles ; par To : gardé", R.emailHorsRegles({ sens: "envoye", de: "e@gmail.com", a: ["autre@y.fr"], cc: [], contact: "marie@x.fr", objet: "x" }) !== null && R.emailHorsRegles({ sens: "envoye", de: "e@gmail.com", a: ["marie@x.fr"], cc: [], contact: "marie@x.fr", objet: "x" }) === null);
+ok("reçu From = contact de la fiche : gardé", R.emailHorsRegles({ sens: "recu", de: "marie@x.fr", a: [], cc: [], contact: "marie@x.fr", objet: "Photos" }) === null);
 ok("lien « Ouvrir dans Gmail »", R.lienGmail("<CAB+12@mail.gmail.com>") === "https://mail.google.com/mail/u/0/#search/rfc822msgid%3ACAB%2B12%40mail.gmail.com");
 
 /* ------------------------------------------- 2. lecture seule : le code -- */
@@ -294,6 +308,29 @@ deposer("inbox", { cle: "inconnu", de: `Quelqu'un <${INCONNU}>`, a: EM, objet: O
 deposer("inbox", { cle: "news", de: `Garage Sud <news@garage-${jeu}.test>`, a: EM, objet: OBJET_NEWS, ilYa: 1 * JOUR, entetes: "List-Unsubscribe: <mailto:stop@garage.test>", texte: "Promos du mois", vu: false });
 deposer("inbox", { cle: "noreply", de: `Cabinet <no-reply@cabinet-${jeu}.test>`, a: EM, objet: `Notification ${jeu}`, ilYa: 1 * JOUR, texte: "Votre accès", vu: true });
 deposer("inbox", { cle: "absence", de: `Marie Hoarau <${MARIE}>`, a: EM, objet: `Absence ${jeu}`, ilYa: 1 * JOUR, entetes: "Auto-Submitted: auto-replied", texte: "Je suis absente", vu: true });
+// Notification de la marketplace d'Emmanuel : Reply-To et Cc = l'adresse du client, l'adresse du client et « paiement » dans le corps.
+const OBJET_SWAP = `[Swap Îles] Remboursement à valider (vendeur non expédié) ${jeu}`;
+deposer("inbox", { cle: "swapnotif", de: `${enc("Swap Îles")} <contact@swapiles.com>`, a: EM, cc: MARIE, objet: OBJET_SWAP, ilYa: 1 * JOUR, entetes: `Reply-To: ${MARIE}`, texte: `Le vendeur ${MARIE} n'a pas expédié : paiement à rembourser.`, vu: true });
+// Même plateforme, sans « [ ] » dans l'objet : le domaine swapiles.com suffit (une adresse swapiles.com est pourtant notée sur le client).
+const OBJET_SWAP2 = `Remboursement à valider ${jeu}`;
+deposer("inbox", { cle: "swapdomaine", de: `${enc("Swap Îles")} <ventes@swapiles.com>`, a: EM, objet: OBJET_SWAP2, ilYa: 1 * JOUR, entetes: `Reply-To: ${MARIE}`, texte: "Paiement en attente.", vu: true });
+// Message transactionnel envoyé depuis le domaine du client par un service d'envoi (Amazon SES).
+const OBJET_SES = `Votre commande est confirmée ${jeu}`;
+deposer("inbox", { cle: "ses", de: `Garage Sud <commandes@garage-${jeu}.test>`, a: EM, objet: OBJET_SES, ilYa: 1 * JOUR, entetes: "X-SES-Outgoing: 2026.11.17-54.240.0.1", texte: "Merci pour votre commande.", vu: true });
+// Un second prospect écrit ; Emmanuel lui répond depuis l'admin du site (From contact@taochyagency.com,
+// PHPMailer, lien de désinscription) : l'envoi est dans « Messages envoyés » et compte comme le sien.
+const PROSPECT2 = `prospect2.${jeu}@gmail.com`;
+deposer("inbox", { cle: "tarif", de: `Léa <${PROSPECT2}>`, a: EM, objet: `Question tarif ${jeu}`, ilYa: 2 * JOUR, texte: "Bonjour, quel est votre tarif ?", vu: true });
+deposer("sent", {
+  cle: "tarif-admin",
+  de: "Taochy Agency <contact@taochyagency.com>",
+  a: `Léa <${PROSPECT2}>`,
+  objet: `Re: Question tarif ${jeu}`,
+  ilYa: 1 * JOUR,
+  reponseA: "tarif",
+  entetes: "X-Mailer: PHPMailer 6.9.1\r\nList-Unsubscribe: <mailto:stop@taochyagency.com>",
+  texte: "Bonjour Léa, voici nos tarifs.",
+});
 // Hors fenêtre : un message du client vieux de 70 jours (le premier passage ne remonte qu'à 60 jours).
 deposer("inbox", { cle: "vieux", de: `Marie Hoarau <${MARIE}>`, a: EM, objet: `Très ancien ${jeu}`, ilYa: 70 * JOUR, texte: "Vieux message", vu: true });
 
@@ -353,7 +390,7 @@ for (let i = 0; i < 50; i++) {
   await attendre(100);
 }
 const avant = drapeaux();
-ok(`Dovecot démarré, ${Object.keys(avant).length} messages déposés (boîte de réception et « [Gmail]/Sent Mail »)`, Object.keys(avant).length === 11);
+ok(`Dovecot démarré, ${Object.keys(avant).length} messages déposés (boîte de réception et « [Gmail]/Sent Mail »)`, Object.keys(avant).length === 16);
 
 /* ------------------------------------------------- 4. décor dans Pilot -- */
 
@@ -366,9 +403,13 @@ const direction = un(`insert into users (email,name,initials,role) values ('dir-
 const sociale = un(`insert into users (email,name,initials,role,departments) values ('soc-${jeu}@exemple.test','Sociale ${jeu}','SO','equipe','["social"]'::jsonb) returning id`);
 const web = un(`insert into users (email,name,initials,role,departments) values ('web-${jeu}@exemple.test','Web ${jeu}','WE','equipe','["web"]'::jsonb) returning id`);
 const client = un(`insert into clients (name, short_name, departments) values ('Garage Sud ${jeu}','Garage Sud ${jeu}','["social"]'::jsonb) returning id`);
-un(`insert into contacts (client_id, name, reach) values ('${client}', 'Marie Hoarau', '${MARIE}') returning id`);
+// Une adresse swapiles.com notée sur le client (sa boutique sur la marketplace) : elle ne doit jamais rien relier.
+un(`insert into contacts (client_id, name, reach) values ('${client}', 'Marie Hoarau', '${MARIE} · boutique vendeur.${jeu}@swapiles.com') returning id`);
 const portail = un(`insert into users (email,name,initials,role,client_id) values ('portail-${jeu}@exemple.test','Client ${jeu}','CP','client','${client}') returning id`);
 un(`insert into directory_entries (name, contact_name, kind, source, status, email, email_key) values ('Boulangerie ${jeu}', 'Alex', 'prospect', 'agent_ventes_reunion', 'contacte', '${PROSPECT}', '${PROSPECT}') returning id`);
+const ficheTarif = un(`insert into directory_entries (name, kind, source, email, email_key) values ('Pâtisserie ${jeu}', 'prospect', 'agent_ventes_reunion', '${PROSPECT2}', '${PROSPECT2}') returning id`);
+// La même réponse, notée aussi par l'agent ventes dans son historique (importé de prospects.json).
+un(`insert into directory_events (entry_id, source, kind, external_id, occurred_at, title) values ('${ficheTarif}', 'agent_ventes', 'email_sortant', 'h:tarif-${jeu}', date_trunc('day', now() - interval '1 day') + interval '8 hours', 'E-mail envoyé par Emmanuel : « Re: Question tarif ${jeu} »') returning id`);
 const cabinet = un(`insert into directory_entries (name, kind, source, email, email_key) values ('Cabinet ${jeu}', 'prospect', 'agence', '${CABINET_FICHE}', '${CABINET_FICHE}') returning id`);
 const cDir = ouvrirSession(direction);
 const cSoc = ouvrirSession(sociale);
@@ -465,7 +506,12 @@ try {
   ok("expéditeur no-reply ignoré", !retenus.includes(`Notification ${jeu}`));
   ok("réponse automatique (Auto-Submitted) ignorée", !retenus.includes(`Absence ${jeu}`));
   ok("message de plus de 60 jours non relevé au premier passage", !retenus.includes(`Très ancien ${jeu}`));
-  ok(`exactement 6 messages gardés (${retenus.length})`, retenus.length === 6);
+  ok("notification « [Swap Îles] Remboursement à valider » (Reply-To et Cc = le client) ignorée", !retenus.includes(OBJET_SWAP));
+  ok("message d'un domaine swapiles.com sans « [ ] » ignoré, malgré l'adresse swapiles.com notée sur le client", !retenus.includes(OBJET_SWAP2));
+  ok("message transactionnel (X-SES-Outgoing) du domaine du client ignoré", !retenus.includes(OBJET_SES));
+  ok(`exactement 8 messages gardés (${retenus.length})`, retenus.length === 8);
+  const tarif = JSON.parse(un(`select json_build_object('kind', kind, 'entry', entry_id, 'contact', meta->>'contact')::text from directory_events where source = 'gmail' and title = 'Re: Question tarif ${jeu}'`) || "{}");
+  ok("envoi parti de l'admin (From contact@taochyagency.com, PHPMailer) : gardé comme envoyé, rattaché au prospect par To", tarif.kind === "email_sortant" && tarif.entry === ficheTarif && tarif.contact === PROSPECT2);
   ok("le client sans fiche a reçu une fiche (frise)", un(`select count(*) from directory_entries where client_id='${client}'`) === "1");
   const photos = JSON.parse(un(`select json_build_object('body', body, 'meta', meta, 'kind', kind)::text from directory_events where title='Photos pour le site ${jeu}'`));
   ok(`extrait sans signature, ≤ 280 caractères : « ${photos.body} »`, photos.body.startsWith("Bonjour Emmanuel, Voici les photos") && photos.body.length <= 280 && !photos.body.includes("Marie Hoarau"));
@@ -477,9 +523,10 @@ try {
   const dump = execFileSync("pg_dump", ["--data-only", PGURL], { encoding: "utf8", maxBuffer: 512 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
   ok("la base ne contient ni le corps complet, ni le contenu des pièces jointes", !dump.includes(SECRET_CORPS) && !dump.includes(SECRET_PJ) && !dump.includes(Buffer.from(`${SECRET_PJ} pdf`).toString("base64")));
   ok("ni l'objet ni l'adresse des messages ignorés", !dump.includes(OBJET_INCONNU) && !dump.includes(INCONNU) && !dump.includes(OBJET_NEWS));
+  ok("ni les notifications Swap'Îles ni le message transactionnel", !dump.includes(OBJET_SWAP) && !dump.includes(OBJET_SWAP2) && !dump.includes(OBJET_SES));
   ok("ni le mot de passe en clair", !dump.includes(motDePasse));
   const bilan = JSON.parse(un(`select last_result::text from gmail_sync where id='compte'`));
-  ok(`bilan chiffré, sans adresse : ${bilan.lus} lus, ${bilan.retenus} gardés, ${bilan.ignoresInconnus} inconnus, ${bilan.ignoresAutomatiques} automatiques`, bilan.retenus === 6 && bilan.ignoresAutomatiques === 3 && !JSON.stringify(bilan).includes("@"));
+  ok(`bilan chiffré, sans adresse : ${bilan.lus} lus, ${bilan.retenus} gardés, ${bilan.ignoresInconnus} inconnus, ${bilan.ignoresAutomatiques} automatiques`, bilan.retenus === 8 && bilan.ignoresAutomatiques === 5 && !JSON.stringify(bilan).includes("@"));
 
   console.log("\n— lecture seule : le fil IMAP et les drapeaux —");
   const commandes = fil.filter((l) => /^\S+ [A-Z]/i.test(l)).map((l) => l.replace(/^\S+ /, ""));
@@ -499,6 +546,7 @@ try {
   ok("fil sans réponse (client) : « sans réponse »", attend(`Photos pour le site ${jeu}`) === "true|");
   ok("prospect qui a répondu à Emmanuel : « sans réponse »", attend(`Re: Proposition ${jeu}`) === "true|");
   ok("message envoyé : jamais « sans réponse »", attend(`Proposition ${jeu}`).startsWith("false"));
+  ok("la réponse partie de l'admin lève « sans réponse » (date de réponse notée)", attend(`Question tarif ${jeu}`).startsWith("false|2"));
 
   console.log("\n— fiche contact —");
   p = await page(`/contacts/${client}`, cDir);
@@ -507,6 +555,12 @@ try {
   ok("les e-mails apparaissent aussi dans la frise", (p.visible.match(/E-mail reçu/g) ?? []).length >= 2 && p.visible.includes("E-mail envoyé"));
   p = await page(`/contacts/${client}?emails=sans-reponse`, cDir);
   ok("filtre « Sans réponse » : le fil répondu disparaît de la liste", p.visible.includes("Sans réponse (1)") && (p.visible.match(/data-fil-email/g) ?? []).length === 1);
+  p = await page(`/contacts/${ficheTarif}`, cDir);
+  ok(
+    "doublon agent ventes / Gmail : affiché une seule fois, version Gmail avec son lien, « Écrit par l'agent ventes »",
+    p.statut === 200 && !p.visible.includes(`E-mail envoyé par Emmanuel : « Re: Question tarif ${jeu} »`) && (p.visible.match(/data-ecrit-par-agent/g) ?? []).length === 1 && p.visible.includes("Écrit par l") && p.visible.includes("Ouvrir dans Gmail"),
+  );
+  ok("rien n'est supprimé en base : la ligne de l'agent ventes est toujours là", un(`select count(*) from directory_events where external_id = 'h:tarif-${jeu}'`) === "1");
   p = await page(`/contacts/${cabinet}`, cDir);
   ok("fiche du cabinet (même domaine) : le message de Paul y est", p.visible.includes(`Rendez-vous jeudi ? ${jeu}`));
 
@@ -521,6 +575,7 @@ try {
   ok("prospect qui a répondu il y a 3 h, sans mot d'urgence : peut attendre", /Peut attendre/.test(bloc(`Re: Proposition ${jeu}`)) && bloc(`Re: Proposition ${jeu}`).includes("Prospect qui a répondu, reçu il y a moins de 24 h"));
   ok("mot d'urgence (« rendez-vous ») : urgent", /Urgent/.test(bloc(`Rendez-vous jeudi ? ${jeu}`)) && bloc(`Rendez-vous jeudi ? ${jeu}`).includes("Contient « rendez-vous »"));
   ok("le fil répondu n'est pas à répondre", !p.visible.includes(`Question sur le planning ${jeu} »`));
+  ok("le prospect qui a reçu la réponse de l'admin n'est pas à répondre", !p.visible.includes(`Question tarif ${jeu}`));
   ok("pied de colonne : Gmail relu", p.visible.includes("E-mails sans réponse relevés dans Gmail"));
 
   const kPhotos = `email:${filDe(`Photos pour le site ${jeu}`)}`;
@@ -536,6 +591,29 @@ try {
   // La réponse d'Emmanuel sur l'autre fil part AVANT le nouveau message de Marie :
   // un envoi à ce contact plus récent vaudrait réponse (règle « sans réponse »).
   deposer("sent", { cle: "planning-rep2", de: EM, a: `Marie Hoarau <${MARIE}>`, objet: `Re: Question sur le planning (suite) ${jeu}`, ilYa: 20 * 60_000, reponseA: "planning", texte: "Je confirme jeudi." });
+  console.log("\n— nettoyage des e-mails gardés avant les règles actuelles —");
+  // D'anciens événements, enregistrés comme le faisait l'ancien rapprochement.
+  const clientMoment = un(`insert into clients (name, short_name, departments) values ('Moment Magic ${jeu}','MM ${jeu}','["social"]'::jsonb) returning id`);
+  const ficheVide = un(`insert into directory_entries (client_id, name, kind, source) values ('${clientMoment}', 'Moment Magic ${jeu}', 'client', 'agence') returning id`);
+  const clientNote = un(`insert into clients (name, short_name, departments) values ('Atelier Note ${jeu}','AN ${jeu}','["social"]'::jsonb) returning id`);
+  const ficheNote = un(`insert into directory_entries (client_id, name, kind, source, note) values ('${clientNote}', 'Atelier Note ${jeu}', 'client', 'agence', 'Rappeler en décembre') returning id`);
+  const ficheMarie = un(`select id from directory_entries where client_id = '${client}'`);
+  const ancien = (entry, titre, de, contact, par, filA) =>
+    un(`insert into directory_events (entry_id, source, kind, external_id, occurred_at, title, body, awaiting_reply, meta) values ('${entry}', 'gmail', 'email_entrant', 'ancien-${filA}-${jeu}', now() - interval '30 hours', ${"'" + titre.replace(/'/g, "''") + "'"}, 'Paiement à rembourser', true, '${JSON.stringify({ sens: "recu", de: { nom: "Swap Îles", email: de }, a: [{ nom: null, email: compte }], cc: [], destinataires: [compte], messageId: `ancien-${filA}-${jeu}@swapiles.com`, fil: `g:ancien-${filA}-${jeu}`, contact, par, dossier: "inbox" }).replace(/'/g, "''")}'::jsonb) returning id`);
+  ancien(ficheVide, `[Swap Îles] Remboursement à valider (vendeur non expédié) ancien ${jeu}`, "contact@swapiles.com", "contact@swapiles.com", "domaine", "a");
+  ancien(ficheMarie, `Ancien rattachement par Reply-To : paiement ${jeu}`, "contact@swapiles.com", MARIE, "adresse", "b");
+  ancien(ficheNote, `Ancienne notification sur une fiche annotée ${jeu}`, "ventes@swapiles.com", "ventes@swapiles.com", "domaine", "c");
+  sql(`insert into ce_matin_archives (key, "column", state, label) values ('email:g:ancien-a-${jeu}', 'repondre', 'x', 'MM ${jeu} · ancien')`);
+  p = await page(`/?client=${client}`, cDir);
+  {
+    const i = p.visible.indexOf(`Ancien rattachement par Reply-To : paiement ${jeu}`);
+    const b = p.visible.slice(Math.max(0, i - 700), i + 900);
+    ok(
+      "règle robuste : un e-mail dont l'expéditeur n'est pas l'adresse du client n'est ni « client sous contrat » ni urgent pour « paiement »",
+      i >= 0 && /Peut attendre/.test(b) && !b.includes("Client sous contrat") && b.includes("ni un client ni un prospect connu"),
+    );
+  }
+  const nettoyagesAvant = JOURNAL && existsSync(JOURNAL) ? (readFileSync(JOURNAL, "utf8").match(/Gmail : nettoyage/g) ?? []).length : 0;
   const avant2 = drapeaux();
   const ligneFil = fil.length;
   r = await gmail("synchroniserGmailMaintenant", undefined, cDir);
@@ -543,11 +621,26 @@ try {
   const nouvelles = fil.slice(ligneFil).map((l) => l.replace(/^\S+ /, ""));
   ok("second passage incrémental : recherche par UID au-delà du dernier lu (pas de SINCE)", nouvelles.some((c) => new RegExp(`^UID SEARCH UID ${positions.inbox.lastUid + 1}:\\*`, "i").test(c)) && !nouvelles.some((c) => /SEARCH.*SINCE/i.test(c)));
   ok("… et ne récupère que les nouveaux messages", nouvelles.filter((c) => /^UID FETCH \d+ \(.*HEADER\.FIELDS/i.test(c)).length === 2 && !nouvelles.some((c) => /^UID FETCH \d+[,:]\d+/i.test(c)));
-  ok("aucun doublon dans la base", evts().length === 8);
+  ok("aucun doublon dans la base (et les anciens événements hors règles retirés)", evts().length === 10);
+  ok("nettoyage : les 3 anciens e-mails hors règles retirés", un(`select count(*) from directory_events where external_id like 'ancien-%-${jeu}'`) === "0");
+  ok("nettoyage : leur « Traité » retiré", un(`select count(*) from ce_matin_archives where key like 'email:g:ancien-%-${jeu}'`) === "0");
+  ok("nettoyage : la fiche vide créée pour la notification retirée", un(`select count(*) from directory_entries where id = '${ficheVide}'`) === "0");
+  ok("nettoyage : la fiche annotée et celle du client aux vrais e-mails gardées", un(`select count(*) from directory_entries where id in ('${ficheNote}', '${ficheMarie}')`) === "2");
+  ok("nettoyage : les vrais e-mails du client gardés", evts().includes(`Photos pour le site ${jeu}`) && evts().includes(`Re: Photos pour le site ${jeu}`));
+  if (JOURNAL && existsSync(JOURNAL)) {
+    const lignes = readFileSync(JOURNAL, "utf8").match(/\[pilot\] Gmail : nettoyage[^\n]*/g) ?? [];
+    ok(`journal : « ${lignes.at(-1) ?? "(rien)"} » (des nombres seulement)`, lignes.length === nettoyagesAvant + 1 && /3 e-mail\(s\) retiré\(s\) \(2 rattaché\(s\) par domaine, 1 par adresse\), 1 « Traité » et 1 fiche\(s\) vide\(s\)/.test(lignes.at(-1) ?? "") && !/@/.test(lignes.at(-1) ?? ""));
+  }
   ok("drapeaux toujours identiques après le second relevé", JSON.stringify(drapeaux()) === JSON.stringify(avant2));
   ok("le fil « Photos » a un nouveau message reçu : toujours sans réponse, porté par le nouveau", attend(`Re: Photos pour le site ${jeu}`) === "true|" && attend(`Photos pour le site ${jeu}`).startsWith("false"));
   p = await page("/", cDir);
   ok("nouveau message dans un fil archivé : la ligne revient d'elle-même", p.visible.includes(`E-mail : « Re: Photos pour le site ${jeu} »`) && p.visible.includes("Du nouveau depuis l"));
+
+  if (JOURNAL && existsSync(JOURNAL)) {
+    const n = (readFileSync(JOURNAL, "utf8").match(/Gmail : nettoyage/g) ?? []).length;
+    await gmail("synchroniserGmailMaintenant", undefined, cDir);
+    ok("nettoyage idempotent : un relevé de plus ne retire plus rien (rien au journal)", (readFileSync(JOURNAL, "utf8").match(/Gmail : nettoyage/g) ?? []).length === n);
+  }
 
   console.log("\n— un seul relevé à la fois —");
   const loginsAvant = fil.filter((l) => /^\S+ (LOGIN|AUTHENTICATE)/i.test(l)).length;
@@ -580,11 +673,13 @@ try {
     r = await matin("marquerTraite", [`email:${filDe(`Rendez-vous jeudi ? ${jeu}`)}`], c);
     ok(`${qui} : « Traité » sur un e-mail refusé`, r.resultat?.ok !== true);
   }
-  ok("le secret et les e-mails sont toujours là après ces tentatives", un(`select count(*) from integrations where id='gmail'`) === "1" && evts().length === 8);
+  ok("le secret et les e-mails sont toujours là après ces tentatives", un(`select count(*) from integrations where id='gmail'`) === "1" && evts().length === 10);
   p = await page("/", cSoc);
   ok("pôle social : l'accueil ne montre aucun e-mail ni l'état de Gmail", p.statut === 200 && !p.html.includes(`Photos pour le site ${jeu}`) && !p.html.includes("Rendez-vous jeudi") && !p.visible.includes("Gmail n'est pas relié"));
   p = await page(`/contacts/${client}`, cSoc);
   ok("pôle social : la fiche n'a ni section « E-mails » ni e-mails dans la frise", p.statut === 200 && !p.visible.includes(">E-mails<") && !p.html.includes(`Photos pour le site ${jeu}`) && !p.visible.includes("E-mail reçu"));
+  p = await page(`/contacts/${ficheTarif}`, cSoc);
+  ok("pôle social (pas d'e-mails) : la ligne de l'agent ventes reste affichée", p.statut === 200 && p.visible.includes(`E-mail envoyé par Emmanuel : « Re: Question tarif ${jeu} »`) && !p.html.includes("data-ecrit-par-agent"));
   p = await page(`/contacts/${client}`, cPortail);
   ok("client du portail : la fiche le renvoie au portail", p.statut >= 300 && p.statut < 400 && p.location.includes("/portail"));
   p = await page(`/contacts/${client}`, cWeb);
@@ -592,7 +687,7 @@ try {
 
   console.log("\n— déconnecter —");
   r = await gmail("deconnecterGmailAction", { effacer: false }, cDir);
-  ok("« Déconnecter » : mot de passe effacé, e-mails gardés", r.resultat?.ok === true && un(`select count(*) from integrations where id='gmail'`) === "0" && evts().length === 8);
+  ok("« Déconnecter » : mot de passe effacé, e-mails gardés", r.resultat?.ok === true && un(`select count(*) from integrations where id='gmail'`) === "0" && evts().length === 10);
   p = await page("/", cDir);
   ok("« Ce matin » dit que Gmail n'est pas relié (au lieu d'afficher zéro)", p.visible.includes("Gmail n&#x27;est pas relié") || p.visible.includes("Gmail n'est pas relié"));
   p = await page(`/contacts/${client}`, cDir);
@@ -621,6 +716,7 @@ try {
   sql(`delete from ce_matin_archives where key like 'email:%' and label like '%${jeu}%'`);
   sql(`delete from directory_entries where name like '%${jeu}%'`);
   sql(`delete from users where email like '%-${jeu}@exemple.test'`);
+  sql(`delete from ce_matin_archives where key like 'email:g:ancien-%-${jeu}'`);
   sql(`delete from clients where name like '%${jeu}'`);
   sql(`delete from integrations where id='gmail' and account_id='${compte}'`);
   sql(`delete from gmail_sync where id='compte' and (account='${compte}' or account is null)`);

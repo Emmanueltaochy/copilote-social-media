@@ -3,18 +3,20 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { ImapFlow, type FetchMessageObject, type MessageAddressObject, type MessageStructureObject } from "imapflow";
-import { clients, contacts, db, directoryEntries, directoryEvents, gmailSync, users, type GmailSync } from "@/db";
+import { ceMatinArchives, clients, contacts, db, directoryEntries, directoryEvents, gmailSync, users, type GmailSync } from "@/db";
 import { cleEmail } from "@/lib/annuaire";
 import {
   EN_TETES_UTILES,
   cleDeFil,
   decoderPartie,
   domaineDe,
+  emailHorsRegles,
+  estDomaineEmmanuel,
   estDomainePublic,
   extrait,
   lienGmail,
   lireEnTetes,
-  messageAutomatique,
+  messageTransactionnel,
   sansChevrons,
   texteDuHtml,
 } from "@/lib/gmail-regles";
@@ -33,7 +35,12 @@ import { forgetSecret, getSecretChiffre, noterErreur, secretStatus, setSecretChi
  *
  * CE QUI EST GARDÉ : seulement les échanges avec une adresse connue de
  * l'annuaire (e-mail d'une fiche, contact ou compte portail d'un client, ou
- * même domaine professionnel qu'une fiche). Pour ces messages : sens, date,
+ * même domaine professionnel qu'une fiche), et par la vraie contrepartie :
+ * l'adresse From d'un message reçu (jamais Reply-To, les autres destinataires
+ * ni le corps), les adresses To et Cc d'un message envoyé. Les domaines
+ * d'Emmanuel (Swap'Îles, l'agence, ses sites : DOMAINES_EMMANUEL dans
+ * gmail-regles.ts) et ceux de l'équipe ne sont jamais des clients, et les
+ * messages transactionnels (notifications de plateforme…) sont ignorés. Pour ces messages : sens, date,
  * expéditeur et destinataires, objet, extrait de 280 caractères, Message-ID,
  * fil, lien « Ouvrir dans Gmail », nombre et noms des pièces jointes. Jamais
  * le corps complet, jamais une pièce jointe. Tout le reste est ignoré sans
@@ -51,6 +58,8 @@ const COUPURE_MS = 5 * 60_000;
 /** Le bail : plus long que la coupure, pour qu'aucun second relevé ne démarre avant. */
 const BAIL_MS = 6 * 60_000;
 const LOT = 100;
+/** Version des règles appliquées au dossier des envois (voir la relecture dans releve()). */
+const REGLES_ENVOYES = 2;
 /** On ne lit que le début de la partie texte : de quoi faire un extrait. */
 const OCTETS_TEXTE = 16_384;
 
@@ -237,7 +246,27 @@ type Cible = { entryId: string | null; clientId: string | null };
 type Annuaire = {
   parAdresse: Map<string, Cible[]>;
   parDomaine: Map<string, Cible[]>;
+  /** Une adresse d'Emmanuel ou de l'équipe : jamais une contrepartie. */
+  estInterne: (adresse: string) => boolean;
 };
+
+/**
+ * Les adresses qui ne sont jamais des clients : les domaines d'Emmanuel
+ * (DOMAINES_EMMANUEL), les domaines professionnels des comptes de l'équipe,
+ * et les adresses exactes de l'équipe et de la boîte relevée.
+ */
+async function adressesInternes(compte: string) {
+  const equipe = await db.select({ email: users.email }).from(users).where(ne(users.role, "client"));
+  const adresses = new Set([compte, ...equipe.map((u) => cleEmail(u.email))].filter((a): a is string => Boolean(a)));
+  const domaines = new Set(
+    [domaineDe(compte), ...equipe.map((u) => domaineDe(u.email))].filter((d): d is string => Boolean(d) && !estDomainePublic(d)),
+  );
+  const domaineInterne = (d: string | null) => Boolean(d) && (estDomaineEmmanuel(d) || domaines.has(d!));
+  return {
+    domaineInterne,
+    estInterne: (adresse: string) => adresses.has(adresse.toLowerCase()) || domaineInterne(domaineDe(adresse)),
+  };
+}
 
 const ajouter = (m: Map<string, Cible[]>, k: string, c: Cible) => {
   const l = m.get(k) ?? [];
@@ -252,21 +281,22 @@ const ajouter = (m: Map<string, Cible[]>, k: string, c: Cible) => {
  * les domaines de l'équipe (l'agence n'est pas son propre contact).
  */
 async function annuaireConnu(compte: string): Promise<Annuaire> {
-  const [fiches, contactsClients, comptesPortail, equipe] = await Promise.all([
+  const [fiches, contactsClients, comptesPortail, internes] = await Promise.all([
     db.select({ id: directoryEntries.id, clientId: directoryEntries.clientId, email: directoryEntries.emailKey, links: directoryEntries.links }).from(directoryEntries),
     db.select({ clientId: contacts.clientId, reach: contacts.reach }).from(contacts),
     db.select({ clientId: users.clientId, email: users.email }).from(users).where(and(eq(users.role, "client"), isNotNull(users.clientId))),
-    db.select({ email: users.email }).from(users).where(ne(users.role, "client")),
+    adressesInternes(compte),
   ]);
-  const internes = new Set([domaineDe(compte), ...equipe.map((u) => domaineDe(u.email))].filter((d): d is string => Boolean(d)));
   const parAdresse = new Map<string, Cible[]>();
   const parDomaine = new Map<string, Cible[]>();
   const noter = (adresse: string | null | undefined, c: Cible) => {
     const a = cleEmail(adresse);
-    if (!a || a === compte) return;
+    // Une adresse d'Emmanuel (Swap'Îles, l'agence…) notée sur une fiche ne
+    // relie jamais rien : ses propres notifications iraient sur cette fiche.
+    if (!a || internes.estInterne(a)) return;
     ajouter(parAdresse, a, c);
     const d = domaineDe(a);
-    if (d && !estDomainePublic(d) && !internes.has(d)) ajouter(parDomaine, d, c);
+    if (d && !estDomainePublic(d)) ajouter(parDomaine, d, c);
   };
   for (const f of fiches) {
     const c = { entryId: f.id, clientId: f.clientId };
@@ -277,7 +307,7 @@ async function annuaireConnu(compte: string): Promise<Annuaire> {
     for (const m of (c.reach ?? "").match(/[^\s<>,;()]+@[^\s<>,;()]+\.[a-z]{2,}/gi) ?? []) noter(m, { entryId: null, clientId: c.clientId });
   }
   for (const u of comptesPortail) noter(u.email, { entryId: null, clientId: u.clientId });
-  return { parAdresse, parDomaine };
+  return { parAdresse, parDomaine, estInterne: internes.estInterne };
 }
 
 /** La fiche d'un client, créée (vide) s'il n'en a pas encore : la frise a besoin d'une fiche. */
@@ -358,6 +388,8 @@ async function releve(): Promise<ResultatSync> {
   const compte = (secret.account ?? "").toLowerCase();
   if (!compte) return { etat: "non_relie" };
   if (!(await prendreBail())) return { etat: "deja_en_cours" };
+  // Les e-mails gardés avant les règles actuelles sortent d'abord (idempotent).
+  await nettoyerEmailsHorsRegles().catch((e) => console.warn("[pilot] Gmail : nettoyage interrompu,", (e as Error).message));
 
   const debut = Date.now();
   const client = nouveauClient(compte, secret.token);
@@ -397,8 +429,13 @@ async function releve(): Promise<ResultatSync> {
         if (!mb || mb.readOnly === false) throw new Error("Le serveur a ouvert la boîte en écriture : relevé interrompu par prudence.");
         const validite = String(mb.uidValidity);
         let pos = positions[dossier.role];
-        if (!pos || pos.uidValidity !== validite || pos.path !== dossier.path) {
-          pos = { path: dossier.path, uidValidity: validite, lastUid: 0, initialDone: false };
+        // Les envois relus une fois selon les règles actuelles : avant elles,
+        // un envoi parti de l'admin du site (logiciel d'envoi, lien de
+        // désinscription) pouvait être écarté comme « automatique ». Relire
+        // ne double rien (identifiant unique par message).
+        const relire = dossier.role === "sent" && pos?.regles !== REGLES_ENVOYES;
+        if (!pos || relire || pos.uidValidity !== validite || pos.path !== dossier.path) {
+          pos = { path: dossier.path, uidValidity: validite, lastUid: 0, initialDone: false, ...(dossier.role === "sent" ? { regles: REGLES_ENVOYES } : {}) };
         }
         if (!pos.initialDone) bilan.premierPassage = true;
 
@@ -517,13 +554,23 @@ async function traiter(
   const env = m.envelope ?? {};
   const de = adresse(env.from?.[0]);
   const dests = [...(env.to ?? []), ...(env.cc ?? []), ...(env.bcc ?? [])];
+  // Tout message du dossier « Messages envoyés » est envoyé par Emmanuel,
+  // quel que soit son From : son adresse Gmail, un alias, ou une adresse
+  // @taochyagency.com (e-mails de prospection partis de l'admin du site).
   const envoye = dossier === "sent" || de === compte;
   const enTetes = lireEnTetes(m.headers);
-  if (messageAutomatique(enTetes, de)) return "automatique";
+  // Reçu : notification de plateforme, confirmation, lettre d'information… :
+  // ignoré, rien n'est stocké. Un envoi d'Emmanuel n'est jamais écarté ainsi,
+  // même parti d'un logiciel de site (l'admin envoie avec PHPMailer).
+  if (!envoye && messageTransactionnel(enTetes, de, env.subject)) return "automatique";
 
-  // L'autre côté de l'échange : l'expéditeur d'un message reçu, les
-  // destinataires d'un message envoyé.
-  const autres = envoye ? dests.map(adresse).filter((a): a is string => Boolean(a) && a !== compte) : de && de !== compte ? [de] : [];
+  // La vraie contrepartie, et elle seule : l'adresse From d'un message reçu
+  // (jamais Reply-To, les autres destinataires ni une adresse du corps), les
+  // adresses To et Cc d'un message envoyé. Une adresse d'Emmanuel ou de
+  // l'équipe n'est jamais une contrepartie.
+  const autres = (
+    envoye ? [...(env.to ?? []), ...(env.cc ?? [])].map(adresse).filter((a): a is string => Boolean(a)) : de ? [de] : []
+  ).filter((a) => a !== compte && !annuaire.estInterne(a));
   const cibles: (Cible & { par: "adresse" | "domaine"; contact: string })[] = [];
   for (const a of autres) {
     const exact = annuaire.parAdresse.get(a);
@@ -633,6 +680,103 @@ export async function recalculerSansReponse() {
     where d.id = calc.id
       and (d.awaiting_reply is distinct from calc.attend or d.done_at is distinct from calc.repondu)
   `);
+}
+
+/* ------------------------------------------------------------ nettoyage -- */
+
+export type BilanNettoyage = { retires: number; parDomaine: number; parAdresse: number; archives: number; fiches: number };
+
+/**
+ * Retire les e-mails gardés avant les règles de rapprochement actuelles (voir
+ * emailHorsRegles dans gmail-regles.ts) : une notification Swap'Îles rangée
+ * sur la fiche d'un client, un message rattaché par une autre adresse que la
+ * vraie contrepartie, un message d'un domaine d'Emmanuel ou de l'équipe.
+ *
+ * Avec eux partent :
+ *   - les « Traité » de « Ce matin » de leurs fils (clé email:<fil>), quand
+ *     plus aucun e-mail gardé n'appartient au fil ;
+ *   - les fiches VIDES que le relevé avait créées pour eux seuls (fiche d'un
+ *     client, sans aucune saisie, jamais modifiée, sans plus aucune ligne de
+ *     frise). Une fiche qui porte quoi que ce soit d'autre n'est pas touchée.
+ *
+ * Idempotent (une seconde exécution ne trouve plus rien). Appelé au démarrage
+ * et au début de chaque relevé. Le journal ne contient que des nombres.
+ */
+export async function nettoyerEmailsHorsRegles(): Promise<BilanNettoyage> {
+  const bilan: BilanNettoyage = { retires: 0, parDomaine: 0, parAdresse: 0, archives: 0, fiches: 0 };
+  const rows = await db
+    .select({ id: directoryEvents.id, entryId: directoryEvents.entryId, kind: directoryEvents.kind, title: directoryEvents.title, meta: directoryEvents.meta })
+    .from(directoryEvents)
+    .where(and(eq(directoryEvents.source, "gmail"), inArray(directoryEvents.kind, ["email_entrant", "email_sortant"])));
+  if (!rows.length) return bilan;
+
+  const [etat] = await db.select({ account: gmailSync.account }).from(gmailSync).where(eq(gmailSync.id, ETAT_ID)).limit(1);
+  const { domaineInterne } = await adressesInternes((etat?.account ?? "").toLowerCase());
+  const emails = (l: unknown) => (Array.isArray(l) ? l : []).map((p) => String((p as { email?: string })?.email ?? "")).filter(Boolean);
+
+  const aRetirer = rows.filter((r) => {
+    const m = r.meta as Record<string, unknown>;
+    const raison = emailHorsRegles(
+      {
+        sens: r.kind === "email_sortant" ? "envoye" : "recu",
+        de: (m.de as { email?: string } | null)?.email ?? null,
+        a: emails(m.a),
+        cc: emails(m.cc),
+        contact: typeof m.contact === "string" ? m.contact : null,
+        objet: r.title,
+      },
+      domaineInterne,
+    );
+    return raison !== null;
+  });
+  if (!aRetirer.length) return bilan;
+
+  const ids = aRetirer.map((r) => r.id);
+  const fils = [...new Set(aRetirer.map((r) => String((r.meta as Record<string, unknown>).fil ?? "")).filter(Boolean))];
+  const fichesTouchees = [...new Set(aRetirer.map((r) => r.entryId))];
+  bilan.parDomaine = aRetirer.filter((r) => (r.meta as Record<string, unknown>).par === "domaine").length;
+  bilan.parAdresse = aRetirer.length - bilan.parDomaine;
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < ids.length; i += 500) {
+      bilan.retires += (await tx.delete(directoryEvents).where(inArray(directoryEvents.id, ids.slice(i, i + 500))).returning({ id: directoryEvents.id })).length;
+    }
+    // Les « Traité » des fils qui n'ont plus aucun e-mail gardé.
+    for (const fil of fils) {
+      const [reste] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(directoryEvents)
+        .where(and(eq(directoryEvents.source, "gmail"), sql`${directoryEvents.meta}->>'fil' = ${fil}`));
+      if (!reste?.n) bilan.archives += (await tx.delete(ceMatinArchives).where(eq(ceMatinArchives.key, `email:${fil}`)).returning({ k: ceMatinArchives.key })).length;
+    }
+    // Les fiches vides créées par le relevé pour ces seuls e-mails.
+    const vides = await tx
+      .delete(directoryEntries)
+      .where(
+        and(
+          inArray(directoryEntries.id, fichesTouchees),
+          isNotNull(directoryEntries.clientId),
+          eq(directoryEntries.kind, "client"),
+          eq(directoryEntries.source, "agence"),
+          sql`${directoryEntries.contactName} is null and ${directoryEntries.email} is null and ${directoryEntries.phone} is null
+            and ${directoryEntries.website} is null and ${directoryEntries.city} is null and ${directoryEntries.country} is null
+            and ${directoryEntries.sector} is null and ${directoryEntries.owner} is null and ${directoryEntries.status} is null
+            and ${directoryEntries.nextAction} is null and ${directoryEntries.nextActionOn} is null and ${directoryEntries.note} is null
+            and ${directoryEntries.abbyCustomerId} is null and ${directoryEntries.externalId} is null and ${directoryEntries.importedAt} is null
+            and ${directoryEntries.lastActivityAt} is null
+            and ${directoryEntries.tags} = '[]'::jsonb and ${directoryEntries.links} = '{}'::jsonb and ${directoryEntries.data} = '{}'::jsonb
+            and ${directoryEntries.updatedAt} - ${directoryEntries.createdAt} < interval '1 second'`,
+          sql`not exists (select 1 from ${directoryEvents} e where e.entry_id = ${directoryEntries.id})`,
+        ),
+      )
+      .returning({ id: directoryEntries.id });
+    bilan.fiches = vides.length;
+  });
+  await recalculerSansReponse();
+  console.log(
+    `[pilot] Gmail : nettoyage, ${bilan.retires} e-mail(s) retiré(s) (${bilan.parDomaine} rattaché(s) par domaine, ${bilan.parAdresse} par adresse), ${bilan.archives} « Traité » et ${bilan.fiches} fiche(s) vide(s) retirés.`,
+  );
+  return bilan;
 }
 
 /* --------------------------------------------------------- planification -- */

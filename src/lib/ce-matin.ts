@@ -52,14 +52,17 @@ import type { User } from "@/db";
  * - Une demande de devis non traitée devient **urgente** après 2 jours.
  * - Un commentaire de client sur le portail, sans réponse de l'équipe,
  *   devient **urgent** après 24 heures.
- * - Un e-mail sans réponse (Gmail) est **urgent** :
+ * - Un e-mail sans réponse (Gmail) est **urgent** — à condition que son
+ *   expéditeur From soit l'adresse même qui le relie à la fiche (jamais un
+ *   Reply-To, un autre destinataire ou une adresse citée) :
  *     · s'il vient d'un client sous contrat (compte client actif) ou d'un
  *       prospect qui a répondu (à un e-mail d'Emmanuel dans le même fil, ou
  *       fiche à l'étape « a répondu », « rendez-vous » ou « devis ») et
  *       attend depuis plus de 24 heures ;
  *     · ou si son objet ou son extrait contient un mot d'urgence ou d'argent
  *       (urgent, problème, bug, panne, facture, paiement, devis, rendez-vous,
- *       rappeler — voir MOTS_URGENTS dans gmail-regles.ts).
+ *       rappeler — voir MOTS_URGENTS dans gmail-regles.ts) ET qu'il vient
+ *       d'un client ou d'un prospect connu : un mot seul ne suffit pas.
  *   Sinon il **peut attendre**. Pas d'IA : la règle tient en une phrase,
  *   affichée sur chaque ligne.
  */
@@ -280,12 +283,19 @@ async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
 
   const lignes: LigneMatin[] = [];
   for (const [fil, r] of parFil) {
-    const meta = r.meta as { de?: { nom?: string | null; email?: string } | null; messageId?: string | null };
+    const meta = r.meta as { de?: { nom?: string | null; email?: string } | null; messageId?: string | null; contact?: string | null };
     const age = now.getTime() - r.at.getTime();
     const vieux = age > REGLES.emailUrgentApresHeures * HEURE;
-    const sousContrat = Boolean(r.clientId && r.clientActif && !r.clientArchive);
-    const prospectRepondu = !r.clientId && r.kind === "prospect" && (avecEnvoi.has(fil) || ["repondu", "rdv", "devis"].includes(r.status ?? ""));
-    const mot = motUrgent(`${r.objet} ${r.extrait ?? ""}`);
+    // L'expéditeur From est-il bien l'adresse qui a relié le message à cette
+    // fiche ? Sinon rien de ce qui suit ne vaut (ni « client sous contrat »,
+    // ni un mot d'urgence).
+    const deLaFiche = Boolean(meta.de?.email && meta.contact && cleEmail(meta.de.email) === cleEmail(meta.contact));
+    const sousContrat = deLaFiche && Boolean(r.clientId && r.clientActif && !r.clientArchive);
+    const prospectRepondu = deLaFiche && !r.clientId && r.kind === "prospect" && (avecEnvoi.has(fil) || ["repondu", "rdv", "devis"].includes(r.status ?? ""));
+    // Un client ou un prospect connu : seul cas où un mot d'urgence compte.
+    const connu = deLaFiche && (Boolean(r.clientId) || r.kind === "prospect");
+    const motTrouve = motUrgent(`${r.objet} ${r.extrait ?? ""}`);
+    const mot = connu ? motTrouve : null;
     const urgent = Boolean(mot) || ((sousContrat || prospectRepondu) && vieux);
     const qui = sousContrat ? "Client sous contrat" : prospectRepondu ? "Prospect qui a répondu" : null;
     const raison = mot
@@ -294,7 +304,9 @@ async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
         ? `${qui}, sans réponse depuis plus de 24\u00a0h`
         : qui
           ? `${qui}, reçu il y a moins de 24\u00a0h`
-          : "Ni client sous contrat ni prospect ayant répondu, aucun mot d'urgence";
+          : motTrouve
+            ? `Contient « ${motTrouve} », mais l'expéditeur n'est ni un client ni un prospect connu`
+            : "Ni client sous contrat ni prospect ayant répondu, aucun mot d'urgence";
     const auteur = meta.de?.nom || meta.de?.email || "le contact";
     lignes.push({
       key: `email:${fil}`,
