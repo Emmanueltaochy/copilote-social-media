@@ -8,6 +8,8 @@ import { cn } from "@/lib/cn";
 const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" | "factures" | "projets" }[] = [
   { href: "/portail", label: "Accueil", icon: "home" },
   { href: "/portail/valider", label: "À valider", icon: "check", cle: "aValider" },
+  // Juste après « À valider » : ce qu'on valide, on veut ensuite le voir partir.
+  { href: "/portail/calendrier", label: "Calendrier", icon: "calendar" },
   { href: "/portail/statistiques", label: "Statistiques", icon: "chart" },
   { href: "/portail/medias", label: "Médias", icon: "image" },
   { href: "/portail/documents", label: "Documents", icon: "layers" },

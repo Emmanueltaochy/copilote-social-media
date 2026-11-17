@@ -24,9 +24,16 @@ export const dynamic = "force-dynamic";
  * La légende est ici aussi, et c'est la moitié du travail : c'est le texte qui
  * partira en ligne, et c'est souvent lui que le client veut corriger.
  */
-export default async function ContenuPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ContenuPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ depuis?: string; mois?: string }>;
+}) {
   const { client } = await contextePortail();
   const { id } = await params;
+  const sp = await searchParams;
 
   const [ligne] = await db
     .select({ content: contents })
@@ -50,15 +57,22 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
 
   const aValider = c.status === "validation";
   const statut = CONTENT_STATUS[c.status];
+  // Ouvert depuis le calendrier : on y revient, au mois qu'on regardait.
+  const retour =
+    sp.depuis === "calendrier"
+      ? {
+          href: /^\d{4}-\d{2}$/.test(sp.mois ?? "") ? `/portail/calendrier?mois=${sp.mois}` : "/portail/calendrier",
+          label: "Calendrier",
+        }
+      : aValider
+        ? { href: "/portail/valider", label: "À valider" }
+        : { href: "/portail", label: "Accueil" };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Link
-          href={aValider ? "/portail/valider" : "/portail"}
-          className="text-base text-ink-2 no-underline hover:underline"
-        >
-          ← {aValider ? "À valider" : "Accueil"}
+        <Link href={retour.href} className="text-base text-ink-2 no-underline hover:underline">
+          ← {retour.label}
         </Link>
         <span className="flex-1" />
         <StatusPill tone={statut.tone}>{statut.label}</StatusPill>
