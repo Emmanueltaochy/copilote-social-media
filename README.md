@@ -154,6 +154,16 @@ puis e-mail, puis nom et ville). Vérification locale :
 `scripts/test-annuaire.mjs` ; démonstration locale : `scripts/dev/seed-annuaire-demo.sql`
 et `scripts/dev/abby-demo.mjs` (faux serveur Abby, données fictives).
 
+### « Ce matin » : le bouton « Traité »
+
+Chaque ligne du bloc « Ce matin » de l'accueil peut être marquée « Traité ».
+L'archive est en base (table `ce_matin_archives`), partagée par l'équipe, avec
+l'empreinte de la ligne au moment de l'archivage : si quelque chose de nouveau
+arrive (réponse, commentaire, échéance, montant…), la ligne revient d'elle-même.
+La règle complète est écrite dans `src/lib/ce-matin.ts`. Rien n'est écrit dans
+Abby. Vérification locale, sur un build de production :
+`scripts/test-ce-matin.mjs`.
+
 ### Prochaine étape
 
 Brancher Supabase : le découpage `data/` ↔ `lib/` est fait pour que chaque

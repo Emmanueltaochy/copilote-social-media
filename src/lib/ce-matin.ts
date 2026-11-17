@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
+  ceMatinArchives,
   clients,
   comments,
   contents,
@@ -16,6 +17,8 @@ import {
 import { correspondances } from "@/db/annuaire-queries";
 import { abbyRaccorde, devisSignesNonFactures, facturesEnAttente, type AbbyDoc } from "@/lib/abby";
 import { cleEmail, cleTexte, jourRelatif } from "@/lib/annuaire";
+import { canSeeMoney, departmentsOf } from "@/lib/auth";
+import type { User } from "@/db";
 
 /*
  * « Ce matin » : ce qu'Emmanuel doit savoir en ouvrant Pilot.
@@ -57,7 +60,10 @@ export const REGLES = {
 export type Urgence = "urgent" | "attendre";
 
 export type LigneMatin = {
+  /** Clé stable : type + identifiant de l'objet (voir « Traité » plus bas). */
   key: string;
+  /** L'empreinte de ce qui rendrait la ligne nouvelle (voir « Traité »). */
+  etat: string;
   href: string;
   /** Le client ou le prospect concerné. */
   qui: string;
@@ -69,7 +75,13 @@ export type LigneMatin = {
   montantCents?: number;
   ton?: "alert" | "warn" | "info" | "neutral";
   clientId?: string | null;
+  /** Archivée puis revenue d'elle-même : du nouveau depuis cet archivage. */
+  retour?: Archivage;
+  /** Archivée (liste « Voir les archivés ») : par qui, quand. */
+  archive?: Archivage;
 };
+
+export type Archivage = { par: string | null; le: string };
 
 const HEURE = 3_600_000;
 const JOUR = 24 * HEURE;
@@ -103,7 +115,14 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
     nomsCourts(),
     db.select().from(directoryEntries).where(eq(directoryEntries.status, "repondu")),
     db
-      .select({ id: quoteRequests.id, at: quoteRequests.createdAt, subject: quoteRequests.subject, clientId: quoteRequests.clientId, client: clients.shortName })
+      .select({
+        id: quoteRequests.id,
+        at: quoteRequests.createdAt,
+        maj: quoteRequests.updatedAt,
+        subject: quoteRequests.subject,
+        clientId: quoteRequests.clientId,
+        client: clients.shortName,
+      })
       .from(quoteRequests)
       .innerJoin(clients, eq(clients.id, quoteRequests.clientId))
       .where(eq(quoteRequests.status, "nouvelle")),
@@ -141,7 +160,8 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
     const suitePrevue = p.nextActionOn !== null && p.nextActionOn > today;
     const attendre = !fraiche && suitePrevue;
     lignes.push({
-      key: "p" + p.id,
+      key: `prospect-repondu:${p.id}`,
+      etat: derniere?.toISOString() ?? "",
       href: `/contacts/${p.clientId ?? p.id}`,
       qui: (p.clientId && noms.get(p.clientId)) || p.name,
       titre: p.contactName ? `${p.contactName} a répondu à l'agent ventes` : "A répondu à l'agent ventes",
@@ -160,7 +180,8 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
     const age = now.getTime() - d.at.getTime();
     const urgent = age >= REGLES.devisUrgentApresHeures * HEURE;
     lignes.push({
-      key: "d" + d.id,
+      key: `devis-demande:${d.id}`,
+      etat: d.maj.toISOString(),
       href: `/contacts/${d.clientId}`,
       qui: d.client,
       titre: `Demande de devis : « ${d.subject} »`,
@@ -174,8 +195,10 @@ export async function aRepondre(now: Date, scopeId?: string): Promise<LigneMatin
   for (const c of commentairesClients) {
     const age = now.getTime() - c.at.getTime();
     const urgent = age >= REGLES.commentaireUrgentApresHeures * HEURE;
+    // Une ligne par contenu : un nouveau commentaire du client la fait revenir.
     lignes.push({
-      key: "c" + c.id,
+      key: `commentaire:${c.contentId}`,
+      etat: c.id,
       href: `/contenu/${c.contentId}`,
       qui: c.client,
       titre: `Commentaire sur « ${c.title} »`,
@@ -268,7 +291,8 @@ export async function argentQuiDort(now: Date, scopeId?: string): Promise<Argent
     const montant = f.remainingCents ?? f.amountCents;
     const enRetard = f.dueAt ? f.dueAt.getTime() < now.getTime() : false;
     lignes.push({
-      key: "fa" + f.id,
+      key: `facture:${f.number}`,
+      etat: `${montant}|${f.dueAt?.toISOString().slice(0, 10) ?? ""}`,
       href: c.href,
       qui: c.nom ?? (f.customerName || "Client Abby"),
       titre: `Facture ${f.number}${f.title ? ` · ${f.title}` : ""}`,
@@ -288,7 +312,8 @@ export async function argentQuiDort(now: Date, scopeId?: string): Promise<Argent
     if (numerosAbby.has(inv.number)) continue;
     const enRetard = inv.dueOn !== null && inv.dueOn < today;
     lignes.push({
-      key: "fp" + inv.id,
+      key: `facture-pilot:${inv.id}`,
+      etat: `${inv.amountCents}|${inv.dueOn ?? ""}`,
       href: `/contacts/${inv.clientId}`,
       qui: client,
       titre: `Facture ${inv.number}${inv.label ? ` · ${inv.label}` : ""}`,
@@ -306,7 +331,8 @@ export async function argentQuiDort(now: Date, scopeId?: string): Promise<Argent
     const c = cible!(d);
     const reste = d.amountCents - d.advancesCents;
     lignes.push({
-      key: "ds" + d.id,
+      key: `devis-signe:${d.number}`,
+      etat: String(reste),
       href: c.href,
       qui: c.nom ?? (d.customerName || "Client Abby"),
       titre: `Devis ${d.number} signé, pas encore facturé`,
@@ -366,6 +392,7 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
         client: clients.shortName,
         n: sql<number>`count(*)::int`,
         depuis: sql<string>`min(${contents.submittedAt})::text`,
+        dernier: sql<string>`max(${contents.submittedAt})::text`,
       })
       .from(contents)
       .innerJoin(clients, eq(clients.id, contents.clientId))
@@ -409,7 +436,8 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
   for (const p of prochaines) {
     const retard = joursEntre(p.nextActionOn!, today);
     lignes.push({
-      key: "na" + p.id,
+      key: `action:prochaine-etape:${p.id}`,
+      etat: `${p.nextActionOn}|${p.nextAction ?? ""}`,
       href: `/contacts/${p.clientId ?? p.id}`,
       qui: (p.clientId && noms.get(p.clientId)) || p.name,
       titre: p.nextAction ?? "Prochaine étape à définir",
@@ -421,7 +449,8 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
   for (const v of validations) {
     const jours = Math.floor((now.getTime() - Date.parse(v.depuis)) / JOUR);
     lignes.push({
-      key: "va" + v.clientId,
+      key: `action:validation:${v.clientId}`,
+      etat: v.dernier,
       href: `/contacts/${v.clientId}`,
       qui: v.client,
       titre: `Relancer pour ${v.n > 1 ? `${v.n} contenus` : "1 contenu"} en attente de validation`,
@@ -432,7 +461,8 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
   }
   for (const r of retours) {
     lignes.push({
-      key: "lv" + r.id,
+      key: `action:retour-livrable:${r.id}`,
+      etat: r.at?.toISOString() ?? "",
       href: `/web/${r.projectId}`,
       qui: r.client,
       titre: `Reprendre « ${r.label} » : modifications demandées`,
@@ -443,7 +473,8 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
   }
   for (const p of retards) {
     lignes.push({
-      key: "wp" + p.id,
+      key: `action:mise-en-ligne:${p.id}`,
+      etat: p.dueAt?.toISOString() ?? "",
       href: `/web/${p.id}`,
       qui: p.client,
       titre: `Mise en ligne de « ${p.name} » dépassée`,
@@ -454,7 +485,8 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
   }
   for (const d of devisEnCours) {
     lignes.push({
-      key: "dc" + d.id,
+      key: `action:devis-en-cours:${d.id}`,
+      etat: d.at.toISOString(),
       href: `/contacts/${d.clientId}`,
       qui: d.client,
       titre: `Envoyer le devis « ${d.subject} »`,
@@ -473,3 +505,114 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
     (a, b) => rang(a) - rang(b) || ordre[a.ton ?? "neutral"] - ordre[b.ton ?? "neutral"] || a.qui.localeCompare(b.qui, "fr"),
   );
 }
+
+/* ---------------------------------------------------------------- traité -- */
+
+/**
+ * « Traité » : archiver une ligne du bloc, pour toute l'équipe.
+ *
+ * Chaque ligne a une clé stable (type + identifiant de l'objet) et une
+ * empreinte (`etat`) : ce qui, en changeant, ferait d'elle une nouvelle chose
+ * à traiter. L'archivage enregistre la clé et l'empreinte du moment.
+ *
+ * LA RÈGLE : une ligne archivée reste cachée tant que son empreinte est la
+ * même qu'au moment de l'archivage. Dès qu'elle change, la ligne revient
+ * d'elle-même, marquée « Du nouveau depuis l'archivage », sans que personne
+ * n'ait à la rétablir. Une ligne qui sort des données (facture payée,
+ * prospect passé à « gagné », devis traité) sort aussi des archivés.
+ *
+ * Ce qui fait revenir chaque ligne :
+ *   - prospect-repondu:<fiche>          une nouvelle réponse (date du dernier échange) ;
+ *   - devis-demande:<demande>           la demande modifiée (date de mise à jour) ;
+ *   - commentaire:<contenu>             un nouveau commentaire du client sur ce contenu ;
+ *   - facture:<numéro Abby>             le montant restant ou l'échéance qui change ;
+ *   - facture-pilot:<facture>           le montant ou l'échéance qui change ;
+ *   - devis-signe:<numéro Abby>         le reste à facturer qui change (nouvel acompte…) ;
+ *   - action:prochaine-etape:<fiche>    une nouvelle prochaine étape ou une nouvelle date ;
+ *   - action:validation:<client>        un nouveau contenu envoyé en validation ;
+ *   - action:retour-livrable:<livrable> un nouveau retour du client ;
+ *   - action:mise-en-ligne:<projet>     une nouvelle date de mise en ligne ;
+ *   - action:devis-en-cours:<demande>   la demande modifiée.
+ *
+ * Qui peut archiver : un compte de l'agence qui voit l'accueil (pôle social),
+ * et seulement les lignes qu'il voit déjà — mêmes requêtes, même filtrage par
+ * pôle. « Argent qui dort » reste réservé à la direction. Rien n'est jamais
+ * écrit dans Abby : la facture reste due, elle ne s'affiche plus ici.
+ */
+export type ColonneMatin = "repondre" | "argent" | "actions";
+
+export const colonneDe = (key: string): ColonneMatin | null =>
+  /^(prospect-repondu|devis-demande|commentaire):/.test(key)
+    ? "repondre"
+    : /^(facture|facture-pilot|devis-signe):/.test(key)
+      ? "argent"
+      : key.startsWith("action:")
+        ? "actions"
+        : null;
+
+export type Partage = { lignes: LigneMatin[]; archivees: LigneMatin[] };
+
+export type CeMatin = {
+  repondre: Partage;
+  /** null : l'argent n'est pas montré à cette personne. */
+  argent: (Partage & Pick<ArgentQuiDort, "abby" | "erreurAbby">) | null;
+  actions: Partage;
+};
+
+/** Les clients qu'un membre de l'équipe voit (même règle que l'annuaire). */
+async function clientsVisibles(user: Pick<User, "role" | "departments">): Promise<Set<string>> {
+  const poles = departmentsOf(user);
+  const rows = await db.select({ id: clients.id, departments: clients.departments }).from(clients);
+  return new Set(
+    rows.filter((c) => (c.departments?.length ? c.departments : ["social"]).some((d) => poles.includes(d as "social" | "web"))).map((c) => c.id),
+  );
+}
+
+/**
+ * Le bloc tel que cette personne le voit : les lignes à traiter et les lignes
+ * archivées, colonne par colonne. L'affichage et les boutons « Traité » /
+ * « Rétablir » passent tous par ici : on ne peut agir que sur ce qu'on voit.
+ */
+export async function ceMatin(
+  user: Pick<User, "role" | "departments">,
+  now: Date,
+  scopeId?: string,
+  colonnes: ColonneMatin[] = ["repondre", "argent", "actions"],
+): Promise<CeMatin> {
+  const voirArgent = canSeeMoney(user) && colonnes.includes("argent");
+  const vide = Promise.resolve([] as LigneMatin[]);
+  const [visibles, archives, repondre, argent, aFaire] = await Promise.all([
+    clientsVisibles(user),
+    db
+      .select({ key: ceMatinArchives.key, state: ceMatinArchives.state, at: ceMatinArchives.archivedAt, par: users.name })
+      .from(ceMatinArchives)
+      .leftJoin(users, eq(users.id, ceMatinArchives.archivedBy)),
+    colonnes.includes("repondre") ? aRepondre(now, scopeId) : vide,
+    voirArgent ? argentQuiDort(now, scopeId) : Promise.resolve(null),
+    colonnes.includes("actions") ? actions(now, scopeId) : vide,
+  ]);
+  const parCle = new Map(archives.map((a) => [a.key, a]));
+
+  const partager = (lignes: LigneMatin[]): Partage => {
+    const out: Partage = { lignes: [], archivees: [] };
+    for (const l of lignes) {
+      if (l.clientId && !visibles.has(l.clientId)) continue;
+      const a = parCle.get(l.key);
+      if (!a) out.lignes.push(l);
+      else if (a.state === l.etat) out.archivees.push({ ...l, archive: { par: a.par, le: a.at.toISOString() } });
+      else out.lignes.push({ ...l, retour: { par: a.par, le: a.at.toISOString() } });
+    }
+    // Le dernier archivé en premier.
+    out.archivees.sort((x, y) => y.archive!.le.localeCompare(x.archive!.le));
+    return out;
+  };
+
+  return {
+    repondre: partager(repondre),
+    argent: argent ? { ...partager(argent.lignes), abby: argent.abby, erreurAbby: argent.erreurAbby } : null,
+    actions: partager(aFaire),
+  };
+}
+
+/** Le libellé gardé avec l'archive, pour la trace. */
+export const libelle = (l: LigneMatin) => `${l.qui} · ${l.titre}`.slice(0, 300);

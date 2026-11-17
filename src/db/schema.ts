@@ -1737,3 +1737,34 @@ export const directoryEvents = pgTable(
 
 export type DirectoryEntry = typeof directoryEntries.$inferSelect;
 export type DirectoryEvent = typeof directoryEvents.$inferSelect;
+
+/* ---------------------------------------------------- « Ce matin » : traité -- */
+
+/**
+ * Les lignes du bloc « Ce matin » que l'équipe a marquées « Traité ».
+ *
+ * Une ligne par clé stable (« prospect-repondu:<id> », « facture:<numéro> »,
+ * « action:validation:<client> »…), partagée par toute l'agence : ce qu'un
+ * membre archive disparaît pour tous. `state` est l'empreinte de la ligne au
+ * moment de l'archivage (date de la dernière réponse, montant restant,
+ * échéance…) : si l'empreinte change, la ligne revient d'elle-même. La règle
+ * complète est écrite dans src/lib/ce-matin.ts.
+ *
+ * Rien n'est modifié ailleurs : archiver une facture ne touche pas Abby.
+ */
+export const ceMatinArchives = pgTable(
+  "ce_matin_archives",
+  {
+    key: text("key").primaryKey(),
+    /** « repondre », « argent » ou « actions ». */
+    column: text("column").notNull(),
+    state: text("state").notNull(),
+    /** Ce que la ligne disait (« Garage Sud Auto · Facture F-101 »), pour la trace. */
+    label: text("label").notNull().default(""),
+    archivedBy: uuid("archived_by").references(() => users.id, { onDelete: "set null" }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ce_matin_archives_column_idx").on(t.column)],
+);
+
+export type CeMatinArchive = typeof ceMatinArchives.$inferSelect;
