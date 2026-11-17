@@ -27,7 +27,7 @@ export default async function RapportsPage() {
     return (
       <>
         <PageHeader scope={scope?.shortName} title="Rapports" sub={monthLabel()} />
-        <EmptyState title="Aucun rapport à produire" actionLabel="Ajouter un client" actionHref="/clients">
+        <EmptyState title="Aucun rapport à produire" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Le rapport mensuel se construit à partir des contenus publiés, des statistiques saisies,
           des campagnes et des tournages du mois. Il faut d&apos;abord un client.
         </EmptyState>

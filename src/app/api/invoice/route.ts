@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       uploadedById: user.id,
     });
 
-    revalidatePath(`/clients/${clientId}`);
+    revalidatePath(`/contacts/${clientId}`);
     revalidatePath("/portail/factures");
     return Response.json({ ok: true });
   } catch (error) {

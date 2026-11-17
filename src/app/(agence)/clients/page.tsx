@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { scopedClient } from "@/lib/scope";
 import { ClientChip } from "@/components/home/bits";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { PacingBar } from "@/components/ui/PacingBar";
 import { Dot, Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { Num, TableHead, TableRow, TableScroll, Th } from "@/components/ui/Table";
-import { canSeeMoney, requireStaff } from "@/lib/auth";
+import { canSeeMoney, departmentsOf, requireStaff } from "@/lib/auth";
+import { EspaceContacts } from "@/components/shell/EspaceContacts";
 import { polActif } from "@/lib/pole";
 import { listClientsWithPace } from "@/db/queries";
 import { recapWebParClient } from "@/db/web-queries";
@@ -24,9 +24,10 @@ const WEB_PLAIN = "minmax(180px,1fr) 120px 130px";
 export default async function ClientsPage() {
   const user = await requireStaff();
   const pole = await polActif(user);
-  const scope = await scopedClient();
-  const scopeId = scope?.id;
-  const clients = await listClientsWithPace(new Date(), pole, scopeId);
+  // Le portefeuille montre toujours tous les comptes : le filtre client du
+  // haut de l'écran ne s'applique pas ici (un portefeuille d'une seule ligne
+  // ferait croire que l'agence n'a qu'un client).
+  const clients = await listClientsWithPace(new Date(), pole);
   // Les forfaits ne regardent que la direction : la colonne disparaît pour
   // l'équipe plutôt que d'afficher un tiret qui laisserait deviner un montant.
   const money = canSeeMoney(user);
@@ -41,10 +42,18 @@ export default async function ClientsPage() {
 
   return (
     <>
-      <PageHeader scope={scope?.shortName}
-        title="Clients"
-        sub={`${monthLabel()} · ${clients.length} ${clients.length > 1 ? "comptes actifs" : "compte actif"}`}
-      />
+      <PageHeader
+        title="Portefeuille"
+        sub={`${monthLabel()} · ${clients.length} ${clients.length > 1 ? "clients sous contrat" : "client sous contrat"}${pole === "web" ? " · pôle web" : ""}`}
+      >
+        <a
+          href="#nouveau-client"
+          className="flex min-h-11 items-center rounded-full bg-night px-5 text-base font-semibold text-white no-underline hover:no-underline hover:opacity-85"
+        >
+          Nouveau client
+        </a>
+      </PageHeader>
+      <EspaceContacts actif="/clients" social={departmentsOf(user).includes("social")} />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1100px] flex-col gap-4">
@@ -83,7 +92,7 @@ export default async function ClientsPage() {
                           <span className="flex min-w-0 items-center gap-2">
                             <Dot tone={enCours > 0 ? "info" : total > 0 ? "ok" : "muted"} />
                             <Link
-                              href={`/clients/${c.id}`}
+                              href={`/contacts/${c.id}`}
                               className="clip text-base font-medium text-ink no-underline hover:underline"
                             >
                               {c.shortName}
@@ -130,7 +139,7 @@ export default async function ClientsPage() {
                         <span className="flex min-w-0 items-center gap-2">
                           <ClientChip name={c.shortName} size={28} />
                           <Link
-                            href={`/clients/${c.id}`}
+                            href={`/contacts/${c.id}`}
                             className="clip text-base font-medium text-ink no-underline hover:underline"
                           >
                             {c.shortName}
@@ -168,8 +177,8 @@ export default async function ClientsPage() {
             </Card>
           ) : null}
 
-          <Card className="p-5">
-            <div className="mb-4 flex flex-col gap-1">
+          <Card className="scroll-mt-4 p-5">
+            <div id="nouveau-client" className="mb-4 flex scroll-mt-4 flex-col gap-1">
               <Eyebrow>Nouveau client</Eyebrow>
               <h2 className="text-title font-semibold">Ajouter un compte</h2>
               <p className="text-base text-ink-2">

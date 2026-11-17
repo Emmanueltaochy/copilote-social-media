@@ -98,7 +98,7 @@ export async function createClient(
 
   revalidatePath("/clients");
   revalidatePath("/");
-  redirect(`/clients/${client.id}`);
+  redirect(`/contacts/${client.id}?onglet=contrat`);
 }
 
 export async function updateClient(
@@ -159,7 +159,7 @@ export async function updateClient(
     .where(eq(clients.id, id));
 
   revalidatePath("/clients");
-  revalidatePath(`/clients/${id}`);
+  revalidatePath(`/contacts/${id}`);
   revalidatePath("/");
   return {};
 }
@@ -179,7 +179,7 @@ export async function toggleFileVisibility(formData: FormData): Promise<void> {
   const visibility = String(formData.get("visibility") ?? "");
   if (!id || !["interne", "client"].includes(visibility)) return;
   await db.update(clientFiles).set({ visibility }).where(eq(clientFiles.id, id));
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
 }
 
 /**
@@ -234,7 +234,7 @@ export async function addContractLine(formData: FormData): Promise<void> {
     networks,
     position: existing.length,
   });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
   revalidatePath("/preparer");
 }
 
@@ -246,7 +246,7 @@ export async function removeContractLine(formData: FormData): Promise<void> {
   if (!id) return;
 
   await db.delete(contractLines).where(eq(contractLines.id, id));
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
   revalidatePath("/preparer");
 }
 
@@ -284,7 +284,7 @@ export async function createClientAccess(
     inviteExpiresAt: new Date(Date.now() + 14 * 86_400_000),
   });
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
   return {};
 }
 
@@ -296,7 +296,7 @@ export async function revokeClientAccess(formData: FormData): Promise<void> {
   // Désactiver plutôt que supprimer : l'historique des actions du contact
   // reste rattaché à quelqu'un.
   await db.update(users).set({ active: false }).where(eq(users.id, userId));
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
 }
 
 /**
@@ -317,7 +317,7 @@ export async function deleteClientFile(formData: FormData): Promise<void> {
 
   await unlink(absolutePath(row.storagePath)).catch(() => {});
   await db.delete(clientFiles).where(eq(clientFiles.id, id));
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
 }
 
 /* --------------------------------------------------------------- factures -- */
@@ -346,7 +346,7 @@ export async function marquerFacture(formData: FormData): Promise<void> {
     .set({ paidOn: payee ? iso : null })
     .where(eq(invoices.id, id));
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
   revalidatePath("/portail/factures");
 }
 
@@ -366,6 +366,6 @@ export async function supprimerFacture(formData: FormData): Promise<void> {
   await unlink(absolutePath(facture.storagePath)).catch(() => {});
   await db.delete(invoices).where(eq(invoices.id, id));
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
   revalidatePath("/portail/factures");
 }

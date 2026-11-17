@@ -203,8 +203,8 @@ function ClientCard({ plan, réglages }: { plan: PlanVue; réglages: React.React
 
       {plan.sansDecomposition ? (
         <p className="px-5 py-4 text-base text-ink-2">
-          Sans lignes d&apos;engagement, il n&apos;y a rien à répéter. Ajoute-les sur{""}
-          <Link href={`/clients/${plan.clientId}`}>sa fiche</Link>.
+          Sans lignes d&apos;engagement, il n&apos;y a rien à répéter. Ajoute-les sur{" "}
+          <Link href={`/contacts/${plan.clientId}?onglet=contrat`}>sa fiche</Link>.
         </p>
       ) : (
         <>

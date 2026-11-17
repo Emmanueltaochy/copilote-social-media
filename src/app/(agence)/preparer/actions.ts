@@ -32,7 +32,7 @@ export async function preparerUnClient(
   revalidatePath("/production");
   revalidatePath("/calendrier");
   revalidatePath("/contenu");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
 
   return résultat.crees > 0 ? { ok: résultat.message } : { error: résultat.message };
 }

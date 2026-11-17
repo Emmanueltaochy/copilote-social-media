@@ -89,6 +89,7 @@ export async function listDevis(clientId?: string) {
     .select({
       devis: quoteRequests,
       clientName: clients.shortName,
+      clientDepartments: clients.departments,
       demandeur: users.name,
     })
     .from(quoteRequests)

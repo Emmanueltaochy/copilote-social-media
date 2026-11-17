@@ -4,13 +4,15 @@ import { and, asc, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/primitives";
-import { ClientChip } from "@/components/home/bits";
+import { ClientChip, StatusTag } from "@/components/home/bits";
+import { Onglets } from "@/components/ui/Onglets";
+import { PacingBar } from "@/components/ui/PacingBar";
 import { Icon } from "@/components/ui/Icon";
 import { canSeeEmails, canSeeMoney, requireStaff } from "@/lib/auth";
 import { filsDeLaFiche, gmailRelie, type FilFiche } from "@/lib/gmail";
 import { depuis } from "@/lib/ce-matin";
 import { clients, contents, db, type Client, type DirectoryEntry } from "@/db";
-import { facturesDuClient, listClientFiles, listContractLines } from "@/db/queries";
+import { facturesDuClient, getClientWithPace, listClientFiles, listContractLines } from "@/db/queries";
 import { listWebProjects } from "@/db/web-queries";
 import { frise, resoudreFiche, type MomentFrise } from "@/db/annuaire-queries";
 import { ACTIVITES, KINDS, SOURCES, STATUTS, isStatut, jourRelatif, type Kind, type Source } from "@/lib/annuaire";
@@ -25,6 +27,7 @@ import { etape3DeLaFiche, type Etape3Fiche } from "@/lib/fiche-etape3";
 import { sansDoubleCompte } from "@/lib/etape3-regles";
 import { ActionsTrello, ArgentGoCardless, RendezVous } from "./Etape3Fiche";
 import { majFiche, relierAbby, relierAuClient } from "../actions";
+import { OngletContrat, OngletDocuments, OngletPortail } from "./OngletsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -33,28 +36,27 @@ export const dynamic = "force-dynamic";
  * payé, ce qui est en cours, ce qu'on s'est dit. Une fiche par contact : un
  * client a l'adresse de son compte, un prospect celle de sa fiche.
  */
+type OngletFiche = "ensemble" | "contrat" | "documents" | "portail";
+const ONGLETS_FICHE: OngletFiche[] = ["ensemble", "contrat", "documents", "portail"];
+
 export default async function FichePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ emails?: string }>;
+  searchParams: Promise<{ emails?: string; onglet?: string }>;
 }) {
   const user = await requireStaff();
   const { id } = await params;
-  const filtreEmails = (await searchParams).emails === "sans-reponse";
+  const sp = await searchParams;
+  const filtreEmails = sp.emails === "sans-reponse";
   const r = await resoudreFiche(id, user);
   if (!r) notFound();
-  if (r.mode === "redirection") redirect(r.vers);
+  if (r.mode === "redirection") redirect(`${r.vers}${sp.onglet ? `?onglet=${encodeURIComponent(sp.onglet)}` : ""}`);
 
   const client: Client | null = r.mode === "client" ? r.client : null;
   const entry: DirectoryEntry | null = r.entry;
   const money = canSeeMoney(user);
-  // Les e-mails de la boîte d'Emmanuel : la direction seulement.
-  const voirEmails = canSeeEmails(user);
-  const today = aujourdhuiReunion();
-  const maintenant = new Date().getTime();
-
   const nom = client ? client.name : entry!.name;
   const kind: Kind = client
     ? entry?.kind === "partenaire"
@@ -64,6 +66,52 @@ export default async function FichePage({
         : "ancien_client"
     : ((entry!.kind in KINDS ? entry!.kind : "autre") as Kind);
   const source = (entry?.source ?? "agence") as Source;
+
+  // Une seule fiche par client. Un prospect n'a qu'une vue ; un client sous
+  // contrat a en plus ses onglets de gestion (ce qui vivait sur /clients/[id]).
+  const onglet: OngletFiche = client && ONGLETS_FICHE.includes(sp.onglet as OngletFiche) ? (sp.onglet as OngletFiche) : "ensemble";
+  const clientPace = client ? await getClientWithPace(client.id) : null;
+
+  const entete = (
+    <PageHeader
+      back={{ href: "/contacts", label: "Contacts" }}
+      title={client?.shortName ?? nom}
+      sub={[KINDS[kind].label, SOURCES[source] ?? source, entry?.city ?? client?.sector].filter(Boolean).join(" · ")}
+    />
+  );
+  const onglets =
+    client && clientPace ? (
+      <Onglets
+        label="Sections de la fiche"
+        items={[
+          { href: `/contacts/${id}`, label: "Vue d'ensemble", actif: onglet === "ensemble" },
+          { href: `/contacts/${id}?onglet=contrat`, label: "Contrat et suivi", actif: onglet === "contrat" },
+          { href: `/contacts/${id}?onglet=documents`, label: money ? "Documents et factures" : "Documents", actif: onglet === "documents" },
+          { href: `/contacts/${id}?onglet=portail`, label: "Portail et accès", actif: onglet === "portail" },
+        ]}
+      />
+    ) : null;
+
+  if (clientPace && onglet !== "ensemble") {
+    return (
+      <>
+        {entete}
+        {onglets}
+        <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
+          <div className="flex w-full max-w-[1100px] flex-col gap-4">
+            {onglet === "contrat" ? <OngletContrat client={clientPace} user={user} /> : null}
+            {onglet === "documents" ? <OngletDocuments client={clientPace} user={user} /> : null}
+            {onglet === "portail" ? <OngletPortail client={clientPace} /> : null}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Les e-mails de la boîte d'Emmanuel : la direction seulement.
+  const voirEmails = canSeeEmails(user);
+  const today = aujourdhuiReunion();
+  const maintenant = new Date().getTime();
   const statut = isStatut(entry?.status) ? STATUTS[entry!.status as keyof typeof STATUTS] : null;
   const data = (entry?.data ?? {}) as Record<string, unknown>;
 
@@ -115,20 +163,169 @@ export default async function FichePage({
       : [];
 
   const due = entry?.nextActionOn && entry.nextActionOn <= today;
+  const polesDuClient = clientPace?.departments?.length ? clientPace.departments : ["social"];
+  const pace = clientPace && clientPace.contentTarget > 0 && polesDuClient.includes("social") ? clientPace : null;
+
+  /* Les blocs de la fiche. Leur ordre suit la fréquence d'usage : ce qui est
+     en cours et ce qu'on s'est dit d'abord, le contrat et l'argent ensuite,
+     les documents et l'historique complet en dernier. Un prospect ne voit pas
+     de blocs vides « ce n'est pas un client » : seulement ce qui le concerne. */
+
+  const blocEnCours = client ? (
+    <Card>
+      <CardHead title="En cours" meta={projets.length + enCours.length ? `${projets.length + enCours.length}` : undefined} />
+      <div className="flex flex-col gap-3 px-5 pb-5">
+        {projets.length === 0 && enCours.length === 0 ? (
+          <p className="text-base text-ink-3">Aucun projet web ni contenu en cours.</p>
+        ) : (
+          <>
+            {projets.map(({ project, jalons, jalonsFaits }) => (
+              <Link key={project.id} href={`/web/${project.id}`} className="flex min-h-11 min-w-0 items-center gap-3 rounded-[14px] border border-line px-3 py-2 text-ink no-underline hover:border-line-strong hover:no-underline">
+                <Icon name="monitor" size={16} className="flex-none text-ink-3" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="clip text-base font-medium">{project.name}</span>
+                  <span className="clip text-small text-ink-3">
+                    {PROJECT_TYPE[project.type]?.short ?? project.type} · {WEB_PHASE[project.phase]?.label}
+                    {jalons ? ` · ${jalonsFaits}/${jalons} jalons` : ""}
+                  </span>
+                </span>
+                {money && project.priceCents > 0 ? <span className="flex-none text-small tabular-nums text-ink-2">{euroFromCents(project.priceCents)}</span> : null}
+              </Link>
+            ))}
+            {enCours.map((c) => (
+              <Link key={c.id} href={`/contenu/${c.id}`} className="flex min-h-11 min-w-0 items-center gap-3 rounded-[14px] border border-line px-3 py-2 text-ink no-underline hover:border-line-strong hover:no-underline">
+                <Icon name="image" size={16} className="flex-none text-ink-3" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="clip text-base font-medium">{c.title}</span>
+                  <span className="clip text-small text-ink-3">
+                    {CONTENT_KIND[c.kind] ?? c.kind}
+                    {c.scheduledAt ? ` · prévu le ${c.scheduledAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}` : " · sans date"}
+                  </span>
+                </span>
+                <StatusTag status={c.status} className="flex-none max-sm:hidden" />
+              </Link>
+            ))}
+          </>
+        )}
+      </div>
+    </Card>
+  ) : null;
+
+  const blocContrat = client ? (
+    <Card>
+      <CardHead
+        title="Contrat"
+        meta={
+          <Link href={`/contacts/${id}?onglet=contrat`} className="text-small font-medium">
+            Contrat et suivi →
+          </Link>
+        }
+      />
+      <div className="flex flex-col gap-2 px-5 pb-5">
+        {pace ? (
+          <Link href={`/contacts/${id}?onglet=contrat`} className="mb-1 flex flex-col gap-2 rounded-[14px] border border-line p-3 text-ink no-underline hover:border-line-strong hover:no-underline">
+            <span className="flex items-center justify-between gap-3">
+              <span className="text-base">
+                Ce mois-ci : <b className="font-semibold tabular-nums">{pace.done} / {pace.contentTarget}</b> publiés
+              </span>
+              <StatusPill tone={pace.pace.tone}>{pace.pace.label}</StatusPill>
+            </span>
+            <PacingBar fillPct={pace.pace.fillPct} projPct={pace.pace.projPct} markerLeft={pace.pace.markerLeft} />
+          </Link>
+        ) : null}
+        {lignesContrat.length === 0 && client.monthlyFeeCents === 0 && client.webMaintenanceCents === 0 ? (
+          <p className="text-base text-ink-3">Aucun engagement mensuel enregistré sur ce compte.</p>
+        ) : (
+          <>
+            {money && (client.monthlyFeeCents > 0 || client.webMaintenanceCents > 0) ? (
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-base text-ink-2">
+                {client.monthlyFeeCents > 0 ? (
+                  <span>
+                    Forfait social <b className="font-semibold text-ink">{euroFromCents(client.monthlyFeeCents)} / mois</b>
+                  </span>
+                ) : null}
+                {client.webMaintenanceCents > 0 ? (
+                  <span>
+                    Maintenance web <b className="font-semibold text-ink">{euroFromCents(client.webMaintenanceCents)} / mois</b>
+                  </span>
+                ) : null}
+                {client.renewal ? <span>Renouvellement : {client.renewal}</span> : null}
+              </div>
+            ) : null}
+            {lignesContrat.map((l) => (
+              <div key={l.id} className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
+                <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
+                <span className="flex-none text-small text-ink-3 max-sm:hidden">
+                  {CONTENT_KIND[l.kind] ?? l.kind} · {networksLabel(l)}
+                </span>
+                <span className="flex-none text-base tabular-nums">{l.monthlyTarget} / mois</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </Card>
+  ) : null;
+
+  // Un prospect qui signe : le relier à son compte client, dans l'en-tête de
+  // sa fiche plutôt que dans un bloc « Contrats » vide.
+  const blocRelier =
+    !client && entry && prospectsLiables.length ? (
+      <form action={relierAuClient} className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <input type="hidden" name="entryId" value={entry.id} />
+        <span className="text-small text-ink-3">Il a signé ?</span>
+        <select name="clientId" required aria-label="Client" className="min-h-11 min-w-0 flex-[1_1_180px] rounded-control border border-line bg-paper px-3 py-2 text-base text-ink">
+          <option value="">Choisir le compte client…</option>
+          {prospectsLiables.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="min-h-11 cursor-pointer rounded-full border border-line bg-paper px-4 py-2 text-small font-semibold text-ink hover:border-line-strong">
+          Relier au client
+        </button>
+      </form>
+    ) : null;
+
+  const blocDocuments = client ? (
+    <Card>
+      <CardHead
+        title="Documents"
+        meta={
+          <Link href={`/contacts/${id}?onglet=documents`} className="text-small font-medium">
+            {fichiers.length > 1 ? `Les ${fichiers.length} documents →` : fichiers.length ? "Gérer les documents →" : "Déposer un document →"}
+          </Link>
+        }
+      />
+      <div className="flex flex-col px-5 pb-5">
+        {fichiers.length === 0 ? (
+          <p className="text-base text-ink-3">Aucun document déposé.</p>
+        ) : (
+          fichiers.slice(0, 5).map((f) => (
+            <a key={f.id} href={`/api/client-files/${f.id}`} className="flex min-h-11 min-w-0 items-center gap-3 border-b border-line py-2 text-ink no-underline last:border-b-0 hover:no-underline">
+              <Icon name="list" size={16} className="flex-none text-ink-3" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="clip text-base">{f.label || f.filename}</span>
+                <span className="clip text-small text-ink-3">{f.createdAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
+              </span>
+              <StatusPill tone={f.visibility === "client" ? "info" : "muted"}>{f.visibility === "client" ? "Partagé (portail)" : "Interne"}</StatusPill>
+            </a>
+          ))
+        )}
+      </div>
+    </Card>
+  ) : null;
 
   return (
     <>
-      <PageHeader title={client?.shortName ?? nom} sub={[KINDS[kind].label, SOURCES[source] ?? source, entry?.city ?? client?.sector].filter(Boolean).join(" · ")}>
-        {client ? (
-          <Link href={`/clients/${client.id}`} className="rounded-full border border-line bg-paper px-4 py-[9px] text-base font-medium text-ink no-underline hover:border-line-strong hover:no-underline">
-            Contrat, portail et réglages
-          </Link>
-        ) : null}
-      </PageHeader>
+      {entete}
+      {onglets}
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1200px] flex-col gap-4">
-          {/* En-tête : qui, comment le joindre, et la prochaine chose à faire. */}
+          {/* En-tête : qui, comment le joindre, la prochaine chose à faire, et
+              de quoi modifier tout ça sans descendre en bas de page. */}
           <Card padded className="flex flex-col gap-4">
             <div className="flex min-w-0 items-start gap-4">
               <ClientChip name={nom} size={52} />
@@ -168,70 +365,47 @@ export default async function FichePage({
                   {entry.nextAction}
                 </span>
               ) : (
-                <span className="text-base text-ink-3">Aucune prochaine action. Ajoutez-en une dans « Modifier la fiche ».</span>
+                <span className="text-base text-ink-3">Aucune prochaine action. Ajoutez-en une dans « Modifier la fiche », juste en dessous.</span>
               )}
+            </div>
+
+            {entry?.note ? <p className="text-base whitespace-pre-line text-ink-2">{entry.note}</p> : null}
+
+            {blocRelier}
+
+            <div className="border-t border-line pt-3">
+              <FicheForm
+                action={majFiche}
+                bouton="Enregistrer"
+                repliable="Modifier la fiche"
+                valeurs={{
+                  entryId: entry?.id ?? null,
+                  clientId: client?.id ?? null,
+                  name: nom,
+                  contactName: entry?.contactName,
+                  kind,
+                  source,
+                  activity: entry?.activity ?? "agence",
+                  status: entry?.status,
+                  email: entry?.email,
+                  phone: entry?.phone,
+                  website: entry?.website,
+                  city: entry?.city,
+                  country: entry?.country,
+                  sector: entry?.sector ?? client?.sector,
+                  nextAction: entry?.nextAction,
+                  nextActionOn: entry?.nextActionOn,
+                  note: entry?.note,
+                  tags: entry?.tags,
+                }}
+              />
             </div>
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col gap-4">
-              {/* Contrats */}
-              <Card>
-                <CardHead title="Contrats en cours" meta={lignesContrat.length ? `${lignesContrat.length} lignes` : undefined} />
-                <div className="flex flex-col gap-2 px-5 pb-5">
-                  {!client ? (
-                    <p className="text-base text-ink-3">Pas de contrat : ce contact n&apos;est pas un client de l&apos;agence.</p>
-                  ) : lignesContrat.length === 0 && client.monthlyFeeCents === 0 && client.webMaintenanceCents === 0 ? (
-                    <p className="text-base text-ink-3">Aucun engagement mensuel enregistré sur ce compte.</p>
-                  ) : (
-                    <>
-                      {money && (client.monthlyFeeCents > 0 || client.webMaintenanceCents > 0) ? (
-                        <div className="flex flex-wrap gap-x-5 gap-y-1 text-base text-ink-2">
-                          {client.monthlyFeeCents > 0 ? (
-                            <span>
-                              Forfait social <b className="font-semibold text-ink">{euroFromCents(client.monthlyFeeCents)} / mois</b>
-                            </span>
-                          ) : null}
-                          {client.webMaintenanceCents > 0 ? (
-                            <span>
-                              Maintenance web <b className="font-semibold text-ink">{euroFromCents(client.webMaintenanceCents)} / mois</b>
-                            </span>
-                          ) : null}
-                          {client.renewal ? <span>Renouvellement : {client.renewal}</span> : null}
-                        </div>
-                      ) : null}
-                      {lignesContrat.map((l) => (
-                        <div key={l.id} className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
-                          <span className="clip min-w-0 flex-1 text-base">{l.label}</span>
-                          <span className="flex-none text-small text-ink-3 max-sm:hidden">
-                            {CONTENT_KIND[l.kind] ?? l.kind} · {networksLabel(l)}
-                          </span>
-                          <span className="flex-none text-base tabular-nums">{l.monthlyTarget} / mois</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                  {!client && entry && prospectsLiables.length ? (
-                    <form action={relierAuClient} className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                      <input type="hidden" name="entryId" value={entry.id} />
-                      <span className="text-small text-ink-3">Il a signé ?</span>
-                      <select name="clientId" required aria-label="Client" className="min-w-0 flex-[1_1_180px] rounded-control border border-line bg-paper px-3 py-2 text-base text-ink">
-                        <option value="">Choisir le compte client…</option>
-                        {prospectsLiables.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button type="submit" className="cursor-pointer rounded-full border border-line bg-paper px-4 py-2 text-small font-semibold text-ink hover:border-line-strong">
-                        Relier au client
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              </Card>
-
-              {/* Argent */}
+              {blocEnCours}
+              {blocContrat}
               {money ? (
                 <Argent
                   abby={abby}
@@ -244,133 +418,21 @@ export default async function FichePage({
                   cible={cible}
                 />
               ) : null}
-
-              {/* Projets et contenus */}
-              <Card>
-                <CardHead title="Projets web et contenus en cours" />
-                <div className="flex flex-col gap-3 px-5 pb-5">
-                  {!client ? (
-                    <p className="text-base text-ink-3">Rien en production : ce n&apos;est pas un client de l&apos;agence.</p>
-                  ) : projets.length === 0 && enCours.length === 0 ? (
-                    <p className="text-base text-ink-3">Aucun projet web ni contenu en cours.</p>
-                  ) : (
-                    <>
-                      {projets.map(({ project, jalons, jalonsFaits }) => (
-                        <Link key={project.id} href={`/web/${project.id}`} className="flex min-w-0 items-center gap-3 rounded-[14px] border border-line px-3 py-2 text-ink no-underline hover:border-line-strong hover:no-underline">
-                          <Icon name="monitor" size={16} className="flex-none text-ink-3" />
-                          <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="clip text-base font-medium">{project.name}</span>
-                            <span className="clip text-small text-ink-3">
-                              {PROJECT_TYPE[project.type]?.short ?? project.type} · {WEB_PHASE[project.phase]?.label}
-                              {jalons ? ` · ${jalonsFaits}/${jalons} jalons` : ""}
-                            </span>
-                          </span>
-                          {money && project.priceCents > 0 ? <span className="flex-none text-small tabular-nums text-ink-2">{euroFromCents(project.priceCents)}</span> : null}
-                        </Link>
-                      ))}
-                      {enCours.map((c) => (
-                        <Link key={c.id} href={`/contenu/${c.id}`} className="flex min-w-0 items-center gap-3 rounded-[14px] border border-line px-3 py-2 text-ink no-underline hover:border-line-strong hover:no-underline">
-                          <Icon name="image" size={16} className="flex-none text-ink-3" />
-                          <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="clip text-base font-medium">{c.title}</span>
-                            <span className="clip text-small text-ink-3">
-                              {CONTENT_KIND[c.kind] ?? c.kind}
-                              {c.scheduledAt ? ` · prévu le ${c.scheduledAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}` : " · sans date"}
-                            </span>
-                          </span>
-                          <span className="flex-none text-small text-ink-2">{STATUT_CONTENU[c.status] ?? c.status}</span>
-                        </Link>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </Card>
-
-              {/* Documents */}
-              <Card>
-                <CardHead title="Documents" meta={fichiers.length ? `${fichiers.length}` : undefined} />
-                <div className="flex flex-col px-5 pb-5">
-                  {!client ? (
-                    <p className="text-base text-ink-3">Les documents se rangent sur un compte client : il n&apos;y en a pas encore pour ce contact.</p>
-                  ) : fichiers.length === 0 ? (
-                    <p className="text-base text-ink-3">Aucun document déposé.</p>
-                  ) : (
-                    fichiers.slice(0, 10).map((f) => (
-                      <a key={f.id} href={`/api/client-files/${f.id}`} className="flex min-w-0 items-center gap-3 border-b border-line py-2 text-ink no-underline last:border-b-0 hover:no-underline">
-                        <Icon name="list" size={16} className="flex-none text-ink-3" />
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="clip text-base">{f.label || f.filename}</span>
-                          <span className="clip text-small text-ink-3">{f.createdAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
-                        </span>
-                        <StatusPill tone={f.visibility === "client" ? "info" : "muted"}>{f.visibility === "client" ? "Partagé (portail)" : "Interne"}</StatusPill>
-                      </a>
-                    ))
-                  )}
-                  {client && fichiers.length > 10 ? (
-                    <Link href={`/clients/${client.id}`} className="pt-2 text-small">
-                      Les {fichiers.length} documents →
-                    </Link>
-                  ) : null}
-                </div>
-              </Card>
+              {blocDocuments}
             </div>
 
             <div className="flex min-w-0 flex-col gap-4">
               {voirEmails ? <Emails fils={fils} relie={relie} filtre={filtreEmails} chemin={`/contacts/${id}`} /> : null}
-              {etape3 ? <ActionsTrello t={etape3.trello} cible={cible} maintenant={maintenant} /> : null}
               {etape3 ? <RendezVous a={etape3.agenda} cible={cible} /> : null}
+              {etape3 ? <ActionsTrello t={etape3.trello} cible={cible} maintenant={maintenant} /> : null}
               <Frise moments={moments} />
-              <Card padded>
-                    <FicheForm
-                      action={majFiche}
-                      bouton="Enregistrer"
-                      repliable="Modifier la fiche"
-                      valeurs={{
-                        entryId: entry?.id ?? null,
-                        clientId: client?.id ?? null,
-                        name: nom,
-                        contactName: entry?.contactName,
-                        kind,
-                        source,
-                        activity: entry?.activity ?? "agence",
-                        status: entry?.status,
-                        email: entry?.email,
-                        phone: entry?.phone,
-                        website: entry?.website,
-                        city: entry?.city,
-                        country: entry?.country,
-                        sector: entry?.sector ?? client?.sector,
-                        nextAction: entry?.nextAction,
-                        nextActionOn: entry?.nextActionOn,
-                        note: entry?.note,
-                        tags: entry?.tags,
-                      }}
-                    />
-
-                {entry?.note ? <p className="mt-3 border-t border-line pt-3 text-base whitespace-pre-line text-ink-2">{entry.note}</p> : null}
-              </Card>
             </div>
           </div>
-
-          <Link href="/contacts" className="text-base">
-            ← Tous les contacts
-          </Link>
         </div>
       </div>
     </>
   );
 }
-
-const STATUT_CONTENU: Record<string, string> = {
-  idee: "Idée",
-  brief: "Brief",
-  tournage: "Tournage",
-  derush: "Dérush",
-  creation: "En création",
-  revision: "Révision",
-  validation: "En validation",
-  pret: "Prêt",
-};
 
 const dateLongue = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });

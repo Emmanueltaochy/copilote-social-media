@@ -93,7 +93,7 @@ export async function majCharte(formData: FormData): Promise<void> {
     .onConflictDoUpdate({ target: brands.clientId, set: valeurs });
 
   revalidatePath("/portail");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/contacts/${clientId}`);
 }
 
 /** Retire un fichier qu'on a soi-même déposé. */

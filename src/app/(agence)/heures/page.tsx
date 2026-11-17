@@ -36,7 +36,7 @@ export default async function HeuresPage() {
     return (
       <>
         <PageHeader scope={scope?.shortName} title="Mes heures" sub={monthLabel()} />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Une heure se rattache à un client : c&apos;est ce qui permet de comparer le temps passé
           au forfait vendu.
         </EmptyState>
@@ -66,7 +66,7 @@ export default async function HeuresPage() {
             <div>
               <Eyebrow>Nouvelle saisie</Eyebrow>
               <p className="mt-1 text-base text-ink-2">
-                La durée s&apos;écrit comme on la dit : <strong>3</strong>, <strong>3,5</strong>,{""}
+                La durée s&apos;écrit comme on la dit : <strong>3</strong>, <strong>3,5</strong>,{" "}
                 <strong>3h30</strong> ou <strong>45min</strong>.
               </p>
             </div>

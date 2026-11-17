@@ -402,7 +402,7 @@ const TOOLS: ToolDef[] = [
       await db.update(clients).set({ postingPlan: rythme }).where(eq(clients.id, client_id));
       const txt = `Rythme de ${c.shortName} : ${rythme.length} publication${rythme.length > 1 ? "s" : ""} par semaine`;
       await journal(ctx, client_id, txt);
-      ctx.log(txt, `/clients/${client_id}`);
+      ctx.log(txt, `/contacts/${client_id}`);
       return { ok: true, client: c.shortName, rythme };
     },
   },
@@ -416,7 +416,7 @@ const TOOLS: ToolDef[] = [
       await db.update(clients).set({ publishMode: mode }).where(eq(clients.id, client_id));
       const txt = `${c.shortName} passe en mode « ${mode} »`;
       await journal(ctx, client_id, txt);
-      ctx.log(txt, `/clients/${client_id}`);
+      ctx.log(txt, `/contacts/${client_id}`);
       return { ok: true };
     },
   },

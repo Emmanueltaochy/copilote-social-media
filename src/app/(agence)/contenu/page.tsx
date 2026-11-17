@@ -28,7 +28,7 @@ export default async function NouveauContenuPage({
     return (
       <>
         <PageHeader title="Nouveau contenu" sub="Un contenu appartient toujours à un client" />
-        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients">
+        <EmptyState title="Aucun client" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Un contenu se rattache à un client : c&apos;est ce qui permet de le compter dans son
           engagement du mois.
         </EmptyState>

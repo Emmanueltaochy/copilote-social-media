@@ -32,7 +32,7 @@ export default async function WebPage() {
     return (
       <>
         <PageHeader scope={scope?.shortName} title="Projets web" sub="Aucun client web" />
-        <EmptyState title="Aucun client côté web" actionLabel="Voir les clients" actionHref="/clients">
+        <EmptyState title="Aucun client côté web" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           Un projet web se rattache à un client, comme le reste : c&apos;est ce qui permet de
           retrouver son brief, ses fichiers et son portail. Ouvre la fiche du client concerné et
           coche <strong>Web</strong> dans ses pôles — ou ajoute-le s&apos;il n&apos;existe pas

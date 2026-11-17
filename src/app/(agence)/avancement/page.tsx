@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/shell/Screen";
-import { scopedClient } from "@/lib/scope";
+import Link from "next/link";
+import { EspaceContacts } from "@/components/shell/EspaceContacts";
 import { ClientChip } from "@/components/home/bits";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,23 +13,24 @@ import { fr, monthLabel, monthProgressLabel } from "@/lib/pacing";
 import { toneText } from "@/lib/tone";
 import { cn } from "@/lib/cn";
 
-const COLS = "minmax(180px,1fr) minmax(160px,1fr) 96px 96px 96px 120px";
+const COLS = "minmax(180px,1fr) minmax(160px,1fr) 80px 80px 90px 100px 120px";
 
 export default async function AvancementPage() {
   await requireDepartment("social");
-  const scope = await scopedClient();
-  const scopeId = scope?.id;
-  const clients = byUrgency(await listClientsWithPace(new Date(), "social", scopeId));
+  // Une vue du portefeuille : toujours toute l'agence, quel que soit le
+  // filtre client choisi sur les écrans de production.
+  const clients = byUrgency(await listClientsWithPace(new Date(), "social"));
   const engaged = clients.filter((c) => c.contentTarget > 0);
 
   if (engaged.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Suivi d'avancement" sub={`${monthLabel()} · ${monthProgressLabel()}`} />
+        <PageHeader title="Engagements du mois" sub={`${monthLabel()} · ${monthProgressLabel()}`} />
+        <EspaceContacts actif="/avancement" social />
         <EmptyState
           title="Aucun engagement à suivre"
           actionLabel="Ajouter un client"
-          actionHref="/clients"
+          actionHref="/clients#nouveau-client"
         >
           Cet écran compare, ligne par ligne, ce qui a été livré à ce qui aurait dû l&apos;être à
           cette date. Il faut au moins un client avec un nombre de contenus mensuel.
@@ -41,13 +43,12 @@ export default async function AvancementPage() {
   const totalDone = engaged.reduce((n, c) => n + c.done, 0);
   const totalExpected = engaged.reduce((n, c) => n + c.pace.expected, 0);
   const behind = engaged.filter((c) => c.pace.key === "late" || c.pace.key === "risk").length;
+  const retardCumule = engaged.reduce((n, c) => n + Math.max(0, c.pace.expected - c.done), 0);
 
   return (
     <>
-      <PageHeader scope={scope?.shortName}
-        title="Suivi d'avancement"
-        sub={`${monthLabel()} · ${monthProgressLabel()}`}
-      />
+      <PageHeader title="Engagements du mois" sub={`${monthLabel()} · ${monthProgressLabel()}`} />
+      <EspaceContacts actif="/avancement" social />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1100px] flex-col gap-4">
@@ -56,11 +57,14 @@ export default async function AvancementPage() {
             <KpiGrid columns={4} className="mt-3">
               <Kpi label="Réalisé" value={`${totalDone} / ${totalTarget}`} meta="contenus publiés ce mois" />
               <Kpi label="Attendu à date" value={fr(totalExpected, 1)} meta="au rythme contractuel" />
+              {/* Le retard se compte client par client : additionner l'avance
+                  d'un compte au retard des autres affichait « +151 » alors que
+                  sept clients étaient en retard. */}
               <Kpi
-                label="Écart"
-                value={fr(totalDone - totalExpected, 1)}
-                valueTone={totalDone >= totalExpected ? "ok" : "warn"}
-                meta="contenus"
+                label="Retard cumulé"
+                value={fr(retardCumule, 1)}
+                valueTone={retardCumule > 0.05 ? "warn" : "ok"}
+                meta={retardCumule > 0.05 ? "contenus manquants à date" : "personne n'est en retard"}
               />
               <Kpi
                 label="Comptes en difficulté"
@@ -76,7 +80,7 @@ export default async function AvancementPage() {
               title="Engagement client par client"
               meta="Le repère or marque le rythme attendu aujourd'hui"
             />
-            <TableScroll min={780}>
+            <TableScroll min={880}>
             <TableHead cols={COLS} sticky>
               <Th>Client</Th>
               <Th>Avancement</Th>
@@ -84,12 +88,15 @@ export default async function AvancementPage() {
               <Th align="right">Attendu</Th>
               <Th align="right">Écart</Th>
               <Th align="right">Fin de mois</Th>
+              <Th align="right">État</Th>
             </TableHead>
             {engaged.map((c) => (
               <TableRow key={c.id} cols={COLS}>
                 <span className="flex min-w-0 items-center gap-2">
                   <ClientChip name={c.shortName} size={28} />
-                  <span className="clip text-base font-medium">{c.shortName}</span>
+                  <Link href={`/contacts/${c.id}?onglet=contrat`} className="clip text-base font-medium text-ink no-underline hover:underline">
+                    {c.shortName}
+                  </Link>
                 </span>
                 <PacingBar
                   fillPct={c.pace.fillPct}
@@ -103,6 +110,9 @@ export default async function AvancementPage() {
                   <StatusPill tone={c.pace.projected >= c.contentTarget ? "ok" : "warn"}>
                     {c.pace.projected} / {c.contentTarget}
                   </StatusPill>
+                </span>
+                <span className="flex justify-end">
+                  <StatusPill tone={c.pace.tone}>{c.pace.label}</StatusPill>
                 </span>
               </TableRow>
             ))}

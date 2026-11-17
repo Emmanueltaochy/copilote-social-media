@@ -61,7 +61,7 @@ export default async function SuiviPage({
           eyebrow="Premier pas"
           title="Aucun client pour l'instant"
           actionLabel="Ajouter un client"
-          actionHref="/clients"
+          actionHref="/clients#nouveau-client"
         >
           Le suivi montre, jour par jour, ce qui doit sortir et ce qui manque encore.
           Commence par créer un client et son engagement mensuel : tout le reste en découle.

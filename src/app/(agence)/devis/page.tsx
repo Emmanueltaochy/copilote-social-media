@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusPill } from "@/components/ui/primitives";
-import { requireStaff } from "@/lib/auth";
+import { departmentsOf, requireStaff } from "@/lib/auth";
 import { listDevis } from "@/db/queries";
 import { DEVIS_KIND, DEVIS_STATUS, DEVIS_STATUSES } from "@/data/devis";
 import { majDevis } from "./actions";
@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
  * sa demande est arrivée — tandis que la note reste interne.
  */
 export default async function DevisPage() {
-  await requireStaff();
+  const user = await requireStaff();
+  const poles = departmentsOf(user);
   const scope = await scopedClient();
   const scopeId = scope?.id;
   const demandes = await listDevis(scopeId);
@@ -28,8 +29,8 @@ export default async function DevisPage() {
   if (demandes.length === 0) {
     return (
       <>
-        <PageHeader scope={scope?.shortName} title="Demandes de devis" sub="Aucune demande pour l'instant" />
-        <EmptyState title="Rien à chiffrer" actionLabel="Voir les clients" actionHref="/clients">
+        <PageHeader scope={scope?.shortName} title="Devis" sub="Aucune demande pour l'instant" />
+        <EmptyState title="Rien à chiffrer" actionLabel="Voir les contacts" actionHref="/contacts">
           Vos clients peuvent demander un devis depuis leur portail : un projet leur vient
           souvent le soir, et cette demande arrive ici plutôt que de se perdre dans une boîte
           mail. Vous êtes prévenu à chaque fois.
@@ -43,13 +44,17 @@ export default async function DevisPage() {
   return (
     <>
       <PageHeader scope={scope?.shortName}
-        title="Demandes de devis"
+        title="Devis"
         sub={`${demandes.length} demande${demandes.length > 1 ? "s" : ""}${nouvelles > 0 ? ` · ${nouvelles} à ouvrir` : ""}`}
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1000px] flex-col gap-3">
-          {demandes.map(({ devis, clientName, demandeur }) => {
+          {demandes.map(({ devis, clientName, clientDepartments, demandeur }) => {
+            // La fiche d'un client d'un autre pôle n'existe pas pour cette
+            // personne : son nom reste lisible, sans lien qui mènerait à une
+            // page introuvable.
+            const ficheVisible = (clientDepartments?.length ? clientDepartments : ["social"]).some((d) => poles.includes(d as (typeof poles)[number]));
             const statut = DEVIS_STATUS[devis.status] ?? DEVIS_STATUS.nouvelle;
             return (
               // « Card » ne transmet pas les attributs libres : le repère de
@@ -59,8 +64,8 @@ export default async function DevisPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <span className="flex min-w-0 flex-col gap-[2px]">
                     <span className="text-small text-ink-3">
-                      <Link href={`/clients/${devis.clientId}`}>{clientName}</Link>
-                      {demandeur ? ` · ${demandeur}` : ""} ·{""}
+                      {ficheVisible ? <Link href={`/contacts/${devis.clientId}`}>{clientName}</Link> : clientName}
+                      {demandeur ? ` · ${demandeur}` : ""} ·{" "}
                       {devis.createdAt.toLocaleDateString("fr-FR", {
                         day: "numeric",
                         month: "long",

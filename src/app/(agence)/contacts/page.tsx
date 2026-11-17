@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/primitives";
 import { ClientChip } from "@/components/home/bits";
-import { requireStaff } from "@/lib/auth";
+import { departmentsOf, requireStaff } from "@/lib/auth";
+import { EspaceContacts } from "@/components/shell/EspaceContacts";
 import { correspond, listerAnnuaire, type LigneAnnuaire } from "@/db/annuaire-queries";
 import { KINDS, SOURCES, STATUTS, isSource, isStatut, jourRelatif } from "@/lib/annuaire";
 import { aujourdhuiReunion } from "@/lib/ce-matin";
@@ -78,23 +79,33 @@ export default async function ContactsPage({
         title="Contacts"
         sub={`${nbClients} client${nbClients > 1 ? "s" : ""} · ${nbProspects} prospect${nbProspects > 1 ? "s" : ""} · ${tout.length} fiches en tout`}
       >
+        {/* Deux façons d'entrer dans l'annuaire, dites clairement : un
+            client sous contrat (avec son portail) se crée dans le
+            portefeuille, tout autre contact se crée ici. */}
+        <Link
+          href="/clients#nouveau-client"
+          className="flex min-h-11 items-center rounded-full border border-line bg-paper px-5 text-base font-medium text-ink no-underline hover:border-line-strong hover:no-underline"
+        >
+          Nouveau client
+        </Link>
         <Link
           href={sp.nouveau ? lien({ nouveau: null }) : lien({ nouveau: "1" }) + "#nouvelle-fiche"}
-          className="rounded-full bg-night px-5 py-[9px] text-base font-semibold text-white no-underline hover:no-underline hover:opacity-85"
+          className="flex min-h-11 items-center rounded-full bg-night px-5 text-base font-semibold text-white no-underline hover:no-underline hover:opacity-85"
         >
-          {sp.nouveau ? "Fermer" : "Nouvelle fiche"}
+          {sp.nouveau ? "Fermer" : "Nouveau contact"}
         </Link>
       </PageHeader>
+      <EspaceContacts actif="/contacts" social={departmentsOf(user).includes("social")} />
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pt-1 pb-10 lg:px-7">
         <div className="flex w-full max-w-[1200px] flex-col gap-4">
           {sp.nouveau ? (
             <Card padded className="scroll-mt-4" >
               <div id="nouvelle-fiche" className="mb-3 flex flex-col gap-1">
-                <h2 className="text-title font-semibold">Nouvelle fiche</h2>
+                <h2 className="text-title font-semibold">Nouveau contact</h2>
                 <p className="text-small text-ink-3">
-                  Un prospect rencontré, un contact Swap&apos;Îles, un partenaire. Les clients de l&apos;agence se créent dans{" "}
-                  <Link href="/clients">Clients</Link> (contrat et portail) et apparaissent ici d&apos;eux-mêmes. Les prospects de
+                  Un prospect rencontré, un contact Swap&apos;Îles, un partenaire. Les clients sous contrat se créent dans le{" "}
+                  <Link href="/clients#nouveau-client">portefeuille</Link> (contrat et portail) et apparaissent ici d&apos;eux-mêmes. Les prospects de
                   l&apos;agent ventes arrivent par l&apos;import.
                 </p>
               </div>
@@ -110,12 +121,12 @@ export default async function ContactsPage({
                 href={lien({ filtre: f.cle, source: null })}
                 aria-current={f.cle === filtre ? "page" : undefined}
                 className={cn(
-                  "flex flex-none items-center gap-2 rounded-full border px-[14px] py-[7px] text-small font-medium whitespace-nowrap no-underline hover:no-underline",
-                  f.cle === filtre ? "border-night bg-night text-white" : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
+                  "flex min-h-11 flex-none items-center gap-2 rounded-full border px-[14px] py-[7px] text-small font-medium whitespace-nowrap no-underline hover:no-underline lg:min-h-9",
+                  f.cle === filtre ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink",
                 )}
               >
                 {f.label}
-                <span className={cn("tabular-nums", f.cle === filtre ? "text-white/70" : "text-ink-3")}>{compte(f)}</span>
+                <span className={cn("tabular-nums", f.cle === filtre ? "text-paper/70" : "text-ink-3")}>{compte(f)}</span>
               </Link>
             ))}
           </nav>

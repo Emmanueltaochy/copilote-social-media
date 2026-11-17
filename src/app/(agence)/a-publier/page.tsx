@@ -139,7 +139,7 @@ export default async function APublierPage() {
         <EmptyState
           title="Rien à publier"
           actionLabel={clients.length === 0 ? "Ajouter un client" : "Nouveau contenu"}
-          actionHref={clients.length === 0 ? "/clients" : "/contenu"}
+          actionHref={clients.length === 0 ? "/clients#nouveau-client" : "/contenu"}
         >
           Les contenus validés arrivent ici. Pour un client relié à Metricool, la publication
           part toute seule à la date prévue dès sa validation ; Pilot relève ensuite le lien du

@@ -41,7 +41,7 @@ export default async function RentabilitePage() {
     return (
       <>
         <PageHeader scope={scope?.shortName} title="Rentabilité" sub={monthLabel()} />
-        <EmptyState title="Rien à mesurer" actionLabel="Ajouter un client" actionHref="/clients">
+        <EmptyState title="Rien à mesurer" actionLabel="Ajouter un client" actionHref="/clients#nouveau-client">
           La rentabilité compare les heures passées au forfait vendu. Il faut des clients, leurs
           forfaits, et des heures saisies.
         </EmptyState>
@@ -75,7 +75,7 @@ export default async function RentabilitePage() {
               <p className="mt-1 text-lead text-warn">
                 {!hoursEntered
                   ? "Aucune heure n'a été saisie ce mois."
-                  : "Aucun tarif horaire n'est renseigné."}{""}
+                  : "Aucun tarif horaire n'est renseigné."}{" "}
                 La marge affichée est donc égale au forfait — c&apos;est faux, et flatteur.
                 {!hoursEntered
                   ? "L'équipe saisit ses heures depuis « Mes heures »."

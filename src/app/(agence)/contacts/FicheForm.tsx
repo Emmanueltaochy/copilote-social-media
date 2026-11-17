@@ -58,7 +58,7 @@ export function FicheForm({
       type="button"
       aria-expanded={ouvert}
       onClick={() => setOuvert((o) => !o)}
-      className="flex w-full cursor-pointer items-center justify-between gap-3 border-none bg-transparent p-0 text-left text-lead font-semibold text-ink"
+      className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-none bg-transparent p-0 text-left text-lead font-semibold text-ink"
     >
       {repliable}
       <span className="text-small font-medium text-ink-3">{ouvert ? "Replier" : "Ouvrir"}</span>
