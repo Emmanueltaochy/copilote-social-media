@@ -66,6 +66,7 @@ des réglages ; sans visuel, dégradé aux couleurs de l'agence.
 | `/ads/[id]` | **Fiche campagne** | Ensembles de publicités, saisie hebdomadaire des résultats, historique, réglages. |
 | `/rapports` | **Rapports** | Liste des clients → un rapport par client. |
 | `/rapports/[id]` | **Rapport mensuel** | Document imprimable/envoyable au client : rythme, publications, tournages, médias, campagnes. Saisie des statistiques directement dans le tableau. Bouton imprimer. |
+| `/veille` | **Veille** | Comptes suivis (concurrents, inspirations) via Metricool, analyse des tendances par l'IA, et « Ce qui marche » : classement des publications sur 30 jours, 90 jours, 6 mois, 1 an ou « Depuis toujours », par engagement ou « × sa moyenne » (la publication comparée à la moyenne du même compte à ±60 jours). Chaque publication relevée est gardée en mémoire (table `veille_posts`) ; l'historique est récupéré par tranches (bouton « Récupérer l'historique », direction). « Refaire cette idée » crée une idée avec le lien d'origine, sans jamais recopier le texte. |
 | `/heures` | **Mes heures** | Chacun saisit ses heures par client et par semaine (base du coût interne). |
 | `/clients` | **Clients** | Portefeuille + création d'un client. |
 | `/clients/[id]` | **Fiche client** | Contrat et décomposition de l'engagement (lignes par format/réseau), pôles, accès au portail (invitations des contacts), charte graphique, **pièces jointes** (interne / partagé, téléchargement un par un ou en ZIP), factures, pôle web. |

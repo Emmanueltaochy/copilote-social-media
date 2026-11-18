@@ -30,7 +30,8 @@ import { scheduleContent } from "@/lib/metricool-schedule";
 import { importStockVideo, listStock } from "@/lib/stock-videos";
 import { estimate as abbyEstimate, searchEstimates, signedEstimates, type AbbyEstimate } from "@/lib/abby";
 import { importDriveFile, newDriveFiles } from "@/lib/drive";
-import { competitorPosts } from "@/lib/metricool-competitors";
+import { classement, releverRecent } from "@/lib/veille";
+import { periodeDe } from "@/lib/veille-regles";
 import { trendReports } from "@/db";
 
 /*
@@ -374,18 +375,38 @@ const TOOLS: ToolDef[] = [
   {
     name: "tendances_concurrents",
     description:
-      "Ce qui marche chez les concurrents d'un client (veille Metricool, 30 jours) : leurs publications les plus engageantes et la dernière analyse de tendances de l'IA. À utiliser pour s'inspirer (reprendre un mécanisme, un format, un angle — jamais copier le texte).",
-    schema: z.object({ client_id: z.string() }),
+      "Ce qui marche chez les concurrents d'un client (veille Metricool, 30 jours par défaut) : leurs publications les plus engageantes et la dernière analyse de tendances de l'IA. « periode » (facultatif) : 30j, 90j, 6m, 1a ou tout (depuis toujours : tout ce que Pilot a gardé en mémoire). « fois_moyenne » : la publication a fait x fois le score moyen du même compte dans les deux mois autour. À utiliser pour s'inspirer (reprendre un mécanisme, un format, un angle — jamais copier le texte).",
+    schema: z.object({ client_id: z.string(), periode: z.enum(["30j", "90j", "6m", "1a", "tout"]).optional().describe("30j par défaut") }),
     roles: ["directeur", "community_manager"],
-    run: async ({ client_id }: { client_id: string }) => {
+    run: async ({ client_id, periode }: { client_id: string; periode?: string }) => {
       const c = await clientOrThrow(client_id);
       if (!c.metricoolBrandId) throw new Error(`${c.shortName} n'est pas relié à Metricool : pas de veille possible.`);
-      const { posts } = await competitorPosts(c.metricoolBrandId, 30);
+      const p = periodeDe(periode);
+      // Les 30 derniers jours relus chez Metricool et gardés ; le classement se lit dans la mémoire de Pilot.
+      const { errors } = await releverRecent(client_id).catch((e: Error) => ({ errors: [e.message] }));
+      const { publications } = await classement(client_id, { periode: p });
       const [report] = await db.select().from(trendReports).where(eq(trendReports.clientId, client_id)).orderBy(desc(trendReports.createdAt)).limit(1);
       return {
-        publications: posts.slice(0, 15).map((p) => ({ auteur: p.author, reseau: p.network, type: p.type, url: p.url, texte: p.text.slice(0, 300), likes: p.likes, commentaires: p.comments, vues: p.views })),
+        periode: p,
+        publications: publications.slice(0, 15).map((x) => ({
+          auteur: x.handle,
+          reseau: x.network,
+          type: x.rawType ?? x.format,
+          format: x.format,
+          url: x.url,
+          date: x.publishedAt ? x.publishedAt.toISOString().slice(0, 10) : null,
+          texte: (x.caption ?? "").slice(0, 300),
+          likes: x.likes,
+          commentaires: x.comments,
+          vues: x.views,
+          fois_moyenne: x.fois,
+        })),
         analyse: report ? { date: report.createdAt.toISOString().slice(0, 10), resume: report.summary, tendances: report.trends, idees: report.ideas } : null,
-        info: posts.length ? undefined : "Aucune publication concurrente relevée (concurrents à ajouter dans Veille, ou première collecte en cours).",
+        info: publications.length
+          ? undefined
+          : errors.length
+            ? `Metricool : ${errors.join(" · ")}`
+            : "Aucune publication concurrente relevée (concurrents à ajouter dans Veille, ou première collecte en cours).",
       };
     },
   },

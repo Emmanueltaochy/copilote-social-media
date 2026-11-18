@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
-import { ajouterConcurrent, lancerAnalyse, type VeilleState } from "./actions";
+import { ajouterConcurrent, lancerAnalyse, recupererHistoriqueAction, refaireIdee, type RefaireState, type VeilleState } from "./actions";
 
 const champ = "min-w-0 flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base text-ink outline-none focus:border-gold";
 
@@ -50,6 +51,53 @@ export function BoutonAnalyse({ clientId, ready }: { clientId: string; ready: bo
       </button>
       {!ready ? <p className="text-small text-ink-3">Raccordez l&apos;assistant IA dans Réglages pour lancer l&apos;analyse.</p> : null}
       <Msg s={state} />
+    </form>
+  );
+}
+
+/** « Récupérer l'historique » : réservé à la direction (vérifié aussi côté serveur). */
+export function BoutonHistorique({ clientId, enCours }: { clientId: string; enCours: boolean }) {
+  const [state, action, pending] = useActionState<VeilleState, FormData>(recupererHistoriqueAction, {});
+  return (
+    <form action={action} className="flex flex-col gap-1">
+      <input type="hidden" name="clientId" value={clientId} />
+      <button
+        type="submit"
+        disabled={pending || enCours}
+        data-bouton="historique"
+        className="w-fit cursor-pointer rounded-full border border-line bg-paper px-3 py-[5px] text-small font-medium text-ink hover:border-line-strong disabled:opacity-60"
+      >
+        {enCours ? "Récupération en cours…" : pending ? "Lancement…" : "Récupérer l'historique"}
+      </button>
+      <Msg s={state} />
+    </form>
+  );
+}
+
+/** « Refaire cette idée » : crée une idée dans le planning, puis propose de l'ouvrir. */
+export function BoutonRefaire({ postId }: { postId: string }) {
+  const [state, action, pending] = useActionState<RefaireState, FormData>(refaireIdee, {});
+  if (state.ok && state.contenuId) {
+    return (
+      <Link
+        href={`/contenu/${state.contenuId}`}
+        className="flex min-h-9 w-full items-center justify-center gap-1 rounded-full bg-ok-bg px-2 py-[6px] text-micro font-medium whitespace-nowrap text-ok no-underline hover:no-underline sm:text-small"
+      >
+        ✓ Idée créée · ouvrir
+      </Link>
+    );
+  }
+  return (
+    <form action={action} className="flex flex-col gap-1">
+      <input type="hidden" name="postId" value={postId} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="flex min-h-9 w-full cursor-pointer items-center justify-center gap-1 rounded-full border-none bg-night px-2 py-[6px] text-micro font-medium whitespace-nowrap text-white hover:opacity-85 disabled:opacity-60 sm:text-small"
+      >
+        {pending ? "Création…" : "Refaire cette idée"}
+      </button>
+      {state.error ? <p className="text-micro text-alert">{state.error}</p> : null}
     </form>
   );
 }

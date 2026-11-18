@@ -10,6 +10,7 @@ import { CONTENT_STAGES } from "@/data/content";
 import { notify } from "@/lib/notify";
 import { autoScheduleAfterApproval, scheduleContent } from "@/lib/metricool-schedule";
 import { reportStockStatus } from "@/lib/stock-videos";
+import { creerContenu } from "@/lib/contenu-creation";
 
 const STAGES = CONTENT_STAGES as readonly string[];
 
@@ -73,41 +74,21 @@ export async function createContent(
   const v = parsed.data;
   const reseaux = reseauxDe(formData);
 
-  const [content] = await db
-    .insert(contents)
-    .values({
-      clientId: v.clientId,
-      title: v.title,
-      kind: v.kind,
-      network: reseaux[0],
-      networks: reseaux,
-      status: "idee",
-      caption: v.caption || null,
-      instructions: v.instructions || null,
-      // Une date vide est légitime : une idée n'a pas encore de créneau.
-      scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,
-      // Sans responsable désigné, le contenu revient à toute l'équipe. Le
-      // rattacher d'office à celui qui l'a saisi laisserait croire qu'il s'en
-      // occupe, alors que saisir une idée n'est pas la prendre en charge.
-      ownerId: v.ownerId || null,
-    })
-    .returning();
-
-  // Un contenu naît en V1. Sans cette version initiale, le premier refus
-  // créerait une « V1 » alors qu'il rejette en réalité la proposition
-  // d'origine : le compte des allers-retours serait décalé d'un cran.
-  await db.insert(contentVersions).values({
-    contentId: content.id,
-    number: 1,
-    note: "Première proposition",
-    createdById: user.id,
-  });
-
-  await db.insert(activity).values({
+  // Création commune (ligne, version V1, fil d'activité) : src/lib/contenu-creation.ts.
+  const content = await creerContenu({
     clientId: v.clientId,
-    contentId: content.id,
-    actorId: user.id,
-    text: `Contenu « ${v.title} » créé`,
+    title: v.title,
+    kind: v.kind,
+    networks: reseaux,
+    caption: v.caption || null,
+    instructions: v.instructions || null,
+    // Une date vide est légitime : une idée n'a pas encore de créneau.
+    scheduledAt: v.scheduledAt ? new Date(v.scheduledAt) : null,
+    // Sans responsable désigné, le contenu revient à toute l'équipe. Le
+    // rattacher d'office à celui qui l'a saisi laisserait croire qu'il s'en
+    // occupe, alors que saisir une idée n'est pas la prendre en charge.
+    ownerId: v.ownerId || null,
+    auteurId: user.id,
   });
 
   revalidateAll(content.id);

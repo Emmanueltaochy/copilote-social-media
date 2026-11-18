@@ -225,6 +225,13 @@
       "when": 1794923381618,
       "tag": "0031_etape3",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795005632188,
+      "tag": "0032_veille_memoire",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,9 @@
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
+  bigint,
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -1586,6 +1588,74 @@ export const trendReports = pgTable(
   },
   (t) => [index("trend_reports_client_idx").on(t.clientId)],
 );
+
+/**
+ * La mémoire de la veille : chaque publication d'un compte suivi, relevée chez
+ * Metricool, gardée ici une seule fois (client, réseau, identifiant de la
+ * publication). Metricool ne garde l'historique d'un concurrent qu'à partir de
+ * son ajout (voir src/lib/veille.ts) : en enregistrant tout ce qui passe,
+ * l'historique s'accumule chez nous, et « Depuis toujours » le retrouve.
+ * Les métriques sont celles du dernier relevé (`metricsAt`).
+ */
+export const veillePosts = pgTable(
+  "veille_posts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    network: text("network").notNull(),
+    /** L'identifiant de la publication chez le réseau (ou, à défaut, une empreinte stable). */
+    externalId: text("external_id").notNull(),
+    /** Le compte, en minuscules, sans @ (même clé que veille_accounts.handle). */
+    handle: text("handle").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** reel, carrousel, photo, video, short ou publication. */
+    format: text("format").notNull().default("publication"),
+    /** Le type brut donné par Metricool (REEL, CAROUSEL_ALBUM…). */
+    rawType: text("raw_type"),
+    url: text("url"),
+    imageUrl: text("image_url"),
+    videoUrl: text("video_url"),
+    /** Le début de la légende (280 caractères au plus) : pour reconnaître la publication, jamais pour la recopier. */
+    caption: text("caption"),
+    likes: integer("likes").notNull().default(0),
+    comments: integer("comments").notNull().default(0),
+    shares: integer("shares").notNull().default(0),
+    views: bigint("views", { mode: "number" }).notNull().default(0),
+    interactions: bigint("interactions", { mode: "number" }).notNull().default(0),
+    engagement: doublePrecision("engagement"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    metricsAt: timestamp("metrics_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("veille_posts_unique").on(t.clientId, t.network, t.externalId),
+    index("veille_posts_client_date_idx").on(t.clientId, t.publishedAt),
+  ],
+);
+
+/**
+ * L'état des relevés de veille d'un client : le dernier relevé des 30 jours,
+ * et la récupération de l'historique (par tranches, reprise là où elle s'est
+ * arrêtée). Un bail empêche deux récupérations simultanées.
+ */
+export const veilleSync = pgTable("veille_sync", {
+  clientId: uuid("client_id")
+    .primaryKey()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  recentAt: timestamp("recent_at", { withTimezone: true }),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  /** null (jamais lancée), « en_cours » (reprendra au prochain relevé) ou « termine ». */
+  backfillStatus: text("backfill_status"),
+  backfillStartedAt: timestamp("backfill_started_at", { withTimezone: true }),
+  backfillDoneAt: timestamp("backfill_done_at", { withTimezone: true }),
+  /** Par réseau : où en est la remontée (curseur), la taille des tranches apprise, les erreurs. */
+  backfillState: jsonb("backfill_state").$type<Record<string, unknown>>().notNull().default({}),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type VeillePost = typeof veillePosts.$inferSelect;
 
 /* ---------------------------------------------------------- annuaire -- */
 

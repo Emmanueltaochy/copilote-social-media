@@ -4,6 +4,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { eq } from "drizzle-orm";
 import { brands, clients, db, trendReports, veilleAccounts } from "@/db";
 import { competitorPosts, type CompetitorPost } from "@/lib/metricool-competitors";
+import { enregistrerPublications } from "@/lib/veille";
 import { anthropicClient } from "./run";
 
 /*
@@ -120,6 +121,8 @@ export async function analyseTrends(clientId: string) {
   if (!c) throw new Error("Client introuvable.");
   if (!c.metricoolBrandId) throw new Error("Ce client n'est pas relié à Metricool.");
   const { posts } = await competitorPosts(c.metricoolBrandId, 30);
+  // Chaque publication relevée entre dans la mémoire de la veille (sans doublon).
+  await enregistrerPublications(clientId, posts).catch((e) => console.warn("[pilot] veille : mémoire,", (e as Error).message));
   const roles = await db.select().from(veilleAccounts).where(eq(veilleAccounts.clientId, clientId));
   const roleMap = new Map(roles.map((r) => [`${r.network}:${r.handle}`, r.kind]));
   const roleOf = (p: CompetitorPost) =>

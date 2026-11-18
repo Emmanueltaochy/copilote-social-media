@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { metricoolConfig } from "@/lib/metricool";
 
 /*
@@ -8,12 +9,23 @@ import { metricoolConfig } from "@/lib/metricool";
  * (première collecte sous 24 h environ après l'ajout).
  */
 
-const BASE = "https://app.metricool.com/api";
+// Surchargeable pour les tests (faux serveur local), comme dans src/lib/metricool.ts.
+const BASE = process.env.METRICOOL_API_BASE || "https://app.metricool.com/api";
 export const COMPETITOR_NETWORKS = ["instagram", "facebook", "youtube"] as const;
 export type CompetitorNetwork = (typeof COMPETITOR_NETWORKS)[number];
 
 /** Délai dépassé côté Metricool (et non une vraie erreur) : l'opération a pu aboutir quand même. */
 export class MetricoolLent extends Error {}
+
+/** Une réponse d'erreur de Metricool, avec son statut HTTP (400, 429…). */
+export class ErreurMetricool extends Error {
+  constructor(
+    message: string,
+    public statut: number,
+  ) {
+    super(message);
+  }
+}
 
 async function call<T>(path: string, params: Record<string, string>, method = "GET", timeoutMs = 30_000): Promise<T> {
   const cfg = await metricoolConfig();
@@ -37,7 +49,7 @@ async function call<T>(path: string, params: Record<string, string>, method = "G
       const j = JSON.parse(text) as { detail?: string; title?: string };
       detail = j.detail || j.title || detail;
     } catch {}
-    throw new Error(`Metricool ${res.status} : ${detail}`);
+    throw new ErreurMetricool(`Metricool ${res.status} : ${detail}`, res.status);
   }
   try {
     return JSON.parse(text) as T;
@@ -51,6 +63,7 @@ function range(days: number) {
   const to = new Date();
   return { from: iso(new Date(to.getTime() - days * 86_400_000)), to: iso(to), timezone: "Indian/Reunion" };
 }
+const between = (from: Date, to: Date) => ({ from: iso(from), to: iso(to), timezone: "Indian/Reunion" });
 
 export type Competitor = {
   id: string;
@@ -158,6 +171,12 @@ function preview(r: Raw): { imageUrl: string | null; videoUrl: string | null } {
   return { imageUrl: thumbs.find((u) => !isVideo(u)) ?? null, videoUrl: videos[0] ?? null };
 }
 
+/** Sans identifiant ni lien : une empreinte stable (réseau, auteur, date, début du texte). */
+function empreinte(network: string, r: Raw) {
+  const base = [network, r.ownerScreenName ?? r.screenName ?? r.userId ?? r.handle ?? r.pageName ?? "", JSON.stringify(r.publishedAt ?? r.published ?? r.created ?? r.publishedDate ?? r.createdAt ?? ""), String(r.content ?? r.text ?? r.message ?? r.title ?? "").slice(0, 200)].join("|");
+  return `h:${createHash("sha256").update(base).digest("hex").slice(0, 32)}`;
+}
+
 function mapPost(network: CompetitorNetwork, r: Raw): CompetitorPost {
   const likes = num(r.likes) ?? num(r.likeCount) ?? num(r.reactions) ?? 0;
   const comments = num(r.comments) ?? num(r.commentCount) ?? 0;
@@ -167,7 +186,8 @@ function mapPost(network: CompetitorNetwork, r: Raw): CompetitorPost {
   const publishedAt =
     typeof date === "string" ? date : typeof date === "number" ? new Date(date).toISOString() : date && typeof date === "object" && "dateTime" in date ? String((date as { dateTime: string }).dateTime) : null;
   return {
-    id: String(r.postId ?? r.reelId ?? r.videoId ?? r.id ?? r.url ?? Math.random()),
+    // Toujours le même identifiant pour la même publication : c'est la clé de la mémoire de la veille.
+    id: String(r.postId ?? r.reelId ?? r.videoId ?? r.id ?? str(r.url) ?? str(r.link) ?? str(r.permalink) ?? empreinte(network, r)),
     network,
     author: String(r.ownerScreenName ?? r.screenName ?? r.userId ?? r.handle ?? r.pageName ?? ""),
     text: String(r.content ?? r.text ?? r.message ?? r.title ?? r.description ?? ""),
@@ -200,4 +220,15 @@ export async function competitorPosts(brandId: string, days = 30, networks: Comp
   );
   all.sort((a, b) => b.interactions + b.views / 20 - (a.interactions + a.views / 20));
   return { posts: all, errors };
+}
+
+/**
+ * Les publications d'un réseau sur une période précise (pour la récupération de l'historique,
+ * src/lib/veille.ts). Lecture seule (GET). `limit` est le nombre maximal de publications rendues ;
+ * la documentation de Metricool (swagger) indique « max of 5000 ». Les erreurs remontent telles
+ * quelles (ErreurMetricool avec son statut, MetricoolLent) : c'est l'appelant qui découpe la période.
+ */
+export async function competitorPostsBetween(brandId: string, network: CompetitorNetwork, from: Date, to: Date, limit: number): Promise<CompetitorPost[]> {
+  const r = await call<{ data?: Raw[] } | string>(POSTS_PATH[network], { blogId: brandId, ...between(from, to), limit: String(limit) });
+  return typeof r === "object" && r?.data ? r.data.map((p) => mapPost(network, p)) : [];
 }

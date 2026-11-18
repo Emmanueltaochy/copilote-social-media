@@ -59,6 +59,15 @@ export async function register() {
   setTimeout(tick, 60_000);
   setInterval(tick, 3_600_000).unref?.();
 
+  // Veille : toutes les heures, les 30 derniers jours des comptes suivis
+  // (relus au plus toutes les 6 h) entrent dans la mémoire de Pilot, et
+  // l'historique se récupère par tranches s'il n'est pas fait (ou s'il date
+  // de plus d'une semaine). Bail en base par client, durée bornée.
+  const { releveVeilleRegulier } = await import("@/lib/veille");
+  const veilleTick = () => releveVeilleRegulier().catch((e) => console.warn("[pilot] veille", (e as Error).message));
+  setTimeout(veilleTick, 180_000);
+  setInterval(veilleTick, 3_600_000).unref?.();
+
   // Publications programmées : toutes les 10 minutes, on demande à Metricool
   // ce qui est parti (le contenu passe « publié » avec son lien) ou ce qui a
   // échoué (le responsable est prévenu).
