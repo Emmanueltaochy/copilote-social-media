@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead, Kpi, KpiGrid } from "@/components/ui/Card";
 import { Avatar, Eyebrow, StatusPill } from "@/components/ui/primitives";
 import { requireDepartment } from "@/lib/auth";
-import { getShoot, listGearPresets, listStaff } from "@/db/queries";
+import { getShoot, listCrewCandidates, listGearPresets } from "@/db/queries";
 import { durationHours, readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel } from "@/data/shoot";
 import { isVideo } from "@/lib/storage";
 import { videosAgence } from "@/lib/tournages";
@@ -39,7 +39,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
 
   const [data, staff, presets] = await Promise.all([
     getShoot(id),
-    listStaff(),
+    listCrewCandidates(),
     listGearPresets(user.id),
   ]);
   if (!data) notFound();
@@ -122,6 +122,22 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               meta="autorisations signées"
             />
           </KpiGrid>
+
+          {shoot.rushesUrl ? (
+            <Card className="flex flex-wrap items-center justify-between gap-3 px-5 py-4" >
+              <div className="min-w-0">
+                <Eyebrow>Rushes</Eyebrow>
+                <a href={shoot.rushesUrl} target="_blank" rel="noreferrer" className="block text-base break-all" data-rushes-agence>
+                  {shoot.rushesUrl} ↗
+                </a>
+              </div>
+              {shoot.rushesAt ? (
+                <span className="text-small text-ink-3">
+                  indiqué le {shoot.rushesAt.toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" })}
+                </span>
+              ) : null}
+            </Card>
+          ) : null}
 
           <VideosPrevues
             shoot={{ id: shoot.id, title: shoot.title, publishedAt: shoot.publishedAt, clientName: client.shortName }}
@@ -243,7 +259,10 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                     src={c.avatarPath ? `/api/avatar/${c.userId}` : null}
                   />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="clip text-base font-medium">{c.name}</span>
+                    <span className="clip text-base font-medium">
+                      {c.name}
+                      {c.role === "videaste" ? <span className="font-normal text-ink-3"> · vidéaste</span> : null}
+                    </span>
                     {c.roleLabel ? (
                       <span className="clip text-small text-ink-3">{c.roleLabel}</span>
                     ) : null}
@@ -292,6 +311,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                   {available.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
+                      {u.role === "videaste" ? " (vidéaste)" : ""}
                     </option>
                   ))}
                 </select>
@@ -375,6 +395,25 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                 <input
                   name="place"
                   defaultValue={shoot.place ?? ""}
+                  className="rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
+                />
+              </label>
+              <label className="flex min-w-[200px] flex-1 flex-col gap-[6px]">
+                <span className="eyebrow text-ink-3">Contact sur place</span>
+                <input
+                  name="onSiteContact"
+                  defaultValue={shoot.onSiteContact ?? ""}
+                  placeholder="Kevin, 0692 00 00 00"
+                  className="rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
+                />
+              </label>
+              <label className="flex min-w-[200px] flex-1 flex-col gap-[6px]">
+                <span className="eyebrow text-ink-3">Dossier des rushes</span>
+                <input
+                  name="rushesUrl"
+                  type="url"
+                  defaultValue={shoot.rushesUrl ?? ""}
+                  placeholder="https://drive.google.com/…"
                   className="rounded-control border border-line bg-paper px-3 py-2 text-base outline-none focus:border-gold"
                 />
               </label>

@@ -31,7 +31,7 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   if (!(await verifyPassword(password, user.passwordHash))) return invalid;
 
   await createSession(user.id);
-  redirect(user.role === "client" ? "/portail" : suite);
+  redirect(user.role === "client" ? "/portail" : user.role === "videaste" ? "/videaste" : suite);
 }
 
 export async function logout(): Promise<void> {

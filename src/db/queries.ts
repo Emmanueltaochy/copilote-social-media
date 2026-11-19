@@ -559,6 +559,7 @@ export async function getShoot(id: string) {
         name: users.name,
         initials: users.initials,
         avatarPath: users.avatarPath,
+        role: users.role,
       })
       .from(shootCrew)
       .innerJoin(users, eq(users.id, shootCrew.userId))
@@ -670,6 +671,18 @@ export async function hoursByClient(now: Date = new Date()) {
 }
 
 /* ---------------------------------------------------------------- équipe -- */
+
+/**
+ * Qui peut partir en tournage : l'équipe interne et les vidéastes. Les
+ * vidéastes ne sont que là : ils ne prennent ni contenus ni conversations.
+ */
+export async function listCrewCandidates() {
+  return db
+    .select()
+    .from(users)
+    .where(and(eq(users.active, true), raw`${users.role} in ('direction','equipe','videaste')`))
+    .orderBy(asc(users.name));
+}
 
 export async function listStaff() {
   return db
@@ -1055,7 +1068,7 @@ export async function listTeam(now: Date = new Date()) {
       ), 0)::int`,
     })
     .from(users)
-    .where(raw`${users.role} in ('direction','equipe')`)
+    .where(raw`${users.role} in ('direction','equipe','videaste')`)
     .orderBy(desc(users.active), asc(users.name));
 }
 

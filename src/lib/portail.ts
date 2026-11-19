@@ -28,6 +28,8 @@ export async function contextePortail() {
   let clientId: string | null = null;
   let apercu = false;
 
+  // Le vidéaste n'a ni portail ni aperçu : seulement ses tournages.
+  if (real.role === "videaste") redirect("/videaste");
   if (real.role === "client") {
     clientId = real.clientId;
   } else {
@@ -60,7 +62,7 @@ export async function contextePortail() {
 /** Vrai si la session courante regarde un portail en aperçu (compte interne). */
 export async function enApercu(): Promise<boolean> {
   const real = await requireUser();
-  if (real.role === "client") return false;
+  if (real.role === "client" || real.role === "videaste") return false;
   const jar = await cookies();
   return Boolean(jar.get(APERCU_COOKIE)?.value);
 }

@@ -13,7 +13,7 @@ export const maxDuration = 120;
 
 export async function GET(request: Request) {
   const user = await currentUser();
-  if (!user || user.role === "client") return new Response("Non autorisé", { status: 401 });
+  if (!user || user.role === "client" || user.role === "videaste") return new Response("Non autorisé", { status: 401 });
   const q = new URL(request.url).searchParams;
   const clientId = q.get("client") ?? "";
   const [c] = await db

@@ -1,8 +1,8 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
-import { eq } from "drizzle-orm";
-import { db, assets } from "@/db";
+import { and, eq } from "drizzle-orm";
+import { db, assets, shootCrew } from "@/db";
 import { currentUser } from "@/lib/auth";
 import { absolutePath, displayPathFor, thumbPathFor } from "@/lib/storage";
 
@@ -28,6 +28,17 @@ export async function GET(
 
   if (user.role === "client" && user.clientId !== asset.clientId) {
     return new Response("Non autorisé", { status: 403 });
+  }
+  // Un vidéaste : seulement les médias d'un tournage où il est dans l'équipe.
+  if (user.role === "videaste") {
+    const [membre] = asset.shootId
+      ? await db
+          .select({ id: shootCrew.userId })
+          .from(shootCrew)
+          .where(and(eq(shootCrew.shootId, asset.shootId), eq(shootCrew.userId, user.id)))
+          .limit(1)
+      : [];
+    if (!membre) return new Response("Non autorisé", { status: 403 });
   }
 
   // Trois fichiers par image : la miniature des grilles, la version

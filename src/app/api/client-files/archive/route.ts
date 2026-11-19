@@ -22,7 +22,7 @@ import { absolutePath } from "@/lib/storage";
 export async function GET(request: Request) {
   const user = await currentUser();
   if (!user) return new Response("Non autorisé", { status: 401 });
-  if (user.role === "client") return new Response("Non autorisé", { status: 403 });
+  if (user.role === "client" || user.role === "videaste") return new Response("Non autorisé", { status: 403 });
 
   const clientId = new URL(request.url).searchParams.get("clientId") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(clientId)) return new Response("Client inconnu", { status: 400 });

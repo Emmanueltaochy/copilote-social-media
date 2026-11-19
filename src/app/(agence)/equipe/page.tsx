@@ -18,10 +18,12 @@ export const dynamic = "force-dynamic";
 /**
  * L'équipe.
  *
- * Deux rôles seulement, parce qu'il n'y a qu'une question à trancher : qui
+ * Deux rôles d'agence, parce qu'il n'y a qu'une question à trancher : qui
  * voit l'argent. La direction voit les forfaits, les coûts et les marges ;
  * l'équipe voit tout le travail — clients, production, tournages, campagnes,
- * rapports — et rien des montants.
+ * rapports — et rien des montants. Un troisième, « Vidéaste », pour les
+ * vidéastes de terrain (souvent indépendants) : seulement les tournages où
+ * on les ajoute à l'équipe.
  *
  * Réservé à la direction : donner un accès interne revient à ouvrir le
  * portefeuille clients en entier.
@@ -100,11 +102,17 @@ export default async function EquipePage() {
                   {/* Le pôle décide de l'outil qu'on ouvre en arrivant ; le rôle
                       décide de ce qu'on y voit. Deux réglages distincts, côte à
                       côte, parce qu'on les règle au même moment. */}
-                  <Poles
-                    userId={t.id}
-                    departments={t.departments ?? []}
-                    direction={t.role === "direction"}
-                  />
+                  {t.role === "videaste" ? (
+                    <span className="flex-none rounded-full bg-mute px-3 py-1 text-small text-ink-2" data-role-videaste={t.id}>
+                      Vidéaste · ses tournages seulement
+                    </span>
+                  ) : (
+                    <Poles
+                      userId={t.id}
+                      departments={t.departments ?? []}
+                      direction={t.role === "direction"}
+                    />
+                  )}
 
                   <form action={changeRole} className="flex flex-none items-center gap-1">
                     <input type="hidden" name="id" value={t.id} />
@@ -116,6 +124,7 @@ export default async function EquipePage() {
                     >
                       <option value="equipe">Équipe</option>
                       <option value="direction">Direction</option>
+                      <option value="videaste">Vidéaste</option>
                     </select>
                     {!lockedRole ? (
                       <button

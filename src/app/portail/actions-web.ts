@@ -69,6 +69,7 @@ export async function repondreAuBrief(formData: FormData): Promise<void> {
 export async function majCharte(formData: FormData): Promise<void> {
   if (await enApercu()) return;
   const user = await requireUser();
+  if (user.role === "videaste") return;
   const clientId =
     user.role === "client" ? user.clientId : String(formData.get("clientId") ?? "");
   if (!clientId) return;

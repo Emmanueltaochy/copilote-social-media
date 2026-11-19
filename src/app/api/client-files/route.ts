@@ -13,6 +13,7 @@ import { storeDocument, UploadError } from "@/lib/storage";
  */
 export async function POST(request: Request) {
   const user = await requireUser();
+  if (user.role === "videaste") return Response.json({ error: "Non autorisé." }, { status: 403 });
 
   const url = new URL(request.url);
   const clientId = url.searchParams.get("clientId") ?? "";

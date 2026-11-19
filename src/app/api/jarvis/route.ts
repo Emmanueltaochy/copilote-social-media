@@ -12,7 +12,8 @@ export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const user = await currentUser();
-  if (!user || user.role === "client") return new Response("Non autorisé", { status: 401 });
+  // Jarvis lit tout le portefeuille : ni client ni vidéaste.
+  if (!user || user.role === "client" || user.role === "videaste") return new Response("Non autorisé", { status: 401 });
   const id = new URL(request.url).searchParams.get("id");
   const rows = await db
     .select({ id: agentThreads.id, title: agentThreads.title, updatedAt: agentThreads.updatedAt, log: agentThreads.log, messages: agentThreads.messages })
@@ -43,7 +44,8 @@ function visibleTurns(messages: unknown[]) {
 
 export async function POST(request: Request) {
   const user = await currentUser();
-  if (!user || user.role === "client") return new Response("Non autorisé", { status: 401 });
+  // Jarvis lit tout le portefeuille : ni client ni vidéaste.
+  if (!user || user.role === "client" || user.role === "videaste") return new Response("Non autorisé", { status: 401 });
   const body = (await request.json().catch(() => ({}))) as { threadId?: string; text?: string };
   const text = (body.text ?? "").trim();
   if (!text) return Response.json({ error: "Message vide." }, { status: 400 });

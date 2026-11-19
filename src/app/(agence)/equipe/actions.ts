@@ -9,7 +9,11 @@ import { ACCESS_DURATIONS } from "@/data/team";
 
 export type TeamFormState = { error?: string; ok?: string };
 
-const ROLES = ["direction", "equipe"] as const;
+/**
+ * « videaste » : un vidéaste (souvent indépendant) qui ne voit que les
+ * tournages où on l'ajoute à l'équipe. Même invitation que les autres.
+ */
+const ROLES = ["direction", "equipe", "videaste"] as const;
 
 /** Fin d'accès à partir d'une durée choisie. Null = permanent. */
 function expiryFrom(choice: string): Date | null {
@@ -64,7 +68,8 @@ export async function inviteTeammate(
     role: role as (typeof ROLES)[number],
     // Les pôles cochés à l'invitation, le social par défaut : c'est le métier
     // historique, et un compte sans pôle n'ouvrirait aucun outil.
-    departments: (() => {
+    // Un vidéaste n'ouvre aucun pôle : ses tournages seulement.
+    departments: role === "videaste" ? [] : (() => {
       const cochés = formData
         .getAll("departments")
         .map(String)

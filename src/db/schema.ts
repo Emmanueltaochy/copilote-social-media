@@ -34,6 +34,9 @@ export const userRole = pgEnum("user_role", [
   "direction", // voit tout, y compris coûts et marges
   "equipe", // production : ni marges ni coûts internes
   "client", // uniquement son portail
+  // Vidéaste (souvent indépendant) : seulement les tournages où il est dans
+  // l'équipe (shoot_crew), jamais l'argent, les contacts ni les autres clients.
+  "videaste",
 ]);
 
 export const users = pgTable(
@@ -448,6 +451,12 @@ export const shoots = pgTable(
      * date plutôt qu'une case : on sait depuis quand il a pu se préparer.
      */
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** Qui accueille l'équipe sur place, et comment le joindre (« Kevin, 0692… »). */
+    onSiteContact: text("on_site_contact"),
+    /** Où sont les rushes : le lien du dossier (Drive, WeTransfer…), donné par le vidéaste ou l'équipe. */
+    rushesUrl: text("rushes_url"),
+    rushesAt: timestamp("rushes_at", { withTimezone: true }),
+    rushesById: uuid("rushes_by_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shoots_client_idx").on(t.clientId), index("shoots_starts_idx").on(t.startsAt)],
@@ -588,6 +597,9 @@ export const shootVideos = pgTable(
     /** « Je suis prêt », coché par le client dans son portail. */
     clientReadyAt: timestamp("client_ready_at", { withTimezone: true }),
     clientReadyById: uuid("client_ready_by_id").references(() => users.id, { onDelete: "set null" }),
+    /** Marquée « tournée » : quand, et par qui (souvent le vidéaste, sur place). */
+    shotAt: timestamp("shot_at", { withTimezone: true }),
+    shotById: uuid("shot_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -611,6 +623,24 @@ export const shootVideoComments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shoot_video_comments_video_idx").on(t.videoId)],
+);
+
+/**
+ * Les notes de tournage d'une vidéo (« prise 3 la meilleure », « manque un
+ * plan produit ») : internes à l'équipe, jamais montrées au client.
+ */
+export const shootVideoNotes = pgTable(
+  "shoot_video_notes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => shootVideos.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("shoot_video_notes_video_idx").on(t.videoId)],
 );
 
 /* ----------------------------------------------------------------- assets -- */
@@ -2005,3 +2035,4 @@ export type Releve = typeof releves.$inferSelect;
 
 export type ShootVideo = typeof shootVideos.$inferSelect;
 export type ShootVideoComment = typeof shootVideoComments.$inferSelect;
+export type ShootVideoNote = typeof shootVideoNotes.$inferSelect;

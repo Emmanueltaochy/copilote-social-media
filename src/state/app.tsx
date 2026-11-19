@@ -17,7 +17,7 @@ export type ScopeClient = {
 
 export type SessionUser = {
   name: string;
-  role: "direction" | "equipe" | "client";
+  role: "direction" | "equipe" | "client" | "videaste";
   initials: string;
   /** Adresse de sa photo de profil, ou null : les initiales prennent le relais. */
   avatar: string | null;

@@ -181,6 +181,26 @@ export function VideosPrevues({
                   ) : null}
                 </div>
 
+                {v.status === "tourne" && v.shotAt ? (
+                  <p className="text-small text-ok" data-tournee-par={v.id}>
+                    Tournée{v.tourneePar ? ` par ${v.tourneePar}` : ""} · {quand(v.shotAt)}
+                  </p>
+                ) : null}
+
+                {v.notes.length ? (
+                  <div className="flex flex-col gap-2 rounded-[16px] bg-mute px-4 py-3" data-notes-agence={v.id}>
+                    <Eyebrow>Notes de tournage · internes</Eyebrow>
+                    {v.notes.map((n) => (
+                      <div key={n.id} className="flex flex-col">
+                        <span className="text-small text-ink-3">
+                          {n.auteur ?? "Équipe"} · {quand(n.createdAt)}
+                        </span>
+                        <span className="text-base whitespace-pre-line">{n.body}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
                 {/* Le contenu qu'elle deviendra : on la retrouve en production. */}
                 <div className="flex flex-wrap items-center gap-2 text-small">
                   <span className="text-ink-3">Devient le contenu :</span>

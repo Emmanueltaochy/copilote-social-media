@@ -7,6 +7,11 @@
 // « Relancer le client avant le tournage » avec « Traité », les
 // notifications et les droits.
 //
+// Vidéaste (second chantier) : invitation, ajout à l'équipe d'un tournage,
+// « Mes tournages » et la fiche vue par lui, « tournée », note de tournage,
+// lien des rushes, et chacun des accès interdits (argent, contacts, e-mails,
+// réglages, veille, Jarvis, boîte, autres tournages, portail).
+//
 // Usage (local uniquement, après npm run build ; le script démarre et arrête
 // lui-même le serveur Pilot sur le port 3111) :
 //   PGURL="postgres://pilot:pilot@localhost:5432/pilot" node scripts/test-tournages.mjs
@@ -113,6 +118,9 @@ async function demarrer() {
     cwd: RACINE,
     env: { ...process.env, DATABASE_URL: PGURL, MEDIA_ROOT: MEDIA, NODE_ENV: "production", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "" },
     stdio: ["ignore", "pipe", "pipe"],
+    // Son propre groupe de processus : `next start` lance un next-server
+    // enfant, qu'il faut arrêter avec lui (sinon il garde le port).
+    detached: true,
   });
   serveur.stdout.on("data", (x) => sortie.push(x.toString()));
   serveur.stderr.on("data", (x) => sortie.push(x.toString()));
@@ -131,14 +139,35 @@ async function arreter() {
   if (!serveur) return;
   const s = serveur;
   serveur = null;
+  const groupe = (sig) => {
+    try {
+      process.kill(-s.pid, sig);
+    } catch {
+      // déjà arrêté
+    }
+  };
   if (s.exitCode === null) {
-    s.kill("SIGTERM");
+    groupe("SIGTERM");
     await Promise.race([new Promise((r_) => s.once("exit", r_)), attendre(8000)]);
-    if (s.exitCode === null) s.kill("SIGKILL");
   }
+  groupe("SIGKILL");
   writeFileSync(JOURNAL, s.sortie.join(""), { flag: "a" });
 }
-process.on("exit", () => serveur?.kill("SIGKILL"));
+process.on("exit", () => {
+  try {
+    if (serveur) process.kill(-serveur.pid, "SIGKILL");
+  } catch {
+    // déjà arrêté
+  }
+});
+// Un serveur déjà présent sur le port fausserait tout : on refuse de tester contre lui.
+try {
+  await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(1000) });
+  console.error(`\n  ✗ Un serveur répond déjà sur ${BASE} : l'arrêter d'abord.\n`);
+  process.exit(1);
+} catch {
+  // port libre
+}
 await demarrer();
 
 /* ---------------------------------------------------------- 3. le décor -- */
@@ -203,6 +232,9 @@ const PO = actionsDe("portail/tournages/page", "actions-tournages");
 const VE = actionsDe("(agence)/veille/page", "veille/actions");
 const CM = actionsDe("(agence)/page", "ce-matin-actions");
 const CT = actionsDe("(agence)/contenu/[id]/page", "actions-videos");
+const TO = actionsDe("(agence)/tournages/[id]/page", "tournages/actions.ts");
+const EQ = actionsDe("(agence)/equipe/page", "equipe/actions");
+const VI = actionsDe("videaste/[id]/page", "videaste/actions");
 
 /**
  * Une action appelée comme le fait React : multipart, champs « _1_… », racine
@@ -440,6 +472,97 @@ try {
   ok("repassé en brouillon : il disparaît du portail", !p.html.includes(`data-prochain-tournage="${shoot}"`) && !p.html.includes(`data-video-client="${v1}"`));
   sql(`update shoots set published_at = now() where id='${shoot}'`);
 
+  console.log("\n— vidéaste —");
+  ok("actions vidéaste présentes dans le build", Boolean(VI.basculerTournee && VI.noterTournage && VI.indiquerRushes && EQ.inviteTeammate && TO.addCrew));
+  r = await action(EQ.inviteTeammate, "/equipe", { name: `Yohan Vidéaste${jeu}`, email: `video-${jeu}@exemple.test`, role: "videaste", duration: "permanent", departments: "social" }, cDir);
+  const videaste = un(`select id from users where email='video-${jeu}@exemple.test'`);
+  ok("Équipe : la direction invite un vidéaste (même lien d'invitation, aucun pôle)", r.resultat?.ok?.startsWith("Invitation créée") && un(`select role || '|' || departments::text || '|' || (invite_token is not null) from users where id='${videaste}'`) === "videaste|[]|true");
+  r = await action(EQ.inviteTeammate, "/equipe", { name: "Intrus", email: `intrus-${jeu}@exemple.test`, role: "videaste", duration: "permanent" }, cSoc);
+  ok("le pôle social ne peut pas inviter (direction seulement)", !un(`select id from users where email='intrus-${jeu}@exemple.test'`));
+  const jetonInvit = un(`select invite_token from users where id='${videaste}'`);
+  p = await page(`/invitation/${jetonInvit}`, null);
+  ok("le lien d'invitation s'ouvre", p.statut === 200);
+  p = await page("/equipe", cDir);
+  ok("la page Équipe le montre : « Vidéaste · ses tournages seulement »", p.html.includes(`data-role-videaste="${videaste}"`));
+  sql(`update users set password_hash='x', invite_token=null where id='${videaste}'`);
+  const cVid = ouvrirSession(videaste);
+  p = await page(fiche, cSoc);
+  ok("fiche du tournage : le vidéaste est proposé dans « Qui part ? »", p.visible.includes(`Yohan Vidéaste${jeu} (vidéaste)`));
+  await action(TO.addCrew, fiche, { shootId: shoot, userId: videaste, roleLabel: "Cadre" }, cSoc, { etat: false });
+  ok("ajouté à l'équipe du tournage", un(`select count(*) from shoot_crew where shoot_id='${shoot}' and user_id='${videaste}'`) === "1");
+  ok("il reçoit une notification « Nouveau tournage », avec le courriel d'une assignation (tenté)", notifs(videaste, "and title like 'Nouveau tournage%' and (emailed_at is not null or email_error is not null)") === 1);
+  // Un autre tournage, du client B, où il n'est pas.
+  const shootAutre = un(`insert into shoots (client_id, title, starts_at, status, note) values ('${clientB}', 'Tournage interdit ${jeu}', '${debut}', 'confirme', 'NOTE-B-${jeu}') returning id`);
+  const videoAutre = un(`insert into shoot_videos (shoot_id, title) values ('${shootAutre}', 'Vidéo interdite ${jeu}') returning id`);
+  sql(`update shoots set on_site_contact = 'Sophie, 0692 11 22 33' where id='${shoot}'`);
+  sql(`insert into shots (shoot_id, label, kind) values ('${shoot}', 'Plan-large-atelier-${jeu}', 'Vidéo')`);
+
+  p = await page("/videaste", cVid);
+  ok("« Mes tournages » : son tournage (client, date, lieu), jamais celui où il n'est pas", p.statut === 200 && p.html.includes(`data-mon-tournage="${shoot}"`) && p.visible.includes(`Atelier Vanille ${jeu}`) && !p.visible.includes(`Tournage interdit ${jeu}`));
+  ok("la notification est affichée (« Du nouveau »)", p.html.includes("data-nouveautes-videaste"));
+  ok("barre réduite : Mes tournages et Mon compte seulement", p.html.includes('href="/videaste/compte"') && !/href="\/(contacts|rentabilite|devis|reglages|veille|boite|jarvis|equipe|production|calendrier|portail)"/.test(p.html));
+  p = await page(`/videaste/${shoot}`, cVid);
+  const fv = p.visible;
+  ok("sa fiche : adresse complète, contact sur place, équipe, note interne de l'équipe", p.statut === 200 && fv.includes("12 rue des Vanilliers") && fv.includes("Sur place : Sophie, 0692 11 22 33") && fv.includes(`Léa Sociale${jeu}`) && fv.includes(NOTE));
+  ok("matériel, droit à l'image et plans prévus", fv.includes(MATERIEL) && fv.includes(DROIT) && fv.includes(`Plan-large-atelier-${jeu}`));
+  ok("chaque vidéo : description, référence, script, ce que le client a coché, « client prêt », questions du client", fv.includes(`tout est fait main ${jeu}`) && p.html.includes('data-reference="instagram"') && fv.includes(`Bienvenue à l'Atelier Vanille ${jeu}`) && fv.includes("✓ Tenue claire, sans logo") && fv.includes("client prêt") && fv.includes(QUESTION));
+  ok("aucun montant ni document client sur sa fiche", !/€|forfait|facture|devis/i.test(fv.replace(/<[^>]+>/g, " ")));
+  p = await page(`/videaste/${shootAutre}`, cVid);
+  ok("le tournage d'un autre (adresse tapée) : introuvable", p.statut === 404 && !p.visible.includes(`NOTE-B-${jeu}`));
+  r = await action(VI.basculerTournee, `/videaste/${shoot}`, { videoId: v1 }, cVid);
+  ok("« Marquer tournée » : la vidéo passe « tournée », avec son auteur", r.resultat?.ok === "Marquée tournée." && un(`select status || '|' || shot_by_id from shoot_videos where id='${v1}'`) === `tourne|${videaste}`);
+  const NOTE_T = `Prise 3 la meilleure ${jeu}`;
+  r = await action(VI.noterTournage, `/videaste/${shoot}`, { videoId: v1, body: NOTE_T }, cVid);
+  ok("note de tournage enregistrée", r.resultat?.ok?.startsWith("Note enregistrée"));
+  r = await action(VI.indiquerRushes, `/videaste/${shoot}`, { shootId: shoot, url: `https://drive.google.com/drive/folders/rushes-${jeu}` }, cVid);
+  ok("lien des rushes enregistré, l'équipe interne du tournage prévenue (sans courriel)", r.resultat?.ok?.startsWith("Lien des rushes") && notifs(sociale, "and title like 'Rushes déposés%' and email_error is null and emailed_at is null") === 1 && notifs(videaste, "and title like 'Rushes%'") === 0);
+  r = await action(VI.indiquerRushes, `/videaste/${shoot}`, { shootId: shoot, url: "javascript:alert(1)" }, cVid);
+  ok("un lien qui n'est pas http(s) est refusé", Boolean(r.resultat?.error));
+  r = await action(VI.basculerTournee, `/videaste/${shoot}`, { videoId: videoAutre }, cVid);
+  const r2 = await action(VI.indiquerRushes, `/videaste/${shoot}`, { shootId: shootAutre, url: "https://exemple.test/x" }, cVid);
+  const r3 = await action(VI.noterTournage, `/videaste/${shoot}`, { videoId: videoAutre, body: "intrus" }, cVid);
+  ok("sur le tournage d'un autre : aucun geste possible", Boolean(r.resultat?.error && r2.resultat?.error && r3.resultat?.error) && un(`select status || '|' || coalesce((select rushes_url from shoots where id='${shootAutre}'),'') from shoot_videos where id='${videoAutre}'`) === "a_preparer|");
+  r = await action(VI.basculerTournee, `/videaste/${shoot}`, { videoId: v2 }, cSoc);
+  ok("un compte de l'équipe n'utilise pas l'espace vidéaste (renvoyé)", !r.resultat?.ok && un(`select status from shoot_videos where id='${v2}'`) !== "tourne");
+  p = await page(fiche, cSoc);
+  ok("côté agence : « Tournée par Yohan … », la note de tournage, le lien des rushes, « vidéaste » dans l'équipe", p.html.includes(`data-tournee-par="${v1}"`) && p.visible.includes(`Tournée par Yohan Vidéaste${jeu}`) && p.visible.includes(NOTE_T) && p.html.includes("data-rushes-agence") && p.visible.includes(" · vidéaste"));
+  p = await page("/portail/tournages", cA);
+  ok("le client ne voit jamais les notes de tournage ni le lien des rushes", !p.visible.includes(NOTE_T) && !p.visible.includes(`rushes-${jeu}`));
+
+  console.log("\n— vidéaste : accès interdits —");
+  const factureA = un(`insert into invoices (client_id, number, amount_cents, issued_on, filename, storage_path, mime_type) values ('${clientA}', 'F-${jeu}', 10000, current_date, 'f-${jeu}.pdf', 'x/f-${jeu}.pdf', 'application/pdf') returning id`) || null;
+  const fichierA = un(`insert into client_files (client_id, filename, storage_path, size_bytes, mime_type, visibility) values ('${clientA}', 'contrat-${jeu}.pdf', 'x/contrat-${jeu}.pdf', 10, 'application/pdf', 'interne') returning id`) || null;
+  const pages = ["/", "/rentabilite", "/devis", "/contacts", `/contacts/${clientA}`, "/clients", "/boite", "/reglages", "/veille", "/jarvis", "/equipe", "/cockpit", "/heures", "/production", "/calendrier", "/tournages", fiche, `/tournages/${shootAutre}`, "/terrain", `/terrain/${shoot}`, "/portail", "/portail/tournages", "/statistiques", "/a-publier", "/ads"];
+  const fuites = [];
+  for (const chemin of pages) {
+    const q = await page(chemin, cVid);
+    const refuse = (q.statut >= 300 && q.statut < 400 && /\/videaste/.test(q.location)) || q.statut === 404;
+    if (!refuse) fuites.push(`${chemin} → ${q.statut} ${q.location}`);
+  }
+  ok(`${pages.length} pages de l'agence et du portail refusées (renvoi vers « Mes tournages ») : argent, devis, contacts, annuaire, boîte, réglages (Gmail, Trello, GoCardless, Abby), veille, Jarvis, équipe, tournages des autres${fuites.length ? ` — fuites : ${fuites.join(", ")}` : ""}`, fuites.length === 0);
+  const api = async (chemin, init = {}) => (await fetch(`${BASE}${chemin}`, { ...init, headers: { ...(init.headers ?? {}), Cookie: `pilot_session=${cVid}` }, redirect: "manual" })).status;
+  const statuts = {
+    jarvis: await api("/api/jarvis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "liste les clients" }] }) }),
+    boite: await api("/api/boite"),
+    facture: factureA ? await api(`/api/invoice/${factureA}`) : 403,
+    document: fichierA ? await api(`/api/client-files/${fichierA}`) : 403,
+    depot: await api(`/api/client-files?clientId=${clientA}`, { method: "POST", body: "x" }),
+  };
+  ok(`API refusées au vidéaste : Jarvis ${statuts.jarvis}, boîte ${statuts.boite}, facture ${statuts.facture}, document client ${statuts.document}, dépôt ${statuts.depot}`, Object.values(statuts).every((x) => x === 401 || x === 403));
+  r = await action(AG.enregistrerVideo, fiche, { shootId: shoot, title: `Intrus vidéaste ${jeu}`, visible: "on" }, cVid);
+  const r4 = await actionJson(CM.marquerTraite, "/", [[`action:tournage-relance:${shoot}`]], cVid);
+  const r5 = await action(PO.commenterVideo, "/portail/tournages", { videoId: v2, body: "intrus" }, cVid);
+  const r6 = await action(VE.ajouterAuProchainTournage, `/veille?client=${clientA}`, { postId: post }, cVid);
+  ok("actions de l'agence et du portail refusées (vidéo, « Traité », question client, veille)", !sql(`select id from shoot_videos where title='Intrus vidéaste ${jeu}'`) && r4?.ok !== true && !r5.resultat?.ok && !r6.resultat?.ok);
+  p = await page("/connexion", cVid);
+  ok("connecté, la page de connexion le renvoie chez lui", p.statut >= 300 && p.statut < 400);
+  p = await page("/videaste", cSoc);
+  ok("un compte de l'équipe qui ouvre /videaste est renvoyé vers les tournages", p.statut >= 300 && p.location.includes("/tournages"));
+  p = await page("/videaste", cA);
+  ok("un client qui ouvre /videaste est renvoyé vers son portail", p.statut >= 300 && p.location.includes("/portail"));
+  p = await page("/videaste", null);
+  ok("sans session : renvoyé à la connexion", p.statut >= 300 && p.location.includes("/connexion"));
+
   /* --------------------------------------------------------- captures -- */
   if (CAPTURES) {
     console.log("\n— captures —");
@@ -460,8 +583,10 @@ try {
         ["agence-fiche-tournage", cSoc, fiche, null],
         ["portail-tournages", cA, "/portail/tournages", null],
         ["portail-accueil", cA, "/portail", "[data-bloc-tournage]"],
+        ["videaste-mes-tournages", cVid, "/videaste", null],
+        ["videaste-fiche-tournage", cVid, `/videaste/${shoot}`, null],
       ]) {
-        const agence = !chemin.startsWith("/portail");
+        const agence = !chemin.startsWith("/portail") && !chemin.startsWith("/videaste");
         const ctx = await navigateur.newContext({
           ...options,
           ...(agence ? { viewport: { width: options.viewport.width, height: hauteurAgence } } : {}),
@@ -480,7 +605,7 @@ try {
         await onglet.screenshot({ path: path.join(CAPTURES, `${quoi}-${nom}.png`), fullPage: true });
         if (extra) await onglet.locator(extra).first().screenshot({ path: path.join(CAPTURES, `${quoi}-bloc-${nom}.png`) });
         let petites = [];
-        if (nom === "iphone13" && quoi.startsWith("portail")) {
+        if (nom === "iphone13" && (quoi.startsWith("portail") || quoi.startsWith("videaste"))) {
           // Nos éléments seulement : la page Tournages entière, le bloc sur l'accueil.
           const zone = quoi === "portail-accueil" ? "[data-bloc-tournage]" : "main";
           petites = await onglet.evaluate((z) =>

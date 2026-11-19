@@ -27,6 +27,7 @@ export function InviteForm() {
         <select name="role" defaultValue="equipe" className={field}>
           <option value="equipe">Équipe</option>
           <option value="direction">Direction</option>
+          <option value="videaste">Vidéaste (ses tournages seulement)</option>
         </select>
       </label>
 

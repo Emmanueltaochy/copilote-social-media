@@ -95,7 +95,14 @@ export async function currentUser(): Promise<User | null> {
 
 /* ------------------------------------------------------------------ rôles -- */
 
-export type Role = "direction" | "equipe" | "client";
+export type Role = "direction" | "equipe" | "client" | "videaste";
+
+/**
+ * Le vidéaste : un compte de terrain, souvent un indépendant. Il ne voit que
+ * les tournages où il est dans l'équipe (shoot_crew), sous /videaste. Tout le
+ * reste de l'outil lui est fermé par requireStaff().
+ */
+export const estVideaste = (user: Pick<User, "role">) => user.role === "videaste";
 
 /** Exige une session valide. Renvoie vers la connexion sinon. */
 export async function requireUser(): Promise<User> {
@@ -111,6 +118,17 @@ export async function requireUser(): Promise<User> {
 export async function requireStaff(): Promise<User> {
   const user = await requireUser();
   if (user.role === "client") redirect("/portail");
+  // Un vidéaste n'a que ses tournages : tout l'outil de l'agence (argent,
+  // contacts, e-mails, réglages, autres clients) le renvoie vers eux.
+  if (user.role === "videaste") redirect("/videaste");
+  return user;
+}
+
+/** L'espace du vidéaste : les autres comptes sont renvoyés chez eux. */
+export async function requireVideaste(): Promise<User> {
+  const user = await requireUser();
+  if (user.role === "client") redirect("/portail");
+  if (user.role !== "videaste") redirect("/tournages");
   return user;
 }
 
@@ -128,6 +146,8 @@ export type Department = "social" | "web";
  */
 export function departmentsOf(user: Pick<User, "role" | "departments">): Department[] {
   if (user.role === "direction") return ["social", "web"];
+  // Un vidéaste n'ouvre aucun pôle de l'agence.
+  if (user.role === "videaste") return [];
   const liste = (user.departments ?? []).filter(
     (d): d is Department => d === "social" || d === "web",
   );

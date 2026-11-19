@@ -10,6 +10,7 @@ import {
   shootCrew,
   shoots,
   shootVideoComments,
+  shootVideoNotes,
   shootVideos,
   users,
   type ShootVideo,
@@ -412,7 +413,9 @@ export async function videosAgence(shootId: string, clientId: string) {
     .orderBy(asc(shootVideos.position), asc(shootVideos.createdAt));
   const ids = videos.map((v) => v.id);
   const lienIds = videos.map((v) => v.contentId).filter((x): x is string => Boolean(x));
-  const [echanges, lies, candidats] = await Promise.all([
+  // inArray refuse une liste vide : un identifiant qui n'existe pas la complète.
+  const clientIdVide = ["00000000-0000-0000-0000-000000000000"];
+  const [echanges, lies, candidats, notes, auteursTournee] = await Promise.all([
     ids.length
       ? db
           .select({
@@ -443,12 +446,27 @@ export async function videosAgence(shootId: string, clientId: string) {
       .where(and(eq(contents.clientId, clientId), sql`${contents.status} not in ('publie', 'manque')`))
       .orderBy(desc(contents.createdAt))
       .limit(80),
+    // Les notes de tournage (vidéaste, équipe) : internes.
+    ids.length
+      ? db
+          .select({ id: shootVideoNotes.id, videoId: shootVideoNotes.videoId, body: shootVideoNotes.body, createdAt: shootVideoNotes.createdAt, auteur: users.name })
+          .from(shootVideoNotes)
+          .leftJoin(users, eq(users.id, shootVideoNotes.authorId))
+          .where(inArray(shootVideoNotes.videoId, ids))
+          .orderBy(desc(shootVideoNotes.createdAt))
+      : Promise.resolve([]),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(inArray(users.id, videos.map((v) => v.shotById).filter((x): x is string => Boolean(x)).concat(clientIdVide))),
   ]);
   return {
     videos: videos.map((v) => ({
       ...v,
       echanges: echanges.filter((e) => e.videoId === v.id).map((e) => ({ ...e, deClient: e.role === "client" })),
       contenu: lies.find((c) => c.id === v.contentId) ?? null,
+      notes: notes.filter((n) => n.videoId === v.id),
+      tourneePar: auteursTournee.find((u) => u.id === v.shotById)?.name ?? null,
     })),
     candidats,
   };

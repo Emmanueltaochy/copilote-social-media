@@ -18,6 +18,8 @@ import { absolutePath } from "@/lib/storage";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) return new Response("Non autorisé", { status: 401 });
+  // Les documents des clients (contrats, grilles) ne concernent pas le vidéaste.
+  if (user.role === "videaste") return new Response("Non autorisé", { status: 403 });
 
   const { id } = await params;
   const rows = await db.select().from(clientFiles).where(eq(clientFiles.id, id)).limit(1);

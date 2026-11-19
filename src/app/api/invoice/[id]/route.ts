@@ -21,6 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const [facture] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
   if (!facture) return new Response("Introuvable", { status: 404 });
 
+  // Un vidéaste ne voit jamais l'argent.
+  if (user.role === "videaste") return new Response("Non autorisé", { status: 403 });
   if (user.role === "client" && user.clientId !== facture.clientId) {
     return new Response("Non autorisé", { status: 403 });
   }

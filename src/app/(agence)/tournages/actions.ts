@@ -13,8 +13,11 @@ import {
   shootRights,
   shoots,
   shots,
+  users,
 } from "@/db";
 import { requireStaff } from "@/lib/auth";
+import { notify } from "@/lib/notify";
+import { heureDite, jourCourt } from "@/lib/tournages-regles";
 import { SHOOT_STATUSES } from "@/data/shoot";
 
 export type ShootFormState = { error?: string };
@@ -22,6 +25,7 @@ export type ShootFormState = { error?: string };
 function refresh(id?: string) {
   revalidatePath("/tournages");
   revalidatePath("/");
+  revalidatePath("/videaste", "layout");
   if (id) revalidatePath(`/tournages/${id}`);
 }
 
@@ -68,13 +72,17 @@ export async function createShoot(
 }
 
 export async function updateShoot(formData: FormData): Promise<void> {
-  await requireStaff();
+  const user = await requireStaff();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
   const status = String(formData.get("status") ?? "");
   const place = String(formData.get("place") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
+  const onSiteContact = String(formData.get("onSiteContact") ?? "").trim().slice(0, 200);
+  const rushesUrl = String(formData.get("rushesUrl") ?? "").trim();
+  const [avant] = await db.select({ rushesUrl: shoots.rushesUrl }).from(shoots).where(eq(shoots.id, id)).limit(1);
+  const lienRushes = /^https?:\/\//i.test(rushesUrl) ? rushesUrl.slice(0, 1000) : null;
 
   await db
     .update(shoots)
@@ -82,6 +90,10 @@ export async function updateShoot(formData: FormData): Promise<void> {
       ...(SHOOT_STATUSES.includes(status as never) ? { status: status as never } : {}),
       place: place || null,
       note: note || null,
+      ...(formData.has("onSiteContact") ? { onSiteContact: onSiteContact || null } : {}),
+      ...(formData.has("rushesUrl") && lienRushes !== (avant?.rushesUrl ?? null)
+        ? { rushesUrl: lienRushes, rushesAt: lienRushes ? new Date() : null, rushesById: lienRushes ? user.id : null }
+        : {}),
     })
     .where(eq(shoots.id, id));
 
@@ -274,10 +286,27 @@ export async function addCrew(formData: FormData): Promise<void> {
   if (!shootId || !userId) return;
   // Assigner deux fois la même personne n'est pas une erreur à signaler :
   // c'est un double clic, et le résultat voulu est déjà là.
-  await db
+  const ajout = await db
     .insert(shootCrew)
     .values({ shootId, userId, roleLabel: roleLabel || null, state: "À confirmer" })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ userId: shootCrew.userId });
+  // Un vidéaste ajouté à l'équipe est prévenu comme un membre à qui l'on
+  // assigne un contenu : notification et courriel (mécanisme notify existant).
+  if (ajout.length) {
+    const [membre] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    const [s] = await db.select().from(shoots).where(eq(shoots.id, shootId)).limit(1);
+    if (membre?.role === "videaste" && s) {
+      await notify({
+        kind: "tournage",
+        title: `Nouveau tournage : ${s.title}, ${jourCourt(s.startsAt)} à ${heureDite(s.startsAt)}`,
+        body: `Vous êtes dans l'équipe de ce tournage${s.place ? ` (${s.place})` : ""}. Le détail est dans « Mes tournages ».`,
+        href: `/videaste/${shootId}`,
+        clientId: s.clientId,
+        userIds: [userId],
+      });
+    }
+  }
   refresh(shootId);
 }
 

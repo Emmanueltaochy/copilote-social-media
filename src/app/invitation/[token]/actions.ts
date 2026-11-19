@@ -36,5 +36,5 @@ export async function acceptInvitation(
   await createSession(user.id);
   // Un collaborateur arrive dans l'outil de l'agence, un contact client dans
   // son portail : le lien d'invitation est le même, la destination non.
-  redirect(user.role === "client" ? "/portail" : "/");
+  redirect(user.role === "client" ? "/portail" : user.role === "videaste" ? "/videaste" : "/");
 }
