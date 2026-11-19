@@ -442,6 +442,12 @@ export const shoots = pgTable(
     status: shootStatus("status").notNull().default("preparation"),
     note: text("note"),
     moodboard: jsonb("moodboard").$type<string[]>().notNull().default([]),
+    /**
+     * Publié au client : le tournage et ses vidéos visibles apparaissent dans
+     * son portail. Vide = brouillon interne, que le client ne voit pas. Une
+     * date plutôt qu'une case : on sait depuis quand il a pu se préparer.
+     */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shoots_client_idx").on(t.clientId), index("shoots_starts_idx").on(t.startsAt)],
@@ -527,6 +533,84 @@ export const shootDeliverables = pgTable(
     position: integer("position").notNull().default(0),
   },
   (t) => [index("shoot_deliverables_shoot_idx").on(t.shootId)],
+);
+
+/**
+ * Une vidéo prévue pour un tournage : ce qu'on va filmer, pour quel message,
+ * d'après quelle référence, et ce que le client doit préparer.
+ *
+ * Séparée de la shotlist (`shots`) : un plan est une ligne cochée sur le
+ * terrain par l'équipe ; une vidéo prévue est ce que le client lit pour se
+ * préparer, avec son script et sa liste de choses à apporter. Les mêler
+ * finirait par montrer au client « plan large, 24 mm, contre-jour ».
+ *
+ * Elle devient ensuite un contenu (`contentId`) : on la retrouve alors dans la
+ * production et le calendrier.
+ */
+export const shootVideos = pgTable(
+  "shoot_videos",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shootId: uuid("shoot_id")
+      .notNull()
+      .references(() => shoots.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    title: text("title").notNull(),
+    /** Ce qu'on va filmer, le message. Lu par le client. */
+    description: text("description"),
+    /**
+     * Les vidéos de référence (une tendance à reproduire…). La plateforme et
+     * la vignette sont relevées à l'enregistrement, sans clé : une vignette
+     * absente laisse place à une carte avec la plateforme et le lien.
+     */
+    references: jsonb("references")
+      .$type<{ url: string; plateforme: string; vignette?: string | null; auteur?: string | null }[]>()
+      .notNull()
+      .default([]),
+    /** Le script ou le texte à dire. Facultatif. */
+    script: text("script"),
+    /** Qui le dit : « client », « equipe » ou « voix_off ». */
+    speaker: text("speaker"),
+    /** Ce que le client doit préparer : tenue, produits, lieu, personnes… */
+    prep: jsonb("prep").$type<{ id: string; label: string }[]>().notNull().default([]),
+    /** Les éléments de `prep` que le client a cochés de son côté. */
+    prepDone: jsonb("prep_done").$type<string[]>().notNull().default([]),
+    /** Durée visée, en secondes. */
+    durationSec: integer("duration_sec"),
+    /** Format visé : reel, story, feed, carrousel, autre (comme un contenu). */
+    format: text("format"),
+    /** « a_preparer », « pret », « tourne » : l'état côté agence. */
+    status: text("status").notNull().default("a_preparer"),
+    /** Faux : la vidéo reste interne, même quand le tournage est publié. */
+    visibleToClient: boolean("visible_to_client").notNull().default(true),
+    /** Le contenu qu'elle devient, pour la retrouver en production. */
+    contentId: uuid("content_id").references(() => contents.id, { onDelete: "set null" }),
+    /** « Je suis prêt », coché par le client dans son portail. */
+    clientReadyAt: timestamp("client_ready_at", { withTimezone: true }),
+    clientReadyById: uuid("client_ready_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("shoot_videos_shoot_idx").on(t.shootId, t.position)],
+);
+
+/**
+ * Les échanges sur une vidéo prévue : une question du client (« je préfère
+ * dire ça autrement »), la réponse de l'équipe. Le client ne modifie jamais
+ * la description ni le script : il écrit ici.
+ */
+export const shootVideoComments = pgTable(
+  "shoot_video_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => shootVideos.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("shoot_video_comments_video_idx").on(t.videoId)],
 );
 
 /* ----------------------------------------------------------------- assets -- */
@@ -1918,3 +2002,6 @@ export const releves = pgTable("releves", {
 });
 
 export type Releve = typeof releves.$inferSelect;
+
+export type ShootVideo = typeof shootVideos.$inferSelect;
+export type ShootVideoComment = typeof shootVideoComments.$inferSelect;

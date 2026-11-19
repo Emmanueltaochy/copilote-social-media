@@ -7,7 +7,9 @@ import { requireDepartment } from "@/lib/auth";
 import { getShoot, listGearPresets, listStaff } from "@/db/queries";
 import { durationHours, readiness, SHOOT_STATUS, SHOOT_STATUSES, slotLabel } from "@/data/shoot";
 import { isVideo } from "@/lib/storage";
+import { videosAgence } from "@/lib/tournages";
 import { CheckList } from "./CheckList";
+import { VideosPrevues } from "./VideosPrevues";
 import { GearPresets } from "./GearPresets";
 import {
   addCrew,
@@ -43,6 +45,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
   if (!data) notFound();
 
   const { shoot, client, shots, gear, rights, deliverables, crew, media } = data;
+  const videos = await videosAgence(shoot.id, client.id);
   const status = SHOOT_STATUS[shoot.status];
   const hours = durationHours(shoot.startsAt, shoot.endsAt);
 
@@ -119,6 +122,11 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
               meta="autorisations signées"
             />
           </KpiGrid>
+
+          <VideosPrevues
+            shoot={{ id: shoot.id, title: shoot.title, publishedAt: shoot.publishedAt, clientName: client.shortName }}
+            donnees={videos}
+          />
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <CheckList
@@ -371,7 +379,7 @@ export default async function ShootPage({ params }: { params: Promise<{ id: stri
                 />
               </label>
               <label className="flex min-w-[240px] flex-[2] flex-col gap-[6px]">
-                <span className="eyebrow text-ink-3">Note</span>
+                <span className="eyebrow text-ink-3">Note interne (jamais montrée au client)</span>
                 <input
                   name="note"
                   defaultValue={shoot.note ?? ""}

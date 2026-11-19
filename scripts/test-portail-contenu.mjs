@@ -108,7 +108,8 @@ ok("le post à valider y apparaît nommément", accueil.html.includes(`Post à v
 ok("… avec son format", accueil.html.includes("Carrousel"));
 ok("… et il est cliquable vers sa page", accueil.html.includes(`/portail/contenu/${aValider}`));
 ok("… avec un repère de test", accueil.html.includes(`data-a-valider="${aValider}"`));
-ok("le compteur reste affiché", /1 élément attend/.test(accueil.html));
+// Le libellé du compteur est devenu « 1 · attend votre validation » (refonte de l'accueil).
+ok("le compteur reste affiché", />1<\/span><span[^>]*>attend votre validation</.test(accueil.html));
 ok("le lien « Tout voir » mène à la liste", accueil.html.includes("/portail/valider"));
 ok(
   "un post qui n'attend pas de réponse n'est pas dans ce bloc",

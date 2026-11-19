@@ -9,6 +9,7 @@ import { ThemeButton } from "@/components/shell/ThemeToggle";
 import { quitterApercu } from "./actions-apercu";
 import { eq } from "drizzle-orm";
 import { db, audienceDaily, socialPosts } from "@/db";
+import { prochainDuPortail } from "@/lib/tournages";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function PortailLayout({ children }: { children: React.ReactNode }) {
   const { user, client, config, apercu } = await contextePortail();
-  const [compteurs, factures, relevesAudience, relevesPosts] = await Promise.all([
+  const [compteurs, factures, relevesAudience, relevesPosts, tournages] = await Promise.all([
     compteursPortail(client.id),
     facturesAregler(client.id),
     db.select({ x: audienceDaily.day }).from(audienceDaily).where(eq(audienceDaily.clientId, client.id)).limit(1),
     db.select({ x: socialPosts.id }).from(socialPosts).where(eq(socialPosts.clientId, client.id)).limit(1),
+    prochainDuPortail(client.id),
   ]);
+  const tournagesAPreparer = tournages.prochain ? tournages.prochain.videos.filter((v) => !v.clientReadyAt).length : 0;
   const statistiques = relevesAudience.length > 0 || relevesPosts.length > 0;
 
   /*
@@ -107,7 +110,14 @@ export default async function PortailLayout({ children }: { children: React.Reac
           {/* Sa propre ligne, à toutes les tailles : huit onglets ne tiennent
               pas à côté du logo, et un onglet rogné serait un onglet perdu. */}
           <div className="order-last w-full min-w-0">
-            <NavPortail aValider={compteurs.aValider} projets={compteurs.projets} factures={factures} statistiques={statistiques} />
+            <NavPortail
+              aValider={compteurs.aValider}
+              projets={compteurs.projets}
+              factures={factures}
+              statistiques={statistiques}
+              tournages={tournages.publies}
+              tournagesAPreparer={tournagesAPreparer}
+            />
           </div>
 
           <div className="ml-auto flex flex-none items-center gap-2">

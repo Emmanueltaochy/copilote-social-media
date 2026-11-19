@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   ceMatinArchives,
   clients,
@@ -11,6 +11,9 @@ import {
   directoryEvents,
   invoices,
   quoteRequests,
+  shoots,
+  shootVideoComments,
+  shootVideos,
   users,
   webDeliverables,
   webProjects,
@@ -27,6 +30,8 @@ import { cartesTrello, etatTrello } from "@/lib/trello";
 import { etatGoCardless } from "@/lib/gocardless";
 import { etatAgenda } from "@/lib/agenda";
 import { euroFromCents } from "@/lib/pacing";
+import { wallNow } from "@/lib/publication";
+import { jourCourt, heureDite, RELANCE_TOURNAGE_JOURS } from "@/lib/tournages-regles";
 
 /*
  * « Ce matin » : ce qu'Emmanuel doit savoir en ouvrant Pilot.
@@ -57,7 +62,14 @@ import { euroFromCents } from "@/lib/pacing";
  *   (« reprendre contact dans deux mois ») : on lui a déjà répondu.
  * - Une demande de devis non traitée devient **urgente** après 2 jours.
  * - Un commentaire de client sur le portail, sans réponse de l'équipe,
- *   devient **urgent** après 24 heures.
+ *   devient **urgent** après 24 heures. Même règle pour une question du
+ *   client sur une vidéo prévue d'un tournage (page Tournages du portail).
+ * - Tournage (dans « Actions ») : « Relancer le client avant le tournage »
+ *   quand un tournage publié au client, ni annulé ni réalisé, commence dans
+ *   3 jours ou moins (heure de La Réunion) et qu'au moins une vidéo visible
+ *   par le client n'est pas encore marquée « Je suis prêt ». La ligne
+ *   disparaît d'elle-même quand toutes les vidéos sont prêtes ou que le
+ *   tournage commence (règle aRelancer dans tournages-regles.ts).
  * - Un e-mail sans réponse (Gmail) est **urgent** — à condition que son
  *   expéditeur From soit l'adresse même qui le relie à la fiche (jamais un
  *   Reply-To, un autre destinataire ou une adresse citée) :
@@ -104,6 +116,8 @@ export const REGLES = {
   reponseProspectFraicheJours: 7,
   devisUrgentApresHeures: 48,
   commentaireUrgentApresHeures: 24,
+  /** Tournage publié qui commence dans N jours ou moins, vidéos pas prêtes → relancer. */
+  relanceTournageJours: RELANCE_TOURNAGE_JOURS,
   validationRelanceApresJours: 3,
   devisEnCoursRelanceApresJours: 7,
   emailUrgentApresHeures: 24,
@@ -163,7 +177,7 @@ async function nomsCourts(): Promise<Map<string, string>> {
 
 export async function aRepondre(now: Date, scopeId?: string, opts: { emails?: boolean } = {}): Promise<LigneMatin[]> {
   const today = aujourdhuiReunion(now);
-  const [noms, repondu, devis, commentairesClients, emails] = await Promise.all([
+  const [noms, repondu, devis, commentairesClients, emails, questionsTournage] = await Promise.all([
     nomsCourts(),
     db.select().from(directoryEntries).where(eq(directoryEntries.status, "repondu")),
     db
@@ -203,9 +217,49 @@ export async function aRepondre(now: Date, scopeId?: string, opts: { emails?: bo
         ),
       ),
     opts.emails ? emailsSansReponse(now) : Promise.resolve([] as LigneMatin[]),
+    // La dernière question de chaque vidéo prévue, si elle vient du client :
+    // personne de l'équipe n'a répondu après.
+    db
+      .select({
+        id: shootVideoComments.id,
+        at: shootVideoComments.createdAt,
+        body: shootVideoComments.body,
+        videoId: shootVideoComments.videoId,
+        title: shootVideos.title,
+        shootId: shoots.id,
+        clientId: shoots.clientId,
+        client: clients.shortName,
+      })
+      .from(shootVideoComments)
+      .innerJoin(shootVideos, eq(shootVideos.id, shootVideoComments.videoId))
+      .innerJoin(shoots, eq(shoots.id, shootVideos.shootId))
+      .innerJoin(clients, eq(clients.id, shoots.clientId))
+      .innerJoin(users, eq(users.id, shootVideoComments.authorId))
+      .where(
+        and(
+          eq(users.role, "client"),
+          sql`not exists (select 1 from ${shootVideoComments} c2 where c2.video_id = ${shootVideoComments.videoId} and c2.created_at > ${shootVideoComments.createdAt})`,
+        ),
+      ),
   ]);
 
   const lignes: LigneMatin[] = [...emails];
+
+  for (const q of questionsTournage) {
+    const age = now.getTime() - q.at.getTime();
+    const urgent = age >= REGLES.commentaireUrgentApresHeures * HEURE;
+    lignes.push({
+      key: `commentaire-tournage:${q.videoId}`,
+      etat: q.id,
+      href: `/tournages/${q.shootId}`,
+      qui: q.client,
+      titre: `Question sur la vidéo « ${q.title} »`,
+      meta: `« ${q.body.slice(0, 90)}${q.body.length > 90 ? "…" : ""} » · ${ilYa(q.at, now)}`,
+      urgence: urgent ? "urgent" : "attendre",
+      raison: urgent ? "Sans réponse de l'équipe depuis plus de 24 h" : "Posée il y a moins de 24 h",
+      clientId: q.clientId,
+    });
+  }
 
   for (const p of repondu) {
     const derniere = p.lastActivityAt;
@@ -527,7 +581,8 @@ export async function argentQuiDort(now: Date, scopeId?: string): Promise<Argent
  */
 export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]> {
   const today = aujourdhuiReunion(now);
-  const [noms, prochaines, validations, retours, retards, devisEnCours] = await Promise.all([
+  const mural = wallNow();
+  const [noms, prochaines, validations, retours, retards, devisEnCours, tournagesProches] = await Promise.all([
     nomsCourts(),
     db
       .select()
@@ -582,6 +637,30 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
           sql`${quoteRequests.updatedAt} < now() - interval '${sql.raw(String(REGLES.devisEnCoursRelanceApresJours))} days'`,
         ),
       ),
+    // Les tournages publiés qui approchent, avec leurs vidéos visibles pas
+    // encore prêtes côté client (règle en tête de fichier).
+    db
+      .select({
+        id: shoots.id,
+        title: shoots.title,
+        startsAt: shoots.startsAt,
+        clientId: shoots.clientId,
+        client: clients.shortName,
+        visibles: sql<number>`count(${shootVideos.id})::int`,
+        nonPretes: sql<number>`(count(${shootVideos.id}) filter (where ${shootVideos.clientReadyAt} is null))::int`,
+      })
+      .from(shoots)
+      .innerJoin(clients, eq(clients.id, shoots.clientId))
+      .innerJoin(shootVideos, and(eq(shootVideos.shootId, shoots.id), eq(shootVideos.visibleToClient, true)))
+      .where(
+        and(
+          sql`${shoots.publishedAt} is not null`,
+          sql`${shoots.status} not in ('annule', 'realise')`,
+          gte(shoots.startsAt, mural),
+          lte(shoots.startsAt, new Date(mural.getTime() + REGLES.relanceTournageJours * JOUR)),
+        ),
+      )
+      .groupBy(shoots.id, clients.shortName),
   ]);
 
   const lignes: LigneMatin[] = [];
@@ -648,6 +727,22 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
     });
   }
 
+  for (const t of tournagesProches) {
+    if (t.nonPretes === 0) continue;
+    lignes.push({
+      key: `action:tournage-relance:${t.id}`,
+      // Revient si le tournage est déplacé ou si une vidéo s'ajoute.
+      etat: `${t.startsAt.toISOString()}|${t.visibles}`,
+      href: `/tournages/${t.id}`,
+      qui: t.client,
+      titre: "Relancer le client avant le tournage",
+      meta: `« ${t.title} », ${jourCourt(t.startsAt)} à ${heureDite(t.startsAt)} · ${t.nonPretes} vidéo${t.nonPretes > 1 ? "s" : ""} sur ${t.visibles} pas encore prête${t.nonPretes > 1 ? "s" : ""} côté client`,
+      raison: `Tournage dans ${REGLES.relanceTournageJours} jours ou moins, vidéos pas toutes marquées « prêt » par le client`,
+      ton: "warn",
+      clientId: t.clientId,
+    });
+  }
+
   const visibles = scopeId ? lignes.filter((l) => l.clientId === scopeId) : lignes;
   const ordre = { alert: 0, warn: 1, info: 2, neutral: 3 };
   // Ce qui est bloquant d'abord, puis les clients de l'agence avant les
@@ -677,6 +772,7 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
  *   - prospect-repondu:<fiche>          une nouvelle réponse (date du dernier échange) ;
  *   - devis-demande:<demande>           la demande modifiée (date de mise à jour) ;
  *   - commentaire:<contenu>             un nouveau commentaire du client sur ce contenu ;
+ *   - commentaire-tournage:<vidéo>      une nouvelle question du client sur cette vidéo prévue ;
  *   - facture:<numéro Abby>             le montant restant ou l'échéance qui change ;
  *   - facture-pilot:<facture>           le montant ou l'échéance qui change ;
  *   - devis-signe:<numéro Abby>         le reste à facturer qui change (nouvel acompte…) ;
@@ -685,6 +781,7 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
  *   - action:retour-livrable:<livrable> un nouveau retour du client ;
  *   - action:mise-en-ligne:<projet>     une nouvelle date de mise en ligne ;
  *   - action:devis-en-cours:<demande>   la demande modifiée ;
+ *   - action:tournage-relance:<tournage> le tournage déplacé ou une vidéo visible ajoutée ;
  *   - email:<fil>                       un nouveau message reçu dans le fil (Message-ID) ;
  *   - gocardless-mandat:<mandat>        l'état du mandat qui change ;
  *   - gocardless-paiement:<paiement>    l'état du paiement qui change ;
@@ -701,7 +798,7 @@ export async function actions(now: Date, scopeId?: string): Promise<LigneMatin[]
 export type ColonneMatin = "repondre" | "argent" | "actions";
 
 export const colonneDe = (key: string): ColonneMatin | null =>
-  /^(prospect-repondu|devis-demande|commentaire|email|gocardless-mandat|gocardless-paiement):/.test(key)
+  /^(prospect-repondu|devis-demande|commentaire|commentaire-tournage|email|gocardless-mandat|gocardless-paiement):/.test(key)
     ? "repondre"
     : /^(facture|facture-pilot|devis-signe|gocardless-echec):/.test(key) || key === "gocardless-sans-fiche"
       ? "argent"

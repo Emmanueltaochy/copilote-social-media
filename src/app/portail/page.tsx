@@ -17,6 +17,8 @@ import { VideoAccueil } from "./VideoAccueil";
 import { AFaire } from "./AFaire";
 import { audience, topPostThisMonth } from "@/db/home-queries";
 import { AudiencePanel } from "@/components/home/AudiencePanel";
+import { prochainDuPortail } from "@/lib/tournages";
+import { creneauDit, heureDite, jourLong, resume, resumeDit } from "@/lib/tournages-regles";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,7 @@ export default async function PortailPage() {
 
   const poles = client.departments?.length ? client.departments : ["social"];
 
-  const [published, upcoming, aValider, answers, actions, compteurs, bannieres, fichiers, aud, top] = await Promise.all([
+  const [published, upcoming, aValider, answers, actions, compteurs, bannieres, fichiers, aud, top, tournages] = await Promise.all([
     db
       .select({ content: contents })
       .from(contents)
@@ -79,7 +81,9 @@ export default async function PortailPage() {
     // Les chiffres de ses réseaux (relevés Metricool), strictement les siens.
     audience(90, client.id),
     topPostThisMonth(new Date(), client.id),
+    prochainDuPortail(client.id),
   ]);
+  const tournage = tournages.prochain;
 
   // Les vignettes de ce qui attend : on ne juge pas un post sur son titre.
   const couvertures = await coversFor([
@@ -143,6 +147,38 @@ export default async function PortailPage() {
           ...actions,
         ]}
       />
+
+      {/* Le prochain tournage, en une ligne : la date, et ce qu'il reste à
+          préparer. Le détail est sur la page Tournages. */}
+      {tournage ? (
+        <Link
+          href="/portail/tournages"
+          data-bloc-tournage={tournage.id}
+          className="flex flex-col gap-3 rounded-card border border-line bg-paper p-4 text-ink no-underline shadow-soft hover:border-line-strong hover:no-underline sm:flex-row sm:items-center sm:p-5"
+        >
+          <span className="flex min-w-0 flex-1 items-start gap-3">
+            <span
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-white"
+              style={{ background: config.primaryColor }}
+            >
+              <Icon name="camera" size={18} />
+            </span>
+            <span className="flex min-w-0 flex-col gap-[2px]">
+              <span className="text-lead font-semibold break-words">
+                Prochain tournage : {jourLong(tournage.startsAt)}, {heureDite(tournage.startsAt)}
+              </span>
+              <span className="text-small break-words text-ink-3">
+                {resumeDit(resume(tournage.videos))}
+                {tournage.place ? ` · ${tournage.place}` : ""}
+                <span className="sr-only"> · {creneauDit(tournage.startsAt, tournage.endsAt)}</span>
+              </span>
+            </span>
+          </span>
+          <span className="flex min-h-11 w-full flex-none items-center justify-center rounded-full bg-night px-5 text-base font-semibold text-white sm:w-auto">
+            Voir et préparer →
+          </span>
+        </Link>
+      ) : null}
 
       {/* La vidéo d'accueil : en grand à la première visite, puis une simple
           vignette pour la revoir, qui laisse remonter le reste. */}

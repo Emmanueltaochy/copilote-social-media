@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 import { ClientChip, NetworkDot, Panel } from "@/components/home/bits";
 import { fmt } from "@/components/stats/Charts";
 import { changerRole, copierIdee, retirerConcurrent, supprimerAnalyse } from "./actions";
-import { AjoutConcurrent, BoutonAnalyse, BoutonHistorique, BoutonRefaire } from "./Forms";
+import { AjoutConcurrent, BoutonAnalyse, BoutonHistorique, BoutonRefaire, BoutonTournage } from "./Forms";
 
 const jourFr = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Indian/Reunion" });
 const fois = (x: number) => `×${String(x).replace(".", ",")}`;
@@ -377,6 +377,7 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
                     ) : null}
                     <div className="mt-auto flex flex-col gap-1 pt-2">
                       <BoutonRefaire postId={p.id} />
+                      <BoutonTournage postId={p.id} />
                       {p.url ? (
                         <a href={p.url} target="_blank" rel="noreferrer" className="text-center text-micro text-info">
                           Voir l&apos;original ↗

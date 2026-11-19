@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/Screen";
 import { Card, CardHead } from "@/components/ui/Card";
@@ -20,6 +22,10 @@ import { AssignPicker } from "../../production/AssignPicker";
 import { MediaCard } from "./MediaCard";
 import { PublicationPanel } from "./PublicationPanel";
 import { metricoolConfig } from "@/lib/metricool";
+import { db, shoots, shootVideos } from "@/db";
+import { tournagesAVenir } from "@/lib/tournages";
+import { jourCourt, heureDite } from "@/lib/tournages-regles";
+import { VersTournage } from "../../tournages/[id]/DepuisContenu";
 import { publicationChecks, realInstant } from "@/lib/publication";
 import {
   addComment,
@@ -60,6 +66,15 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
     listContentLinks(id),
     metricoolConfig(),
   ]);
+  const [prevus, aVenir] = await Promise.all([
+    db
+      .select({ shootId: shoots.id, title: shoots.title, startsAt: shoots.startsAt })
+      .from(shootVideos)
+      .innerJoin(shoots, eq(shoots.id, shootVideos.shootId))
+      .where(eq(shootVideos.contentId, id)),
+    tournagesAVenir(content.clientId),
+  ]);
+  const proposables = aVenir.filter((t) => !prevus.some((p) => p.shootId === t.id));
 
   const st = CONTENT_STATUS[content.status];
   const overdue =
@@ -288,6 +303,40 @@ export default async function ContenuPage({ params }: { params: Promise<{ id: st
             links={links.map((l) => ({ ...l.link, addedByName: l.addedByName }))}
             isCarousel={content.kind === "carrousel"}
           />
+
+          {/* Le tournage d'où sortira ce contenu : la vidéo prévue y décrit au
+              client ce qu'on filme et ce qu'il prépare. */}
+          <Card className="flex flex-col gap-3 p-4" data-carte="tournage">
+            <div className="min-w-0">
+              <Eyebrow>Tournage</Eyebrow>
+              {prevus.length ? (
+                <p className="mt-1 text-base text-ink-2">
+                  Prévu au tournage{" "}
+                  {prevus.map((p, i) => (
+                    <span key={p.shootId}>
+                      {i ? ", " : ""}
+                      <Link href={`/tournages/${p.shootId}`}>
+                        « {p.title} » du {jourCourt(p.startsAt)} à {heureDite(p.startsAt)}
+                      </Link>
+                    </span>
+                  ))}
+                  .
+                </p>
+              ) : (
+                <p className="mt-1 text-base text-ink-2">
+                  {proposables.length
+                    ? "Ajoutez-le aux vidéos prévues d'un tournage : le client verra ce qu'on va filmer et ce qu'il doit préparer."
+                    : "Aucun tournage à venir pour ce client."}
+                </p>
+              )}
+            </div>
+            {proposables.length ? (
+              <VersTournage
+                contentId={content.id}
+                tournages={proposables.map((t) => ({ id: t.id, label: `${t.title} · ${jourCourt(t.startsAt)} à ${heureDite(t.startsAt)}${t.publishedAt ? "" : " (brouillon)"}` }))}
+              />
+            ) : null}
+          </Card>
 
           <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
             <div className="min-w-0">

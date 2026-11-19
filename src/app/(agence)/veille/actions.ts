@@ -7,6 +7,8 @@ import { clients, db, trendReports, veilleAccounts } from "@/db";
 import { requireDepartment, requireStaff } from "@/lib/auth";
 import { addCompetitor, COMPETITOR_NETWORKS, normalizeHandle, removeCompetitor, type CompetitorNetwork } from "@/lib/metricool-competitors";
 import { creerContenu } from "@/lib/contenu-creation";
+import { ajouterVideo, apercuReference, prochainTournage } from "@/lib/tournages";
+import { jourCourt, heureDite } from "@/lib/tournages-regles";
 import { etatMemoire, foisMoyenneDe, publicationVeille, recupererHistorique, relancerHistoriqueDemain } from "@/lib/veille";
 import { FORMAT_LABEL, formatPilot, type Format } from "@/lib/veille-regles";
 import { fmt } from "@/components/stats/Charts";
@@ -158,6 +160,42 @@ export async function refaireIdee(_prev: RefaireState, formData: FormData): Prom
   revalidatePath("/veille");
   revalidatePath("/production");
   return { ok: true, contenuId: contenu.id };
+}
+
+export type AuTournageState = { ok?: string; shootId?: string; error?: string };
+
+/**
+ * « Ajouter au prochain tournage » : la publication devient une vidéo prévue
+ * du prochain tournage du client (à venir, ni annulé ni réalisé), avec son
+ * lien en référence. Comme « Refaire cette idée », jamais de copie : ni la
+ * légende ni le texte d'origine, seulement la consigne d'adapter. Mêmes droits
+ * que la page Veille (pôle social, direction comprise).
+ */
+export async function ajouterAuProchainTournage(_prev: AuTournageState, formData: FormData): Promise<AuTournageState> {
+  const user = await requireDepartment("social");
+  const p = await publicationVeille(String(formData.get("postId") ?? ""));
+  if (!p) return { error: "Publication introuvable : rechargez la page." };
+  const shoot = await prochainTournage(p.clientId);
+  if (!shoot) return { error: "Aucun tournage à venir pour ce client : créez-le d'abord dans Tournages." };
+  const format = p.format as Format;
+  const quand = p.publishedAt ? `publication du ${jourFr(p.publishedAt)}` : "publication à la date inconnue";
+  const note = `Inspiré de @${p.handle}, ${quand}`;
+  const titre = `À la manière de @${p.handle} (${FORMAT_LABEL[format].toLowerCase()})`.slice(0, 120);
+  await ajouterVideo({
+    shootId: shoot.id,
+    title: titre,
+    description: `${note}. On reprend l'idée (l'accroche, le rythme, le format), avec vos mots et votre univers.`,
+    // La vignette relevée par Metricool sert d'aperçu quand la plateforme
+    // n'en donne pas sans clé (Instagram, Facebook).
+    references: p.url ? [await apercuReference(p.url).then((r) => ({ ...r, vignette: r.vignette ?? p.imageUrl ?? null }))] : [],
+    format: formatPilot(format),
+    auteurId: user.id,
+    origine: `depuis la veille, ${note}`,
+  });
+  revalidatePath("/veille");
+  revalidatePath(`/tournages/${shoot.id}`);
+  revalidatePath("/portail", "layout");
+  return { ok: `Ajoutée au tournage du ${jourCourt(shoot.startsAt)} à ${heureDite(shoot.startsAt)}`, shootId: shoot.id };
 }
 
 /**

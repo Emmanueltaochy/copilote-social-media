@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
-const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" | "factures" | "projets" }[] = [
+const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" | "factures" | "projets" | "tournages" }[] = [
   { href: "/portail", label: "Accueil", icon: "home" },
   { href: "/portail/valider", label: "À valider", icon: "check", cle: "aValider" },
   // Juste après « À valider » : ce qu'on valide, on veut ensuite le voir partir.
   { href: "/portail/calendrier", label: "Calendrier", icon: "calendar" },
+  // Seulement quand un tournage a été publié au client : la barre a déjà
+  // beaucoup d'onglets sur téléphone (audit P3), on n'en ajoute pas un vide.
+  { href: "/portail/tournages", label: "Tournages", icon: "camera", cle: "tournages" },
   { href: "/portail/statistiques", label: "Statistiques", icon: "chart" },
   { href: "/portail/medias", label: "Médias", icon: "image" },
   { href: "/portail/documents", label: "Documents", icon: "layers" },
@@ -28,7 +31,9 @@ const ONGLETS: { href: string; label: string; icon: IconName; cle?: "aValider" |
  * le client doit voir en arrivant.
  *
  * « Projets » disparaît quand il n'y a rien à montrer : un client qui n'achète
- * que du social n'en aura jamais.
+ * que du social n'en aura jamais. « Tournages » aussi, tant qu'aucun tournage
+ * ne lui est publié ; sa pastille compte les vidéos du prochain tournage pas
+ * encore marquées « prêt ».
  *
  * « Factures », en revanche, reste toujours là, même vide. Tout client finit
  * par être facturé, et un onglet qui n'apparaît qu'au dépôt de la première
@@ -40,24 +45,32 @@ export function NavPortail({
   projets,
   factures,
   statistiques = false,
+  tournages = 0,
+  tournagesAPreparer = 0,
 }: {
   aValider: number;
   projets: number;
   factures: number;
+  /** Tournages publiés au client (l'onglet n'apparaît qu'à partir d'un). */
+  tournages?: number;
+  tournagesAPreparer?: number;
   /** « Statistiques » n'apparaît que pour un compte relié à Metricool. */
   statistiques?: boolean;
 }) {
   const chemin = usePathname();
   // La pastille des factures ne compte que ce qui reste à régler : un client
   // n'a pas à voir « 34 » sur un onglet dont tout est payé depuis trois ans.
-  const compte: Record<string, number> = { aValider, projets, factures };
+  const compte: Record<string, number> = { aValider, projets, factures, tournages: tournagesAPreparer };
 
   return (
     // Aucun menu déroulant ici : la barre peut défiler sans rien couper.
     <nav className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
       <ul className="flex w-max list-none items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-soft">
         {ONGLETS.filter(
-          (o) => (o.href !== "/portail/projets" || projets > 0) && (o.href !== "/portail/statistiques" || statistiques),
+          (o) =>
+            (o.href !== "/portail/projets" || projets > 0) &&
+            (o.href !== "/portail/statistiques" || statistiques) &&
+            (o.href !== "/portail/tournages" || tournages > 0),
         ).map((o) => {
           // « Accueil » ne s'allume que sur sa propre adresse : sans quoi il
           // resterait actif partout, puisque tout commence par /portail.

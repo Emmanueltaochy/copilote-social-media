@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { ajouterConcurrent, lancerAnalyse, recupererHistoriqueAction, refaireIdee, type RefaireState, type VeilleState } from "./actions";
+import { ajouterAuProchainTournage, ajouterConcurrent, lancerAnalyse, recupererHistoriqueAction, refaireIdee, type AuTournageState, type RefaireState, type VeilleState } from "./actions";
 
 const champ = "min-w-0 flex-1 rounded-control border border-line bg-paper px-3 py-2 text-base text-ink outline-none focus:border-gold";
 
@@ -96,6 +96,38 @@ export function BoutonRefaire({ postId }: { postId: string }) {
         className="flex min-h-9 w-full cursor-pointer items-center justify-center gap-1 rounded-full border-none bg-night px-2 py-[6px] text-micro font-medium whitespace-nowrap text-white hover:opacity-85 disabled:opacity-60 sm:text-small"
       >
         {pending ? "Création…" : "Refaire cette idée"}
+      </button>
+      {state.error ? <p className="text-micro text-alert">{state.error}</p> : null}
+    </form>
+  );
+}
+
+/**
+ * « Ajouter au prochain tournage » : la publication devient une vidéo prévue
+ * du prochain tournage du client, avec son lien en référence.
+ */
+export function BoutonTournage({ postId }: { postId: string }) {
+  const [state, action, pending] = useActionState<AuTournageState, FormData>(ajouterAuProchainTournage, {});
+  if (state.ok && state.shootId) {
+    return (
+      <Link
+        href={`/tournages/${state.shootId}`}
+        data-ajout-tournage="ok"
+        className="flex min-h-9 w-full items-center justify-center gap-1 rounded-full bg-ok-bg px-2 py-[6px] text-center text-micro font-medium text-ok no-underline hover:no-underline sm:text-small"
+      >
+        ✓ {state.ok} · ouvrir
+      </Link>
+    );
+  }
+  return (
+    <form action={action} className="flex flex-col gap-1">
+      <input type="hidden" name="postId" value={postId} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="flex min-h-9 w-full cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-paper px-2 py-[6px] text-center text-micro leading-tight font-medium text-ink hover:border-line-strong disabled:opacity-60 sm:text-small"
+      >
+        {pending ? "Ajout…" : "Ajouter au prochain tournage"}
       </button>
       {state.error ? <p className="text-micro text-alert">{state.error}</p> : null}
     </form>
