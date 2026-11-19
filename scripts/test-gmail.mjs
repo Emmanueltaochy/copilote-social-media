@@ -14,6 +14,11 @@
 //     rien du corps complet ni des pièces jointes dans la base) ;
 //   - l'incrémental (UID mémorisés), « sans réponse », « Ce matin » avec
 //     « Traité » et le retour d'une ligne quand un nouveau message arrive ;
+//   - les envois de l'admin du site connus par l'import de prospects.json
+//     (envois[]) : ils valent réponse d'Emmanuel s'ils sont postérieurs au
+//     message reçu, jamais s'ils sont plus anciens ;
+//   - « Ce matin » vérifié sur la liste complète envoyée à la page (l'écran
+//     n'en montre que 6) : le test ne dépend pas des autres lignes de la base ;
 //   - les droits (direction seulement ; autre pôle, client du portail et
 //     visiteur sans session refusés) ;
 //   - qu'aucun mot de passe n'apparaît dans les réponses, la base ni le journal.
@@ -119,6 +124,29 @@ ok("reçu d'un domaine d'Emmanuel : hors règles", R.emailHorsRegles({ sens: "re
 ok("envoyé rattaché par Cci : hors règles ; par To : gardé", R.emailHorsRegles({ sens: "envoye", de: "e@gmail.com", a: ["autre@y.fr"], cc: [], contact: "marie@x.fr", objet: "x" }) !== null && R.emailHorsRegles({ sens: "envoye", de: "e@gmail.com", a: ["marie@x.fr"], cc: [], contact: "marie@x.fr", objet: "x" }) === null);
 ok("reçu From = contact de la fiche : gardé", R.emailHorsRegles({ sens: "recu", de: "marie@x.fr", a: [], cc: [], contact: "marie@x.fr", objet: "Photos" }) === null);
 ok("lien « Ouvrir dans Gmail »", R.lienGmail("<CAB+12@mail.gmail.com>") === "https://mail.google.com/mail/u/0/#search/rfc822msgid%3ACAB%2B12%40mail.gmail.com");
+// Envois de l'admin (prospects.json, envois[]) : règle envoiAnterieur.
+ok("jour de La Réunion : 21 h UTC le 18 → le 19", R.jourReunion(new Date("2026-11-18T21:00:00Z")) === "2026-11-19" && R.jourReunion(new Date("2026-11-18T19:59:00Z")) === "2026-11-18");
+ok(
+  "envois de l'admin lus dans data.envois : seulement « envoye », jour lisible, message_id sans chevrons",
+  JSON.stringify(
+    R.envoisAdmin({
+      envois: [
+        { statut: "envoye", envoye: "2026-11-12", messageId: "<AB@x.fr>" },
+        { statut: "a_valider", envoye: null },
+        { statut: "refuse", envoye: "2026-11-12" },
+        { statut: "envoye", envoye: "12/11" },
+      ],
+    }),
+  ) === JSON.stringify([{ jour: "2026-11-12", messageId: "ab@x.fr" }]) && R.envoisAdmin(null).length === 0,
+);
+{
+  const recu = { at: new Date("2026-11-18T06:00:00Z"), reponseA: ["relance@x.fr"] }; // 10 h à La Réunion
+  ok("envoi d'un jour antérieur au message reçu : ne vaut pas réponse", R.envoiAnterieur(recu, { jour: "2026-11-17", messageId: null }));
+  ok("envoi d'un jour postérieur : vaut réponse", !R.envoiAnterieur(recu, { jour: "2026-11-19", messageId: null }));
+  ok("même jour, le message reçu ne répond pas à cet envoi : vaut réponse", !R.envoiAnterieur(recu, { jour: "2026-11-18", messageId: "autre@x.fr" }));
+  ok("même jour, le message reçu répond à cet envoi (In-Reply-To) : ne vaut pas réponse", R.envoiAnterieur(recu, { jour: "2026-11-18", messageId: "relance@x.fr" }));
+}
+ok("identifiants de réponse : In-Reply-To d'abord, puis References, sans doublon, en minuscules", JSON.stringify(R.identifiantsDeReponse("<B@x>", "<a@x> <B@x>")) === JSON.stringify(["b@x", "a@x"]));
 
 /* ------------------------------------------- 2. lecture seule : le code -- */
 
@@ -433,6 +461,34 @@ function actionsDe(manifestePage, fichier) {
 const A_GMAIL = actionsDe("(agence)/reglages/page", "gmail-actions");
 const A_MATIN = actionsDe("(agence)/page", "ce-matin-actions");
 
+/**
+ * « À répondre » tel que le serveur l'a envoyé à la page : TOUTES les lignes
+ * ({ lignes, archivees }), lues dans les données React de la page. L'écran,
+ * lui, n'en montre que 6 (« et N autres ») : vérifier sur l'écran ferait
+ * dépendre le test des autres lignes de la base (prospects importés, demandes
+ * de devis de démonstration qui passent « urgentes » avec le temps…).
+ */
+function aRepondreComplet(html) {
+  const flux = [...html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g)].map((m) => JSON.parse(m[1])).join("");
+  const debut = flux.indexOf("{", flux.indexOf('"repondre":{'));
+  if (debut < 0 || flux.indexOf('"repondre":{') < 0) return { lignes: [], archivees: [] };
+  let profondeur = 0;
+  let chaine = false;
+  for (let j = debut; j < flux.length; j++) {
+    const c = flux[j];
+    if (chaine) {
+      if (c === "\\") j++;
+      else if (c === '"') chaine = false;
+    } else if (c === '"') chaine = true;
+    else if (c === "{") profondeur++;
+    else if (c === "}" && --profondeur === 0) return JSON.parse(flux.slice(debut, j + 1));
+  }
+  return { lignes: [], archivees: [] };
+}
+const ligneEmail = (bloc, objet) => bloc.lignes.find((l) => l.titre === `E-mail : « ${objet} »`) ?? null;
+const sansInsecable = (s) => (s ?? "").replace(/ /g, " ");
+const texteHtml = (s) => s.replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+
 async function action(chemin, id, args, cookie) {
   const r = await fetch(`${BASE}${chemin}`, {
     method: "POST",
@@ -566,23 +622,38 @@ try {
 
   console.log("\n— Ce matin —");
   p = await page("/", cDir);
-  ok("« À répondre » : les trois e-mails sans réponse", p.visible.includes(`E-mail : « Photos pour le site ${jeu} »`) && p.visible.includes(`E-mail : « Re: Proposition ${jeu} »`) && p.visible.includes(`E-mail : « Rendez-vous jeudi ? ${jeu} »`));
-  const bloc = (objet) => {
-    const i = p.visible.indexOf(`E-mail : « ${objet} »`);
-    return p.visible.slice(Math.max(0, i - 700), i + 900);
+  let bloc = aRepondreComplet(p.html);
+  ok(
+    `« À répondre » : les trois e-mails sans réponse (dans la liste complète, ${bloc.lignes.length} lignes)`,
+    Boolean(ligneEmail(bloc, `Photos pour le site ${jeu}`) && ligneEmail(bloc, `Re: Proposition ${jeu}`) && ligneEmail(bloc, `Rendez-vous jeudi ? ${jeu}`)),
+  );
+  {
+    const ecran = texteHtml(p.visible);
+    const reste = bloc.lignes.length - 6;
+    ok(
+      `l'écran montre les 6 premières lignes (urgentes d'abord)${reste > 0 ? ` et « et ${reste} autre${reste > 1 ? "s" : ""} »` : ""}`,
+      bloc.lignes.slice(0, 6).every((l) => ecran.includes(l.titre)) &&
+        (reste <= 0 || ecran.includes(`et ${reste} autre`)) &&
+        bloc.lignes.every((l, i) => i === 0 || !(l.urgence === "urgent" && bloc.lignes[i - 1].urgence === "attendre")),
+    );
+  }
+  const regle = (objet) => {
+    const l = ligneEmail(bloc, objet);
+    return l ? { urgence: l.urgence, raison: sansInsecable(l.raison) } : { urgence: null, raison: "" };
   };
-  ok("client sous contrat sans réponse depuis plus de 24 h : urgent, règle affichée", /Urgent/.test(bloc(`Photos pour le site ${jeu}`)) && bloc(`Photos pour le site ${jeu}`).includes("Client sous contrat, sans réponse depuis plus de 24 h"));
-  ok("prospect qui a répondu il y a 3 h, sans mot d'urgence : peut attendre", /Peut attendre/.test(bloc(`Re: Proposition ${jeu}`)) && bloc(`Re: Proposition ${jeu}`).includes("Prospect qui a répondu, reçu il y a moins de 24 h"));
-  ok("mot d'urgence (« rendez-vous ») : urgent", /Urgent/.test(bloc(`Rendez-vous jeudi ? ${jeu}`)) && bloc(`Rendez-vous jeudi ? ${jeu}`).includes("Contient « rendez-vous »"));
-  ok("le fil répondu n'est pas à répondre", !p.visible.includes(`Question sur le planning ${jeu} »`));
-  ok("le prospect qui a reçu la réponse de l'admin n'est pas à répondre", !p.visible.includes(`Question tarif ${jeu}`));
+  ok("client sous contrat sans réponse depuis plus de 24 h : urgent, règle affichée", regle(`Photos pour le site ${jeu}`).urgence === "urgent" && regle(`Photos pour le site ${jeu}`).raison === "Client sous contrat, sans réponse depuis plus de 24 h");
+  ok("prospect qui a répondu il y a 3 h, sans mot d'urgence : peut attendre", regle(`Re: Proposition ${jeu}`).urgence === "attendre" && regle(`Re: Proposition ${jeu}`).raison === "Prospect qui a répondu, reçu il y a moins de 24 h");
+  ok("mot d'urgence (« rendez-vous ») : urgent", regle(`Rendez-vous jeudi ? ${jeu}`).urgence === "urgent" && regle(`Rendez-vous jeudi ? ${jeu}`).raison.startsWith("Contient « rendez-vous »"));
+  ok("le fil répondu n'est pas à répondre", !bloc.lignes.some((l) => l.titre.includes(`Question sur le planning ${jeu} »`)));
+  ok("le prospect qui a reçu la réponse de l'admin n'est pas à répondre", !bloc.lignes.some((l) => l.titre.includes(`Question tarif ${jeu}`)));
   ok("pied de colonne : Gmail relu", p.visible.includes("E-mails sans réponse relevés dans Gmail"));
 
   const kPhotos = `email:${filDe(`Photos pour le site ${jeu}`)}`;
   r = await matin("marquerTraite", [kPhotos], cDir);
   ok("« Traité » sur une ligne e-mail (clé email:<fil>)", r.resultat?.ok === true && un(`select state from ce_matin_archives where key='${kPhotos}'`) === `photos.${jeu}@test.local`);
   p = await page("/", cDir);
-  ok("… la ligne disparaît", !p.visible.includes(`E-mail : « Photos pour le site ${jeu} »`));
+  bloc = aRepondreComplet(p.html);
+  ok("… la ligne disparaît (rangée dans les archivés)", !ligneEmail(bloc, `Photos pour le site ${jeu}`) && bloc.archivees.some((l) => l.key === kPhotos) && !p.visible.includes(`E-mail : « Photos pour le site ${jeu} »`));
 
   console.log("\n— incrémental, et retour d'une ligne archivée —");
   const positions = JSON.parse(un(`select folders::text from gmail_sync where id='compte'`));
@@ -634,7 +705,8 @@ try {
   ok("drapeaux toujours identiques après le second relevé", JSON.stringify(drapeaux()) === JSON.stringify(avant2));
   ok("le fil « Photos » a un nouveau message reçu : toujours sans réponse, porté par le nouveau", attend(`Re: Photos pour le site ${jeu}`) === "true|" && attend(`Photos pour le site ${jeu}`).startsWith("false"));
   p = await page("/", cDir);
-  ok("nouveau message dans un fil archivé : la ligne revient d'elle-même", p.visible.includes(`E-mail : « Re: Photos pour le site ${jeu} »`) && p.visible.includes("Du nouveau depuis l"));
+  bloc = aRepondreComplet(p.html);
+  ok("nouveau message dans un fil archivé : la ligne revient d'elle-même", Boolean(ligneEmail(bloc, `Re: Photos pour le site ${jeu}`)?.retour));
 
   if (JOURNAL && existsSync(JOURNAL)) {
     const n = (readFileSync(JOURNAL, "utf8").match(/Gmail : nettoyage/g) ?? []).length;
@@ -652,6 +724,91 @@ try {
   r = await gmail("synchroniserGmailMaintenant", undefined, cDir);
   ok("bail pris par un autre processus : « déjà en cours », aucune connexion", r.resultat?.ok === true && /déjà en cours/.test(r.resultat.message) && fil.length === lignesAvant);
   sql(`update gmail_sync set lease_until = null where id='compte'`);
+
+  console.log("\n— envois de l'admin connus par l'import de l'agent ventes —");
+  // Depuis la suppression de la copie cachée, un e-mail envoyé depuis
+  // taochyagency.com/admin/envois.php n'est plus dans Gmail : seul l'import de
+  // prospects.json (envois[]) le fait connaître à Pilot.
+  const cleImport = (() => {
+    const jeton = "tpk_" + randomBytes(32).toString("base64url");
+    un(`insert into api_keys (name, token_hash, prefix, scopes, departments) values ('test gmail ${jeu}', '${sha(jeton)}', '${jeton.slice(0, 12)}', '["annuaire:write"]'::jsonb, '["social","web"]'::jsonb) returning id`);
+    return jeton;
+  })();
+  const importer = async (prospects) => {
+    const rep = await fetch(`${BASE}/api/annuaire/import?fichier=prospects`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cleImport}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ note: "test", maj: new Date().toISOString(), prospects }),
+      redirect: "manual",
+    });
+    return { statut: rep.status, corps: await rep.json().catch(() => null) };
+  };
+  const EPICERIE = `contact@epicerie-${jeu}.test`;
+  const FLEURISTE = `bonjour@fleuriste-${jeu}.test`;
+  const TRAITEUR = `devis@traiteur-${jeu}.test`;
+  const ilYaJours = (n) => R.jourReunion(new Date(Date.now() - n * JOUR));
+  // La forme réelle de prospects.json (champs relevés dans docs/crm/prospects.json du dépôt montagevideo).
+  const prospect = (id, entreprise, email, envois, historique = []) => ({
+    id, ajoute: ilYaJours(10), entreprise, pays: "La Réunion", langue: "fr", segment: "commerce", canal: "email", email, site: null, lien: null,
+    statut: "contacte", responsable: "Emmanuel", valeur_eur: 0, dernier_contact: ilYaJours(5), prochaine_action: "Relancer", prochaine_date: ilYaJours(-3),
+    historique, envois,
+  });
+  const envoi = (n, jour, mid, objet) => ({ id: n, type: n % 2 ? "premier" : "relance", propose: jour, statut: "envoye", envoye: jour, message_id: mid, objet });
+  const premierEpicerie = envoi(901, ilYaJours(5), `<premier-epicerie.${jeu}@taochyconsulting.fr>`, `Votre épicerie en ligne ${jeu}`);
+  // Le prospect de la fleuriste répond (In-Reply-To) à une relance partie le jour même de l'admin.
+  const midRelanceFleuriste = `<relance-fleuriste.${jeu}@taochyconsulting.fr>`;
+  ids["relance-fleuriste"] = midRelanceFleuriste;
+  const dateFleuriste = new Date(Date.now() - 5 * 60_000);
+  const relanceFleuriste = envoi(904, R.jourReunion(dateFleuriste), midRelanceFleuriste, `Vos bouquets en ligne ${jeu}`);
+  // Le traiteur : un envoi de l'admin d'avant la suppression de la copie cachée, donc aussi dans Gmail (même Message-ID).
+  const dateCopie = new Date(Date.now() - 10 * 60_000);
+  const midCopie = deposer("sent", { cle: "copie-traiteur", de: "Taochy Agency <contact@taochyagency.com>", a: TRAITEUR, objet: `Vos buffets ${jeu}`, ilYa: 10 * 60_000, entetes: "X-Mailer: PHPMailer 6.9", texte: "Bonjour, voici notre offre." });
+  const envoiTraiteur = envoi(905, R.jourReunion(dateCopie), midCopie, `Vos buffets ${jeu}`);
+
+  let imp = await importer([
+    prospect(`p-epicerie-${jeu}`, `Épicerie ${jeu}`, EPICERIE, [premierEpicerie]),
+    prospect(`p-fleuriste-${jeu}`, `Fleuriste ${jeu}`, FLEURISTE, [relanceFleuriste]),
+    prospect(`p-traiteur-${jeu}`, `Traiteur ${jeu}`, TRAITEUR, []),
+  ]);
+  ok(`premier import de prospects.json : ${imp.corps?.creees} fiches créées`, imp.statut === 200 && imp.corps?.creees === 3);
+  const ficheEpicerie = un(`select id from directory_entries where external_id = 'p-epicerie-${jeu}'`);
+  ok("l'import garde le message_id de chaque envoi (data.envois)", un(`select data->'envois'->0->>'messageId' from directory_entries where id = '${ficheEpicerie}'`) === premierEpicerie.message_id);
+
+  // Le prospect écrit (Gmail, reçu) ; Emmanuel lui répondra depuis l'admin : rien dans « Messages envoyés ».
+  deposer("inbox", { cle: "vitrine", de: `Nadia <${EPICERIE}>`, a: EM, objet: `Question sur la vitrine ${jeu}`, ilYa: 2 * JOUR, texte: "Bonjour, combien coûte la vitrine en ligne ?", vu: false });
+  deposer("inbox", { cle: "fleuriste-rep", de: `Lina <${FLEURISTE}>`, a: EM, objet: `Re: Vos bouquets en ligne ${jeu}`, ilYa: Date.now() - dateFleuriste.getTime(), reponseA: "relance-fleuriste", texte: "Bonjour, ça m'intéresse.", vu: false });
+  deposer("inbox", { cle: "traiteur-q", de: `Marc <${TRAITEUR}>`, a: EM, objet: `Une question ${jeu}`, ilYa: 5 * 60_000, texte: "Bonjour, faites-vous aussi les mariages ?", vu: false });
+  r = await gmail("synchroniserGmailMaintenant", undefined, cDir);
+  ok(`relevé : ${r.resultat?.message}`, r.resultat?.ok === true && /4 messages examinés, 4 gardés/.test(r.resultat.message));
+  ok("le message reçu garde les identifiants auxquels il répond (In-Reply-To)", un(`select meta->'reponseA'->>0 from directory_events where source = 'gmail' and title = 'Re: Vos bouquets en ligne ${jeu}'`) === midRelanceFleuriste.slice(1, -1));
+  ok("un envoi de l'admin plus ancien que le message reçu ne lève rien : « sans réponse »", attend(`Question sur la vitrine ${jeu}`) === "true|");
+  ok("même jour, mais le prospect répond à cet envoi (In-Reply-To) : toujours « sans réponse »", attend(`Re: Vos bouquets en ligne ${jeu}`) === "true|");
+  p = await page("/", cDir);
+  bloc = aRepondreComplet(p.html);
+  ok(
+    "« À répondre » : la ligne du prospect est là, « prospect qui a répondu » grâce à l'envoi de l'admin antérieur",
+    regle(`Question sur la vitrine ${jeu}`).urgence === "urgent" && regle(`Question sur la vitrine ${jeu}`).raison === "Prospect qui a répondu, sans réponse depuis plus de 24 h",
+  );
+  ok("… de même pour la réponse à la relance du jour (aucun e-mail d'Emmanuel dans le fil Gmail)", regle(`Re: Vos bouquets en ligne ${jeu}`).raison === "Prospect qui a répondu, reçu il y a moins de 24 h");
+
+  // Emmanuel répond depuis l'admin ; l'agent ventes le reporte (envois[] et historique), l'import l'apporte.
+  const reponseEpicerie = envoi(902, R.jourReunion(new Date()), `<reponse-epicerie.${jeu}@taochyconsulting.fr>`, `Re: Question sur la vitrine ${jeu}`);
+  const ligneAgent = `E-mail #902 (relance) envoyé par Emmanuel : « Re: Question sur la vitrine ${jeu} »`;
+  imp = await importer([
+    prospect(`p-epicerie-${jeu}`, `Épicerie ${jeu}`, EPICERIE, [premierEpicerie, reponseEpicerie], [{ date: reponseEpicerie.envoye, action: ligneAgent }]),
+    prospect(`p-fleuriste-${jeu}`, `Fleuriste ${jeu}`, FLEURISTE, [relanceFleuriste]),
+    prospect(`p-traiteur-${jeu}`, `Traiteur ${jeu}`, TRAITEUR, [envoiTraiteur]),
+  ]);
+  ok(`second import : ${imp.corps?.misesAJour} fiches mises à jour, aucune créée`, imp.statut === 200 && imp.corps?.misesAJour === 3 && imp.corps?.creees === 0);
+  ok("l'envoi de l'admin apporté par l'import lève « sans réponse » (date de réponse notée)", attend(`Question sur la vitrine ${jeu}`).startsWith("false|2"));
+  ok("la réponse du prospect à la relance du jour reste « sans réponse »", attend(`Re: Vos bouquets en ligne ${jeu}`) === "true|");
+  ok("envoi de l'admin déjà dans Gmail (copie cachée) : l'e-mail Gmail fait foi, plus ancien que la question → toujours « sans réponse »", attend(`Une question ${jeu}`) === "true|");
+  p = await page("/", cDir);
+  bloc = aRepondreComplet(p.html);
+  ok("« À répondre » : la ligne disparaît", !ligneEmail(bloc, `Question sur la vitrine ${jeu}`) && !bloc.archivees.some((l) => l.titre.includes(`Question sur la vitrine ${jeu}`)));
+  ok("… et les deux autres restent", Boolean(ligneEmail(bloc, `Re: Vos bouquets en ligne ${jeu}`) && ligneEmail(bloc, `Une question ${jeu}`)));
+  p = await page(`/contacts/${ficheEpicerie}`, cDir);
+  ok("frise : l'envoi de l'admin affiché une seule fois (ligne de l'agent ventes)", p.statut === 200 && texteHtml(p.visible).split(ligneAgent).length - 1 === 1);
 
   console.log("\n— droits —");
   for (const [qui, c] of [
@@ -673,7 +830,7 @@ try {
     r = await matin("marquerTraite", [`email:${filDe(`Rendez-vous jeudi ? ${jeu}`)}`], c);
     ok(`${qui} : « Traité » sur un e-mail refusé`, r.resultat?.ok !== true);
   }
-  ok("le secret et les e-mails sont toujours là après ces tentatives", un(`select count(*) from integrations where id='gmail'`) === "1" && evts().length === 10);
+  ok("le secret et les e-mails sont toujours là après ces tentatives", un(`select count(*) from integrations where id='gmail'`) === "1" && evts().length === 14);
   p = await page("/", cSoc);
   ok("pôle social : l'accueil ne montre aucun e-mail ni l'état de Gmail", p.statut === 200 && !p.html.includes(`Photos pour le site ${jeu}`) && !p.html.includes("Rendez-vous jeudi") && !p.visible.includes("Gmail n'est pas relié"));
   p = await page(`/contacts/${client}`, cSoc);
@@ -687,7 +844,7 @@ try {
 
   console.log("\n— déconnecter —");
   r = await gmail("deconnecterGmailAction", { effacer: false }, cDir);
-  ok("« Déconnecter » : mot de passe effacé, e-mails gardés", r.resultat?.ok === true && un(`select count(*) from integrations where id='gmail'`) === "0" && evts().length === 10);
+  ok("« Déconnecter » : mot de passe effacé, e-mails gardés", r.resultat?.ok === true && un(`select count(*) from integrations where id='gmail'`) === "0" && evts().length === 14);
   p = await page("/", cDir);
   ok("« Ce matin » dit que Gmail n'est pas relié (au lieu d'afficher zéro)", p.visible.includes("Gmail n&#x27;est pas relié") || p.visible.includes("Gmail n'est pas relié"));
   p = await page(`/contacts/${client}`, cDir);
@@ -716,6 +873,7 @@ try {
   sql(`delete from ce_matin_archives where key like 'email:%' and label like '%${jeu}%'`);
   sql(`delete from directory_entries where name like '%${jeu}%'`);
   sql(`delete from users where email like '%-${jeu}@exemple.test'`);
+  sql(`delete from api_keys where name = 'test gmail ${jeu}'`);
   sql(`delete from ce_matin_archives where key like 'email:g:ancien-%-${jeu}'`);
   sql(`delete from clients where name like '%${jeu}'`);
   sql(`delete from integrations where id='gmail' and account_id='${compte}'`);

@@ -183,6 +183,14 @@ jointes. Les règles (domaines grand public, messages automatiques, extrait,
 mots d'urgence) sont dans `src/lib/gmail-regles.ts` ; « sans réponse » dans
 `src/lib/gmail.ts` ; « urgent / peut attendre » dans `src/lib/ce-matin.ts`.
 
+Les e-mails envoyés depuis l'admin du site (taochyagency.com/admin/envois.php)
+n'arrivent plus dans Gmail (plus de copie cachée). Ils valent quand même
+réponse d'Emmanuel : l'import de `prospects.json` range les `envois[]` de
+l'agent ventes dans la fiche (`data.envois`, avec le `message_id`), et un envoi
+d'un jour postérieur à un e-mail reçu sur la même fiche (ou du même jour, sauf
+si l'e-mail reçu y répond) lève « sans réponse ». Règle : `envoiAnterieur` dans
+`gmail-regles.ts`.
+
 Rapprochement par la vraie contrepartie seulement : l'adresse From d'un message
 reçu (jamais Reply-To, les autres destinataires ni le corps), To et Cc d'un
 message envoyé. Tout message du dossier « Messages envoyés » est un envoi

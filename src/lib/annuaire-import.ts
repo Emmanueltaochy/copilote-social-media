@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { clients, contacts, db, directoryEntries, directoryEvents, users, type DirectoryEntry } from "@/db";
 import { cleEmail, cleNomVille, cleTexte, isStatut, type Source } from "@/lib/annuaire";
+import { recalculerSansReponse } from "@/lib/gmail";
 
 /*
  * L'import des fichiers de l'agent ventes dans l'annuaire.
@@ -159,7 +160,8 @@ function lireProspect(p: Brut): FicheImportee | null {
       noteAgent: txt(p.note),
       threadId: txt(p.thread_id),
       envois: Array.isArray(p.envois)
-        ? (p.envois as Brut[]).map((e) => ({ type: txt(e.type), statut: txt(e.statut), envoye: txt(e.envoye), objet: txt(e.objet) }))
+        ? // Le message_id sert à la règle « sans réponse » (envoiAnterieur, gmail-regles.ts).
+          (p.envois as Brut[]).map((e) => ({ type: txt(e.type), statut: txt(e.statut), envoye: txt(e.envoye), objet: txt(e.objet), messageId: txt(e.message_id) }))
         : [],
     },
     events,
@@ -421,6 +423,9 @@ export async function importer(corps: unknown, fichier: Fichier): Promise<BilanI
       bilan.erreurs.push(f.externalId);
     }
   }
+  // Les envois de l'admin (data.envois) valent réponse d'Emmanuel : « sans
+  // réponse » des e-mails Gmail est recalculé avec eux (lib/gmail.ts).
+  if (fichier === "prospects") await recalculerSansReponse();
   return bilan;
 }
 

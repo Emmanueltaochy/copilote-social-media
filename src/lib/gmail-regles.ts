@@ -316,10 +316,81 @@ export function cleDeFil(opts: { gmailThreadId?: string | null; references?: str
   return `m:${opts.empreinte(racine.toLowerCase()).slice(0, 24)}`;
 }
 
+/**
+ * Les messages auxquels celui-ci répond : In-Reply-To d'abord, puis References
+ * du plus récent au plus ancien. Sans chevrons, en minuscules, 20 au plus.
+ * Gardé dans le méta d'un e-mail (reponseA) pour la règle des envois de
+ * l'admin (envoiAnterieur, plus bas).
+ */
+export function identifiantsDeReponse(inReplyTo: string | null | undefined, references: string | null | undefined): string[] {
+  const tous = [...identifiants(inReplyTo), ...identifiants(references).reverse()].map((i) => i.toLowerCase());
+  return [...new Set(tous)].slice(0, 20);
+}
+
 /** « Ouvrir dans Gmail » : la recherche par Message-ID retrouve le message dans la boîte. */
 export function lienGmail(messageId: string | null | undefined): string | null {
   const id = sansChevrons(messageId);
   return id ? `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(id)}` : null;
+}
+
+/* ------------------------------ « sans réponse » : les envois de l'admin -- */
+
+/**
+ * Les e-mails qu'Emmanuel envoie aux prospects depuis l'admin du site
+ * (taochyagency.com/admin/envois.php) n'arrivent plus dans son Gmail : la
+ * copie cachée est supprimée (novembre 2026). Pilot les connaît autrement :
+ * l'agent ventes reporte chaque envoi dans prospects.json (`envois[]` de la
+ * fiche : statut « envoye », jour `envoye`, `message_id`), que l'import range
+ * dans la fiche (`data.envois`, lib/annuaire-import.ts).
+ *
+ * Règle : un envoi de l'admin vaut réponse d'Emmanuel, comme un e-mail du
+ * dossier « Messages envoyés ». Il lève « sans réponse » pour tout e-mail reçu
+ * sur la MÊME FICHE qui lui est antérieur.
+ *
+ *   - Rapprochement par la fiche (l'admin écrit à l'adresse de la fiche). Pas
+ *     par le fil : prospects.json ne garde pas l'In-Reply-To de l'envoi.
+ *   - L'agent ne date qu'au jour (heure de La Réunion). Un envoi d'un jour
+ *     postérieur au message reçu vaut réponse ; d'un jour antérieur, jamais.
+ *     Le même jour, il vaut réponse, sauf si le message reçu répond lui-même
+ *     à cet envoi (le message_id de l'envoi est dans son In-Reply-To ou ses
+ *     References) : c'est alors le prospect qui répond à Emmanuel.
+ *   - Un envoi dont le message_id est déjà dans Gmail (copie cachée d'avant
+ *     sa suppression) ne compte pas ici : l'e-mail Gmail, daté à la minute,
+ *     fait foi.
+ *
+ * Calcul en base : recalculerSansReponse (lib/gmail.ts) suit cette règle à
+ * la lettre, après chaque relevé Gmail et chaque import de prospects.json.
+ * envoiAnterieur() sert à « Ce matin » (prospect qui a répondu) et aux tests.
+ */
+export type EnvoiAdmin = { jour: string; messageId: string | null };
+
+/** Le jour (AAAA-MM-JJ) à La Réunion : UTC+4 toute l'année, sans heure d'été. */
+export function jourReunion(d: Date): string {
+  return new Date(d.getTime() + 4 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** Les envois partis de l'admin d'après le `data` d'une fiche : statut « envoye » et jour lisible. */
+export function envoisAdmin(data: unknown): EnvoiAdmin[] {
+  const liste = (data as { envois?: unknown } | null)?.envois;
+  if (!Array.isArray(liste)) return [];
+  return liste.flatMap((e) => {
+    const x = (e ?? {}) as Record<string, unknown>;
+    const jour = typeof x.envoye === "string" ? x.envoye.trim() : "";
+    if (x.statut !== "envoye" || !/^\d{4}-\d{2}-\d{2}$/.test(jour)) return [];
+    const mid = typeof x.messageId === "string" ? sansChevrons(x.messageId).toLowerCase() : "";
+    return [{ jour, messageId: mid || null }];
+  });
+}
+
+/**
+ * L'envoi est-il antérieur au message reçu (le contact écrit après lui) ?
+ * Sinon, il vaut réponse d'Emmanuel à ce message (règle ci-dessus).
+ */
+export function envoiAnterieur(recu: { at: Date; reponseA?: string[] | null }, envoi: EnvoiAdmin): boolean {
+  const jour = jourReunion(recu.at);
+  if (envoi.jour !== jour) return envoi.jour < jour;
+  const mid = sansChevrons(envoi.messageId).toLowerCase();
+  return Boolean(mid) && (recu.reponseA ?? []).some((r) => sansChevrons(r).toLowerCase() === mid);
 }
 
 /* --------------------------------------------------------------- extrait -- */

@@ -23,7 +23,7 @@ import { abbyRaccorde, devisSignesNonFactures, facturesEnAttente, type AbbyDoc }
 import { cleEmail, cleTexte, jourRelatif } from "@/lib/annuaire";
 import { canSeeEmails, canSeeMoney, departmentsOf } from "@/lib/auth";
 import { etatGmail } from "@/lib/gmail";
-import { motUrgent } from "@/lib/gmail-regles";
+import { envoiAnterieur, envoisAdmin, motUrgent } from "@/lib/gmail-regles";
 import type { User } from "@/db";
 import { empreinteCarte, etatPaiement, raisonsCarte, REGLES_TRELLO } from "@/lib/etape3-regles";
 import { cartesTrello, etatTrello } from "@/lib/trello";
@@ -70,12 +70,20 @@ import { jourCourt, heureDite, RELANCE_TOURNAGE_JOURS } from "@/lib/tournages-re
  *   par le client n'est pas encore marquée « Je suis prêt ». La ligne
  *   disparaît d'elle-même quand toutes les vidéos sont prêtes ou que le
  *   tournage commence (règle aRelancer dans tournages-regles.ts).
+ * - Un e-mail reçu (Gmail) est « sans réponse » tant qu'Emmanuel n'a rien
+ *   envoyé après lui : un e-mail du dossier « Messages envoyés » (même fil ou
+ *   même adresse), ou un envoi de l'admin du site connu par l'import de
+ *   l'agent ventes (prospects.json, `envois[]`) sur la même fiche, d'un jour
+ *   postérieur — ou du même jour, sauf si le message reçu répond à cet envoi.
+ *   Règle complète : envoiAnterieur dans gmail-regles.ts ; calcul en base
+ *   dans recalculerSansReponse (lib/gmail.ts).
  * - Un e-mail sans réponse (Gmail) est **urgent** — à condition que son
  *   expéditeur From soit l'adresse même qui le relie à la fiche (jamais un
  *   Reply-To, un autre destinataire ou une adresse citée) :
  *     · s'il vient d'un client sous contrat (compte client actif) ou d'un
- *       prospect qui a répondu (à un e-mail d'Emmanuel dans le même fil, ou
- *       fiche à l'étape « a répondu », « rendez-vous » ou « devis ») et
+ *       prospect qui a répondu (à un e-mail d'Emmanuel dans le même fil, à
+ *       un envoi de l'admin antérieur sur sa fiche, ou fiche à l'étape
+ *       « a répondu », « rendez-vous » ou « devis ») et
  *       attend depuis plus de 24 heures ;
  *     · ou si son objet ou son extrait contient un mot d'urgence ou d'argent
  *       (urgent, problème, bug, panne, facture, paiement, devis, rendez-vous,
@@ -339,6 +347,7 @@ async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
       nom: directoryEntries.name,
       kind: directoryEntries.kind,
       status: directoryEntries.status,
+      data: directoryEntries.data,
       clientId: directoryEntries.clientId,
       client: clients.shortName,
       clientActif: clients.active,
@@ -371,7 +380,7 @@ async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
 
   const lignes: LigneMatin[] = [];
   for (const [fil, r] of parFil) {
-    const meta = r.meta as { de?: { nom?: string | null; email?: string } | null; messageId?: string | null; contact?: string | null };
+    const meta = r.meta as { de?: { nom?: string | null; email?: string } | null; messageId?: string | null; contact?: string | null; reponseA?: string[] };
     const age = now.getTime() - r.at.getTime();
     const vieux = age > REGLES.emailUrgentApresHeures * HEURE;
     // L'expéditeur From est-il bien l'adresse qui a relié le message à cette
@@ -379,7 +388,10 @@ async function emailsSansReponse(now: Date): Promise<LigneMatin[]> {
     // ni un mot d'urgence).
     const deLaFiche = Boolean(meta.de?.email && meta.contact && cleEmail(meta.de.email) === cleEmail(meta.contact));
     const sousContrat = deLaFiche && Boolean(r.clientId && r.clientActif && !r.clientArchive);
-    const prospectRepondu = deLaFiche && !r.clientId && r.kind === "prospect" && (avecEnvoi.has(fil) || ["repondu", "rdv", "devis"].includes(r.status ?? ""));
+    // Emmanuel avait écrit avant : dans le fil (Gmail) ou depuis l'admin du
+    // site (envoi connu par l'import de l'agent ventes, sur la fiche).
+    const apresEnvoi = avecEnvoi.has(fil) || envoisAdmin(r.data).some((v) => envoiAnterieur({ at: r.at, reponseA: meta.reponseA }, v));
+    const prospectRepondu = deLaFiche && !r.clientId && r.kind === "prospect" && (apresEnvoi || ["repondu", "rdv", "devis"].includes(r.status ?? ""));
     // Un client ou un prospect connu : seul cas où un mot d'urgence compte.
     const connu = deLaFiche && (Boolean(r.clientId) || r.kind === "prospect");
     const motTrouve = motUrgent(`${r.objet} ${r.extrait ?? ""}`);

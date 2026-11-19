@@ -14,6 +14,7 @@ import {
   estDomaineEmmanuel,
   estDomainePublic,
   extrait,
+  identifiantsDeReponse,
   lienGmail,
   lireEnTetes,
   messageTransactionnel,
@@ -603,10 +604,11 @@ async function traiter(
 
   const messageId = sansChevrons(env.messageId) || null;
   const references = (enTetes.get("references") ?? []).join(" ");
+  const inReplyTo = env.inReplyTo ?? (enTetes.get("in-reply-to") ?? [])[0] ?? null;
   const fil = cleDeFil({
     gmailThreadId: m.threadId ?? null,
     references,
-    inReplyTo: env.inReplyTo ?? (enTetes.get("in-reply-to") ?? [])[0] ?? null,
+    inReplyTo,
     messageId: messageId ?? `${dossier}-${m.uid}`,
     empreinte: (s) => createHash("sha256").update(s).digest("hex"),
   });
@@ -635,6 +637,8 @@ async function traiter(
           destinataires: destinataires.slice(0, 50),
           messageId,
           fil,
+          // Les messages auxquels il répond (règle des envois de l'admin, gmail-regles.ts).
+          reponseA: identifiantsDeReponse(inReplyTo, references),
           lien: lienGmail(messageId),
           pj: { n: pj.length, noms: pj.slice(0, 10) },
           dossier,
@@ -649,36 +653,61 @@ async function traiter(
 
 /**
  * « Sans réponse », par fil : le dernier message reçu d'un fil attend une
- * réponse tant qu'aucun message envoyé n'est plus récent, ni dans le même fil,
- * ni à cette adresse. Quand une réponse part, `done_at` prend sa date.
+ * réponse tant qu'Emmanuel n'a rien envoyé après lui. Vaut réponse :
+ *   - un e-mail du dossier « Messages envoyés » plus récent, dans le même fil
+ *     ou à l'adresse de l'expéditeur ;
+ *   - un envoi de l'admin du site connu par l'import de l'agent ventes
+ *     (data.envois de la fiche), postérieur au message sur la même fiche :
+ *     règle écrite en clair dans gmail-regles.ts (envoiAnterieur), suivie ici
+ *     à la lettre — jour de La Réunion, même jour sauf si le message reçu
+ *     répond à cet envoi, envoi déjà vu dans Gmail ignoré.
+ * Quand une réponse part, `done_at` prend sa date (pour un envoi de l'admin,
+ * daté au jour : midi à La Réunion, jamais avant le message reçu).
+ *
+ * Appelé après chaque relevé Gmail et chaque import de prospects.json.
  */
 export async function recalculerSansReponse() {
   await db.execute(sql`
-    with calc as (
+    with envois as (
+      select f.id as entry_id,
+        (x->>'envoye')::date as jour,
+        lower(trim(both '<>' from coalesce(x->>'messageId', ''))) as mid
+      from ${directoryEntries} f
+      cross join lateral jsonb_array_elements(case when jsonb_typeof(f.data->'envois') = 'array' then f.data->'envois' else '[]'::jsonb end) x
+      where x->>'statut' = 'envoye' and coalesce(x->>'envoye', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    ),
+    envois_hors_gmail as materialized (
+      select v.* from envois v
+      where v.mid = '' or not exists (
+        select 1 from ${directoryEvents} g
+        where g.source = 'gmail' and g.kind = 'email_sortant' and lower(g.external_id) = v.mid)
+    ),
+    calc as (
       select e.id,
         (e.kind = 'email_entrant'
           and not exists (
             select 1 from ${directoryEvents} r
             where r.source = 'gmail' and r.kind = 'email_entrant'
               and r.meta->>'fil' = e.meta->>'fil' and r.occurred_at > e.occurred_at)
-          and not exists (
-            select 1 from ${directoryEvents} s
+        ) as dernier,
+        case when e.kind = 'email_entrant' then least(
+          (select min(s.occurred_at) from ${directoryEvents} s
             where s.source = 'gmail' and s.kind = 'email_sortant' and s.occurred_at > e.occurred_at
-              and (s.meta->>'fil' = e.meta->>'fil' or (s.meta->'destinataires') ? (e.meta->'de'->>'email')))
-        ) as attend,
-        case when e.kind = 'email_entrant' then (
-          select min(s.occurred_at) from ${directoryEvents} s
-          where s.source = 'gmail' and s.kind = 'email_sortant' and s.occurred_at > e.occurred_at
-            and (s.meta->>'fil' = e.meta->>'fil' or (s.meta->'destinataires') ? (e.meta->'de'->>'email'))
+              and (s.meta->>'fil' = e.meta->>'fil' or (s.meta->'destinataires') ? (e.meta->'de'->>'email'))),
+          (select min(greatest(e.occurred_at, (v.jour + time '08:00') at time zone 'UTC')) from envois_hors_gmail v
+            where v.entry_id = e.entry_id
+              and (v.jour > (e.occurred_at at time zone 'Indian/Reunion')::date
+                or (v.jour = (e.occurred_at at time zone 'Indian/Reunion')::date
+                  and not (v.mid <> '' and coalesce(e.meta->'reponseA', '[]'::jsonb) ? v.mid))))
         ) end as repondu
       from ${directoryEvents} e
       where e.source = 'gmail'
     )
     update ${directoryEvents} d
-    set awaiting_reply = calc.attend, done_at = calc.repondu
+    set awaiting_reply = (calc.dernier and calc.repondu is null), done_at = calc.repondu
     from calc
     where d.id = calc.id
-      and (d.awaiting_reply is distinct from calc.attend or d.done_at is distinct from calc.repondu)
+      and (d.awaiting_reply is distinct from (calc.dernier and calc.repondu is null) or d.done_at is distinct from calc.repondu)
   `);
 }
 
