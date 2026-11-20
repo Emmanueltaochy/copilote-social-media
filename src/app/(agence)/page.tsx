@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { CeMatin } from "@/components/home/CeMatin";
 import { ceMatin } from "@/lib/ce-matin";
+import { encartRevenu } from "@/lib/revenu";
 import { coversFor, listAwaitingApproval, listClientsWithPace } from "@/db/queries";
 import { missedRecently, publishedThisMonth, shootsSoon, teamActivity, upNext, weekAhead } from "@/db/home-queries";
 import { ScopeNotice } from "@/components/shell/ScopeNotice";
@@ -50,6 +51,8 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
   // « Ce matin » : l'argent ne se charge que pour qui peut le voir, et les
   // lignes marquées « Traité » sont rangées à part.
   const matin = await ceMatin(user, now, scopeId);
+  // Le revenu mensuel (GoCardless) : direction seulement, lu en base.
+  const revenu = user.role === "direction" && !scopeId ? await encartRevenu(now) : null;
   const covers = await coversFor([...next.map((c) => c.id), ...approvals.map((a) => a.content.id)]);
 
   const scopeName = scopeId ? (portfolio.find((c) => c.id === scopeId)?.shortName ?? null) : null;
@@ -132,6 +135,7 @@ export default async function AujourdhuiPage({ searchParams }: { searchParams: P
             label={`client${late.length > 1 ? "s" : ""} en retard ou à risque sur ${engages.length}`}
           />
           <Stat icon="calendar" value={`${thisWeek}`} href="/calendrier" label="contenus prévus sur 7 jours" />
+          {revenu ? <RevenuStat revenu={revenu} /> : null}
         </div>
         <Link
           href="/contenu"
@@ -424,6 +428,30 @@ function Stat({ icon, value, label, href, tone }: { icon: "send" | "gauge" | "ca
   );
 }
 
+
+/** Direction : le revenu mensuel prélevé et l'objectif, une ligne qui mène à la page. */
+function RevenuStat({ revenu }: { revenu: { montant: string; detail: string; pourcentage: number; ht: boolean } }) {
+  return (
+    <Link href="/revenu" className="flex min-h-11 items-center gap-3 rounded-full text-ink no-underline hover:no-underline" data-encart-revenu>
+      <span
+        className="flex h-11 w-11 flex-none items-center justify-center rounded-full border border-line bg-paper text-ink shadow-soft"
+        style={{ background: `conic-gradient(var(--c-gold) ${Math.min(100, revenu.pourcentage) * 3.6}deg, var(--c-slot) 0deg)` }}
+        aria-hidden
+      >
+        <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-paper">
+          <Icon name="euro" size={16} />
+        </span>
+      </span>
+      <span className="flex flex-col">
+        <span className="text-[22px] leading-tight font-bold tracking-[-0.02em] tabular-nums">{revenu.montant}</span>
+        <span className="max-w-[280px] text-small leading-tight text-ink-3">
+          revenu mensuel{revenu.ht ? " HT" : ""} · {revenu.detail.split(" · ")[0]}
+          <span className="block">{revenu.detail.split(" · ").slice(1).join(" · ")}</span>
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 function Legend({ cls, label }: { cls: string; label: string }) {
   return (

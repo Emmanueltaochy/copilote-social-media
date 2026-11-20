@@ -1303,6 +1303,12 @@ export const settings = pgTable("settings", {
    * quoi la réencoder, et une vidéo déjà montée n'a pas à l'être.
    */
   portalVideoPath: text("portal_video_path"),
+  /**
+   * L'objectif de revenu mensuel et ses paliers (page « Revenu mensuel ») :
+   * { objectifCents, paliers: [{ montantCents, libelle }], tauxTva, base }.
+   * Vide = les valeurs par défaut (src/lib/revenu-regles.ts).
+   */
+  revenueGoal: jsonb("revenue_goal").$type<Record<string, unknown>>().notNull().default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

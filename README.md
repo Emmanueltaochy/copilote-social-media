@@ -88,6 +88,7 @@ typographique à 6 tailles, rayons) sont déclarés dans le bloc `@theme` de
 | `/clients` | Portefeuille : contrats, rythme du mois, accès portail |
 | `/contacts` | Annuaire unique (clients, prospects, Swap'Îles) et fiche complète par contact |
 | `/rentabilite` | Rentabilité et arbitrages |
+| `/revenu` | Revenu mensuel (prélèvements GoCardless), objectif et fuites — direction |
 
 Le **portail client** s'ouvre depuis le bas de la barre latérale : mêmes
 chiffres, aucun rouage interne, échelle typographique plus large.
@@ -232,6 +233,18 @@ GET partent (`src/lib/releves.ts`).
 Règles de « Ce matin » écrites en tête de `src/lib/ce-matin.ts`. Vérification
 locale contre de faux serveurs (le script démarre lui-même Pilot) :
 `scripts/test-etape3.mjs` (`CAPTURES=dossier` pour les captures Playwright).
+
+### Revenu mensuel (prélèvements GoCardless)
+
+Page `/revenu` (Plus → Direction, direction seulement) et encart sur l'accueil.
+Lue dans ce que le relevé GoCardless garde (`releves.donnees.revenu`, avec les
+événements d'arrêt des abonnements et des mandats, toujours en GET) : la page
+n'appelle jamais GoCardless. Revenu mensuel = abonnements actifs ramenés au
+mois (hebdomadaire × 52 / 12, annuel ÷ 12, `interval` pris en compte) ; hors
+taxes estimé au taux réglé (8,5 % par défaut), ou au taux noté dans les
+métadonnées de l'abonnement. Objectif, paliers et TVA dans `settings.revenue_goal`
+(migration 0035 additive). Règles dans `src/lib/revenu-regles.ts` ; vérification
+locale : `scripts/test-revenu.mjs` (`CAPTURES=dossier` pour les captures).
 
 ### Clés enregistrées : toutes chiffrées
 

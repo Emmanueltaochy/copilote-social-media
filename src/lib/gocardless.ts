@@ -2,6 +2,7 @@ import "server-only";
 
 import { cleEmail } from "@/lib/annuaire";
 import { etatPaiement, parNom } from "@/lib/etape3-regles";
+import { jourReunion, type DonneesRevenu } from "@/lib/revenu-regles";
 import {
   DUREE_MAX_MS,
   adressesConnues,
@@ -44,6 +45,14 @@ import { forgetSecret, getSecretChiffre, noterErreur, setSecretChiffre } from "@
  * par paiement des 13 derniers mois (directory_events, source « gocardless »).
  * Pour un client sans fiche : son nom, son e-mail et le nombre de paiements
  * en échec, pour pouvoir le relier.
+ *
+ * Pour la page « Revenu mensuel » (src/lib/revenu.ts), le même relevé garde
+ * aussi, pour TOUS les clients (avec ou sans fiche), un résumé des
+ * abonnements, mandats et paiements dans releves.donnees.revenu, et lit les
+ * événements d'arrêt des abonnements et des mandats (annulé, terminé, mis en
+ * pause) des 13 derniers mois : c'est la seule façon de savoir QUAND un
+ * abonnement s'est arrêté. Toujours en GET ; si ces événements ne peuvent
+ * pas être lus, la page le dit et estime la date.
  */
 
 const ID = "gocardless";
@@ -85,8 +94,10 @@ type AbonnementGc = {
   end_date?: string | null;
   created_at: string;
   upcoming_payments?: { charge_date: string; amount: number }[];
+  metadata?: Record<string, string> | null;
   links: { mandate: string };
 };
+type EvenementGc = { id: string; created_at: string; action: string; resource_type: string; links: { subscription?: string; mandate?: string } };
 type PaiementGc = {
   id: string;
   status: string;
@@ -159,6 +170,22 @@ export async function releverGoCardless(): Promise<{ etat: "fait"; bilan: BilanG
     const abonnements = await liste<AbonnementGc>(jeton, env, "subscriptions");
     if (Date.now() - debut > DUREE_MAX_MS) throw new Error("Relevé GoCardless trop long : il reprendra au prochain passage.");
     const paiements = await liste<PaiementGc>(jeton, env, "payments", { "created_at[gte]": depuis });
+    // Les arrêts d'abonnements et de mandats (pour dater le revenu perdu).
+    // Une erreur ici ne fait pas échouer le relevé : la page « Revenu
+    // mensuel » estimera ces dates, et le dira.
+    let evenements: EvenementGc[] = [];
+    let evenementsLus = false;
+    if (Date.now() - debut < DUREE_MAX_MS) {
+      try {
+        evenements = [
+          ...(await liste<EvenementGc>(jeton, env, "events", { resource_type: "subscriptions", "created_at[gte]": depuis }, 10)),
+          ...(await liste<EvenementGc>(jeton, env, "events", { resource_type: "mandates", "created_at[gte]": depuis }, 10)),
+        ];
+        evenementsLus = true;
+      } catch (e) {
+        console.warn("[pilot] relevé GoCardless, événements non lus :", (e as Error).message);
+      }
+    }
 
     // Le rapprochement : lien manuel, puis e-mail, puis nom d'entreprise.
     const [adresses, noms, liens] = await Promise.all([adressesConnues(), candidats(), liensManuels()]);
@@ -263,8 +290,9 @@ export async function releverGoCardless(): Promise<{ etat: "fait"; bilan: BilanG
       abonnements: abonnements.length,
       paiements: paiements.length,
     };
+    const revenu = resumeRevenu({ env, depuis, clientsGc, mandats, abonnements, paiements, evenements, evenementsLus, ficheDuClientGc });
     const maintenant = new Date();
-    await majReleve(ID, { lastRunAt: maintenant, lastSuccessAt: maintenant, lastError: null, lastResult: bilan as unknown as Record<string, unknown>, donnees: { sansFiche } as unknown as Record<string, unknown> });
+    await majReleve(ID, { lastRunAt: maintenant, lastSuccessAt: maintenant, lastError: null, lastResult: bilan as unknown as Record<string, unknown>, donnees: { sansFiche, revenu } as unknown as Record<string, unknown> });
     await noterErreur(ID, null, maintenant);
     return { etat: "fait", bilan };
   } catch (e) {
@@ -276,6 +304,87 @@ export async function releverGoCardless(): Promise<{ etat: "fait"; bilan: BilanG
   } finally {
     await rendreBail(ID).catch(() => undefined);
   }
+}
+
+/**
+ * Le résumé gardé pour la page « Revenu mensuel » : tous les abonnements,
+ * mandats et paiements relevés (avec ou sans fiche), réduits à ce qui sert au
+ * calcul. Aucune coordonnée bancaire.
+ */
+function resumeRevenu(x: {
+  env: Environnement;
+  depuis: string;
+  clientsGc: ClientGc[];
+  mandats: MandatGc[];
+  abonnements: AbonnementGc[];
+  paiements: PaiementGc[];
+  evenements: EvenementGc[];
+  evenementsLus: boolean;
+  ficheDuClientGc: Map<string, { entryId: string }>;
+}): DonneesRevenu {
+  const clientDuMandat = new Map(x.mandats.map((m) => [m.id, m.links.customer]));
+  // Le dernier arrêt connu de chaque abonnement et de chaque mandat.
+  const ARRETS = new Set(["cancelled", "finished", "paused", "expired", "failed", "blocked"]);
+  const arrets = new Map<string, string>();
+  for (const e of x.evenements) {
+    const id = e.resource_type === "subscriptions" ? e.links.subscription : e.links.mandate;
+    if (!id || !ARRETS.has(e.action)) continue;
+    const jour = jourReunion(e.created_at);
+    if ((arrets.get(id) ?? "") < jour) arrets.set(id, jour);
+  }
+  const tva = (m: AbonnementGc["metadata"]): number | null => {
+    for (const [k, v] of Object.entries(m ?? {})) {
+      if (!/^(tva|taux_?tva|vat|vat_?rate|tax_?rate)$/i.test(k)) continue;
+      const n = Number(String(v).replace("%", "").replace(",", ".").trim());
+      if (Number.isFinite(n) && n >= 0 && n <= 30) return n;
+    }
+    return null;
+  };
+  const utiles = new Set([...x.abonnements.map((a) => clientDuMandat.get(a.links.mandate) ?? ""), ...x.mandats.map((m) => m.links.customer)]);
+  return {
+    version: 1,
+    le: new Date().toISOString(),
+    environnement: x.env,
+    depuis: x.depuis,
+    evenementsLus: x.evenementsLus,
+    abonnements: x.abonnements.map((a) => ({
+      id: a.id,
+      nom: (a.name?.trim() || "Abonnement GoCardless").slice(0, 120),
+      statut: a.status,
+      montantCents: a.amount,
+      devise: a.currency,
+      intervalle: a.interval ?? 1,
+      unite: a.interval_unit,
+      debut: jourReunion(a.created_at),
+      premierPrelevement: a.start_date ?? null,
+      finPrevue: a.end_date ?? null,
+      arret: arrets.get(a.id) ?? null,
+      client: clientDuMandat.get(a.links.mandate) ?? "",
+      mandat: a.links.mandate,
+      tauxTva: tva(a.metadata),
+      aVenir: (a.upcoming_payments ?? []).slice(0, 10).map((p) => ({ date: p.charge_date, montantCents: p.amount })),
+    })),
+    paiements: x.paiements.map((p) => ({
+      id: p.id,
+      statut: p.status,
+      montantCents: p.amount,
+      devise: p.currency,
+      date: p.charge_date,
+      abonnement: p.links.subscription ?? null,
+      mandat: p.links.mandate,
+      client: clientDuMandat.get(p.links.mandate) ?? "",
+      libelle: (p.description?.trim() || p.reference?.trim() || "Prélèvement GoCardless").slice(0, 120),
+    })),
+    mandats: x.mandats.map((m) => ({
+      id: m.id,
+      statut: m.status,
+      client: m.links.customer,
+      creeLe: jourReunion(m.created_at),
+      annuleLe: arrets.get(m.id) ?? null,
+      reference: m.reference ?? null,
+    })),
+    clients: x.clientsGc.filter((c) => utiles.has(c.id)).map((c) => ({ id: c.id, nom: nomClient(c).slice(0, 160), entryId: x.ficheDuClientGc.get(c.id)?.entryId ?? null })),
+  };
 }
 
 /* ------------------------------------------------------------ lectures -- */

@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "revenue_goal" jsonb DEFAULT '{}'::jsonb NOT NULL;

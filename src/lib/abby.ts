@@ -220,6 +220,14 @@ export async function facturesEnAttente(): Promise<AbbyDoc[]> {
 }
 
 /**
+ * Les factures finalisées ou payées (500 au plus, les plus récentes d'Abby),
+ * pour repérer les clients facturés tous les mois (page « Revenu mensuel »).
+ */
+export async function facturesRecentes(): Promise<AbbyDoc[]> {
+  return memo("factures-recentes", () => billings({ type: ["invoice"], state: ["finalized", "paid"] }));
+}
+
+/**
  * Les devis signés depuis un an qui n'ont pas encore de facture finale.
  *
  * La liste d'Abby ne dit pas si un devis a été facturé : il faut ouvrir chaque

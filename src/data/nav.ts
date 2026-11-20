@@ -64,6 +64,7 @@ export const NAV_MORE: NavItem[] = [
   { group: "Outils", label: "Terrain", href: "/terrain", icon: "phone", hint: "La version téléphone pour les tournages" },
   { group: "Outils", label: "Mes heures", href: "/heures", icon: "clock", hint: "Saisie de la semaine" },
   { group: "Direction", label: "Rentabilité", href: "/rentabilite", icon: "euro", directionOnly: true, hint: "Forfaits, heures et marges" },
+  { group: "Direction", label: "Revenu mensuel", href: "/revenu", icon: "activity", directionOnly: true, hint: "Prélèvements GoCardless, objectif et fuites" },
   { group: "Direction", label: "Équipe", href: "/equipe", icon: "users", directionOnly: true, hint: "Accès, rôles et invitations" },
   { group: "Direction", label: "Réglages", href: "/reglages", icon: "settings", directionOnly: true, hint: "Metricool, Gmail, Abby, agence, portail" },
 ];
